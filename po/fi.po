@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gawk 4.1.0b\n"
 "Report-Msgid-Bugs-To: arnold@skeeve.com\n"
-"POT-Creation-Date: 2014-04-08 19:23+0300\n"
+"POT-Creation-Date: 2017-01-16 13:27+0900\n"
 "PO-Revision-Date: 2014-01-16 13:32+0200\n"
 "Last-Translator: Jorma Karvonen <karvonen.jorma@gmail.com>\n"
 "Language-Team: Finnish <translation-team-fi@lists.sourceforge.net>\n"
@@ -1822,8 +1822,8 @@ msgstr "”return” ei ole sallittu nykyisessä asiayhteydessä; lause ohitetaa
 msgid "No symbol `%s' in current context"
 msgstr "Symbolia ”%s” ei ole nykyisesssä asiayhteydessä"
 
-#: dfa.c:1118 dfa.c:1121 dfa.c:1142 dfa.c:1150 dfa.c:1162 dfa.c:1197
-#: dfa.c:1206 dfa.c:1209 dfa.c:1214 dfa.c:1228 dfa.c:1275
+#: dfa.c:1118 dfa.c:1121 dfa.c:1142 dfa.c:1150 dfa.c:1162 dfa.c:1197 dfa.c:1206
+#: dfa.c:1209 dfa.c:1214 dfa.c:1228 dfa.c:1275
 msgid "unbalanced ["
 msgstr "pariton ["
 
@@ -2614,295 +2614,295 @@ msgstr "%s: valitsin ’-W %s’ ei salli argumenttia\n"
 msgid "%s: option '-W %s' requires an argument\n"
 msgstr "%s: valitsin ’-W %s’ vaatii argumentin\n"
 
-#: io.c:392
+#: io.c:400
 #, c-format
 msgid "command line argument `%s' is a directory: skipped"
 msgstr "komentoriviargumentti ”%s” on hakemisto: ohitettiin"
 
-#: io.c:395 io.c:513
+#: io.c:403 io.c:521
 #, c-format
 msgid "cannot open file `%s' for reading (%s)"
 msgstr "tiedoston ”%s” avaaminen lukemista varten (%s) epäonnistui"
 
-#: io.c:640
+#: io.c:648
 #, c-format
 msgid "close of fd %d (`%s') failed (%s)"
 msgstr "tiedostomäärittelijän %d (”%s”) sulkeminen epäonnistui (%s)"
 
-#: io.c:716
+#: io.c:724
 msgid "redirection not allowed in sandbox mode"
 msgstr "edelleenohjaus ei ole sallittua hiekkalaatikkotilassa"
 
-#: io.c:750
+#: io.c:758
 #, c-format
 msgid "expression in `%s' redirection only has numeric value"
 msgstr "lausekkeella ”%s”-uudellenohjauksessa on vain numeerinen arvo"
 
-#: io.c:756
+#: io.c:764
 #, c-format
 msgid "expression for `%s' redirection has null string value"
 msgstr "lausekkeella ”%s”-uudelleenohjauksessa on null-merkkijonoarvo"
 
-#: io.c:761
+#: io.c:769
 #, c-format
 msgid "filename `%s' for `%s' redirection may be result of logical expression"
 msgstr ""
 "tiedostonimi ”%s” ”%s”-uudelleenohjaukselle saattaa olla loogisen lausekkeen "
 "tulos"
 
-#: io.c:809
+#: io.c:817
 #, c-format
 msgid "unnecessary mixing of `>' and `>>' for file `%.*s'"
 msgstr "turha merkkien ”>” ja ”>>” sekoittaminen tiedostolle ”%.*s”"
 
-#: io.c:863
+#: io.c:871
 #, c-format
 msgid "can't open pipe `%s' for output (%s)"
 msgstr "putken ”%s” avaaminen tulosteelle (%s) epäonnistui"
 
-#: io.c:873
+#: io.c:881
 #, c-format
 msgid "can't open pipe `%s' for input (%s)"
 msgstr "putken ”%s” avaaminen syötteelle (%s) epäonnistui"
 
-#: io.c:904
+#: io.c:912
 #, c-format
 msgid "can't open two way pipe `%s' for input/output (%s)"
 msgstr ""
 "kaksisuuntaisen putken ”%s” avaaminen syötteelle/tulosteelle (%s) epäonnistui"
 
-#: io.c:986
+#: io.c:994
 #, c-format
 msgid "can't redirect from `%s' (%s)"
 msgstr "uudelleenohjaus putkesta ”%s” (%s) epäonnistui"
 
-#: io.c:989
+#: io.c:997
 #, c-format
 msgid "can't redirect to `%s' (%s)"
 msgstr "uudelleenohjaus putkeen ”%s” (%s) epäonnistui"
 
-#: io.c:1040
+#: io.c:1048
 msgid ""
 "reached system limit for open files: starting to multiplex file descriptors"
 msgstr ""
 "saavutettiin avoimien tiedostojen järjestelmäraja: aloitetaan "
 "tiedostomäärittelijöiden lomittaminen"
 
-#: io.c:1056
+#: io.c:1064
 #, c-format
 msgid "close of `%s' failed (%s)."
 msgstr "uudelleenohjauksen ”%s” sulkeminen epäonnistui (%s)."
 
-#: io.c:1064
+#: io.c:1072
 msgid "too many pipes or input files open"
 msgstr "avoinna liian monta putkea tai syötetiedostoa"
 
-#: io.c:1086
+#: io.c:1094
 msgid "close: second argument must be `to' or `from'"
 msgstr "close: toisen argumentin on oltava ”to” tai ”from”"
 
-#: io.c:1103
+#: io.c:1111
 #, c-format
 msgid "close: `%.*s' is not an open file, pipe or co-process"
 msgstr "close: ”%.*s” ei ole avoin tiedosto, putki tai apuprosessi"
 
-#: io.c:1108
+#: io.c:1116
 msgid "close of redirection that was never opened"
 msgstr "suljettiin uudelleenohjaus, jota ei avattu koskaan"
 
-#: io.c:1205
+#: io.c:1213
 #, c-format
 msgid "close: redirection `%s' not opened with `|&', second argument ignored"
 msgstr ""
 "close: uudelleenohjaus ”%s” ei ole avattu operaattoreilla ”|&”, toinen "
 "argumentti ohitettu"
 
-#: io.c:1222
+#: io.c:1230
 #, c-format
 msgid "failure status (%d) on pipe close of `%s' (%s)"
 msgstr "virhetila (%d) putken ”%s” sulkemisessa (%s)"
 
-#: io.c:1225
+#: io.c:1233
 #, c-format
 msgid "failure status (%d) on file close of `%s' (%s)"
 msgstr "virhetila (%d) tiedoston ”%s” sulkemisessa (%s)"
 
-#: io.c:1245
+#: io.c:1253
 #, c-format
 msgid "no explicit close of socket `%s' provided"
 msgstr "pistokkeen ”%s” eksplisiittistä sulkemista ei tarjota"
 
-#: io.c:1248
+#: io.c:1256
 #, c-format
 msgid "no explicit close of co-process `%s' provided"
 msgstr "apuprosessin ”%s” eksplisiittistä sulkemista ei tarjota"
 
-#: io.c:1251
+#: io.c:1259
 #, c-format
 msgid "no explicit close of pipe `%s' provided"
 msgstr "putken ”%s” eksplisiittistä sulkemista ei tarjota"
 
-#: io.c:1254
+#: io.c:1262
 #, c-format
 msgid "no explicit close of file `%s' provided"
 msgstr "tiedoston ”%s” eksplisiittistä sulkemista ei tarjota"
 
-#: io.c:1284 io.c:1342 main.c:864 main.c:906
+#: io.c:1292 io.c:1350 main.c:864 main.c:906
 #, c-format
 msgid "error writing standard output (%s)"
 msgstr "virhe kirjoitettaessa vakiotulosteeseen (%s)"
 
-#: io.c:1289 io.c:1348 main.c:866
+#: io.c:1297 io.c:1356 main.c:866
 #, c-format
 msgid "error writing standard error (%s)"
 msgstr "virhe kirjoitettaessa vakiovirheeseen (%s)"
 
-#: io.c:1297
+#: io.c:1305
 #, c-format
 msgid "pipe flush of `%s' failed (%s)."
 msgstr "uudelleenohjauksen ”%s” putken tyhjennys epäonnistui (%s)."
 
-#: io.c:1300
+#: io.c:1308
 #, c-format
 msgid "co-process flush of pipe to `%s' failed (%s)."
 msgstr "putken apuprosessityhjennys uudelleenohjaukseen ”%s” epäonnistui (%s)."
 
-#: io.c:1303
+#: io.c:1311
 #, c-format
 msgid "file flush of `%s' failed (%s)."
 msgstr "uudelleenohjauksen ”%s” tiedostontyhjennys epäonnistui (%s)."
 
-#: io.c:1420
+#: io.c:1428
 #, c-format
 msgid "local port %s invalid in `/inet'"
 msgstr "paikallinen portti %s virheellinen pistokkeessa ”/inet”"
 
-#: io.c:1438
+#: io.c:1446
 #, c-format
 msgid "remote host and port information (%s, %s) invalid"
 msgstr "etäkone- ja porttitiedot (%s, %s) ovat virheellisiä"
 
-#: io.c:1590
+#: io.c:1598
 #, c-format
 msgid "no (known) protocol supplied in special filename `%s'"
 msgstr "ei (tunnettua) yhteyskäytäntöä tarjottu erikoistiedostonimessä ”%s”"
 
-#: io.c:1604
+#: io.c:1612
 #, c-format
 msgid "special file name `%s' is incomplete"
 msgstr "erikoistiedostonimi ”%s” on vaillinainen"
 
-#: io.c:1621
+#: io.c:1629
 msgid "must supply a remote hostname to `/inet'"
 msgstr "on tarjottava etäkoneen nimi pistokkeeseen ”/inet”"
 
-#: io.c:1639
+#: io.c:1647
 msgid "must supply a remote port to `/inet'"
 msgstr "on tarjottava etäportti pistokkeeseen ”/inet”"
 
-#: io.c:1685
+#: io.c:1693
 msgid "TCP/IP communications are not supported"
 msgstr "TCP/IP-viestintää ei tueta"
 
-#: io.c:1867
+#: io.c:1875
 #, c-format
 msgid "could not open `%s', mode `%s'"
 msgstr "laitteen ”%s” avaus epäonnistui, tila ”%s”"
 
-#: io.c:1917
+#: io.c:1925
 #, c-format
 msgid "close of master pty failed (%s)"
 msgstr "”master pty”-sulkeminen epäonnistui (%s)"
 
-#: io.c:1919 io.c:2105 io.c:2305
+#: io.c:1927 io.c:2113 io.c:2313
 #, c-format
 msgid "close of stdout in child failed (%s)"
 msgstr "vakiotulosteen sulkeminen lapsiprosessissa epäonnistui (%s)"
 
-#: io.c:1922
+#: io.c:1930
 #, c-format
 msgid "moving slave pty to stdout in child failed (dup: %s)"
 msgstr ""
 "”slave pty”:n siirtäminen vakiotulosteeseen lapsiprosessissa epäonnistui "
 "(dup: %s)"
 
-#: io.c:1924 io.c:2110
+#: io.c:1932 io.c:2118
 #, c-format
 msgid "close of stdin in child failed (%s)"
 msgstr "vakiosyötteen sulkeminen lapsiprosessissa epäonnistui (%s)"
 
-#: io.c:1927
+#: io.c:1935
 #, c-format
 msgid "moving slave pty to stdin in child failed (dup: %s)"
 msgstr ""
 "”slave pty”:n siirtäminen vakiosyötteeseen lapsiprosessissa epäonnistui "
 "(dup: %s)"
 
-#: io.c:1929 io.c:1951
+#: io.c:1937 io.c:1959
 #, c-format
 msgid "close of slave pty failed (%s)"
 msgstr "”slave pty”:n sulkeminen epäonnistui (%s)"
 
-#: io.c:2040 io.c:2108 io.c:2276 io.c:2308
+#: io.c:2048 io.c:2116 io.c:2284 io.c:2316
 #, c-format
 msgid "moving pipe to stdout in child failed (dup: %s)"
 msgstr ""
 "putken siirtäminen vakiotulosteeseen lapsiprosessissa epäonnistui (dup: %s)"
 
-#: io.c:2047 io.c:2113
+#: io.c:2055 io.c:2121
 #, c-format
 msgid "moving pipe to stdin in child failed (dup: %s)"
 msgstr ""
 "putken siirtäminen vakiosyötteeseen lapsiprosessissa epäonnistui (dup: %s)"
 
-#: io.c:2073 io.c:2298
+#: io.c:2081 io.c:2306
 msgid "restoring stdout in parent process failed\n"
 msgstr "vakiotulosteen palauttaminen äitiprosessissa epäonnistui\n"
 
-#: io.c:2081
+#: io.c:2089
 msgid "restoring stdin in parent process failed\n"
 msgstr "vakiosyötön palauttaminen äitiprosessissa epäonnistui\n"
 
-#: io.c:2116 io.c:2310 io.c:2324
+#: io.c:2124 io.c:2318 io.c:2332
 #, c-format
 msgid "close of pipe failed (%s)"
 msgstr "putken sulkeminen epäonnistui (%s)"
 
-#: io.c:2174
+#: io.c:2182
 msgid "`|&' not supported"
 msgstr "”|&” ei tueta"
 
-#: io.c:2261
+#: io.c:2269
 #, c-format
 msgid "cannot open pipe `%s' (%s)"
 msgstr "putken ”%s” (%s) avaaminen epäonnistui"
 
-#: io.c:2318
+#: io.c:2326
 #, c-format
 msgid "cannot create child process for `%s' (fork: %s)"
 msgstr "lapsiprosessin luominen komennolle ”%s” (fork: %s) epäonnistui"
 
-#: io.c:2790
+#: io.c:2798
 msgid "register_input_parser: received NULL pointer"
 msgstr "register_input_parser: vastaanotettiin NULL-osoitin"
 
-#: io.c:2818
+#: io.c:2826
 #, c-format
 msgid "input parser `%s' conflicts with previously installed input parser `%s'"
 msgstr ""
 "syötejäsennin ”%s” on ristiriidassa aiemmin asennetun syötejäsentimen ”%s” "
 "kanssa"
 
-#: io.c:2825
+#: io.c:2833
 #, c-format
 msgid "input parser `%s' failed to open `%s'"
 msgstr "syötejäsentäjä ”%s” epäonnistui kohteen ”%s” avaamisessa"
 
-#: io.c:2845
+#: io.c:2853
 msgid "register_output_wrapper: received NULL pointer"
 msgstr "register_output_wrapper: vastaanotti NULL-osoittimen"
 
-#: io.c:2873
+#: io.c:2881
 #, c-format
 msgid ""
 "output wrapper `%s' conflicts with previously installed output wrapper `%s'"
@@ -2910,16 +2910,16 @@ msgstr ""
 "tulostekäärin ”%s” on ristiriidassa aiemmin asennetun tulostekäärimen ”%s” "
 "kanssa"
 
-#: io.c:2880
+#: io.c:2888
 #, c-format
 msgid "output wrapper `%s' failed to open `%s'"
 msgstr "tulostekäärin ”%s” epäonnistui avaamaan ”%s”"
 
-#: io.c:2901
+#: io.c:2909
 msgid "register_output_processor: received NULL pointer"
 msgstr "register_output_processor: vastaanotti NULL-osoittimen"
 
-#: io.c:2930
+#: io.c:2938
 #, c-format
 msgid ""
 "two-way processor `%s' conflicts with previously installed two-way processor "
@@ -2928,25 +2928,25 @@ msgstr ""
 "kaksisuuntainen prosessori ”%s” on ristiriidassa aiemmin asennetun "
 "kaksisuuntaisen prosessorin ”%s” kanssa"
 
-#: io.c:2939
+#: io.c:2947
 #, c-format
 msgid "two way processor `%s' failed to open `%s'"
 msgstr "kaksisuuntainen prosessori ”%s” epäonnistui avaamaan ”%s”"
 
-#: io.c:3064
+#: io.c:3072
 #, c-format
 msgid "data file `%s' is empty"
 msgstr "data-tiedosto ”%s” on tyhjä"
 
-#: io.c:3106 io.c:3114
+#: io.c:3114 io.c:3122
 msgid "could not allocate more input memory"
 msgstr "lisäsyötemuistin varaus epäonnistui"
 
-#: io.c:3682
+#: io.c:3690
 msgid "multicharacter value of `RS' is a gawk extension"
 msgstr "”RS”-monimerkkiarvo on gawk-laajennus"
 
-#: io.c:3771
+#: io.c:3779
 msgid "IPv6 communication is not supported"
 msgstr "IPv6-viestintää ei tueta"
 

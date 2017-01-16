@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gawk 4.0.0h\n"
 "Report-Msgid-Bugs-To: arnold@skeeve.com\n"
-"POT-Creation-Date: 2014-04-08 19:23+0300\n"
+"POT-Creation-Date: 2017-01-16 13:27+0900\n"
 "PO-Revision-Date: 2012-01-30 07:42-0600\n"
 "Last-Translator: Cristian Othón Martínez Vera <cfuga@cfuga.mx>\n"
 "Language-Team: Spanish <es@li.org>\n"
@@ -1801,8 +1801,8 @@ msgstr "`exit' no se puede llamar en el contexto actual"
 msgid "No symbol `%s' in current context"
 msgstr "se intentó usar la matriz `%s' en un contexto escalar"
 
-#: dfa.c:1118 dfa.c:1121 dfa.c:1142 dfa.c:1150 dfa.c:1162 dfa.c:1197
-#: dfa.c:1206 dfa.c:1209 dfa.c:1214 dfa.c:1228 dfa.c:1275
+#: dfa.c:1118 dfa.c:1121 dfa.c:1142 dfa.c:1150 dfa.c:1162 dfa.c:1197 dfa.c:1206
+#: dfa.c:1209 dfa.c:1214 dfa.c:1228 dfa.c:1275
 #, fuzzy
 msgid "unbalanced ["
 msgstr "[ desbalanceado"
@@ -2638,332 +2638,332 @@ msgstr "%s: la opción '-W %s' no admite ningún argumento\n"
 msgid "%s: option '-W %s' requires an argument\n"
 msgstr "%s: la opción '-W %s' requiere un argumento\n"
 
-#: io.c:392
+#: io.c:400
 #, c-format
 msgid "command line argument `%s' is a directory: skipped"
 msgstr "el argumento de la línea de órdenes `%s' es un directorio: se salta"
 
-#: io.c:395 io.c:513
+#: io.c:403 io.c:521
 #, c-format
 msgid "cannot open file `%s' for reading (%s)"
 msgstr "no se puede abrir el fichero `%s' para lectura (%s)"
 
-#: io.c:640
+#: io.c:648
 #, c-format
 msgid "close of fd %d (`%s') failed (%s)"
 msgstr "falló al cerrar el df %d (`%s') (%s)"
 
-#: io.c:716
+#: io.c:724
 msgid "redirection not allowed in sandbox mode"
 msgstr "no se permite la redirección en modo sandbox"
 
-#: io.c:750
+#: io.c:758
 #, c-format
 msgid "expression in `%s' redirection only has numeric value"
 msgstr "la expresión en la redirección `%s' sólo tiene valor numérico"
 
-#: io.c:756
+#: io.c:764
 #, c-format
 msgid "expression for `%s' redirection has null string value"
 msgstr "la expresión para la redirección `%s' tiene un valor de cadena nula"
 
-#: io.c:761
+#: io.c:769
 #, c-format
 msgid "filename `%s' for `%s' redirection may be result of logical expression"
 msgstr ""
 "el fichero `%s' para la redirección `%s' puede ser resultado de una "
 "expresión lógica"
 
-#: io.c:809
+#: io.c:817
 #, c-format
 msgid "unnecessary mixing of `>' and `>>' for file `%.*s'"
 msgstr "mezcla innecesaria de `>' y `>>' para el fichero `%.*s'"
 
-#: io.c:863
+#: io.c:871
 #, c-format
 msgid "can't open pipe `%s' for output (%s)"
 msgstr "no se puede abrir la tubería `%s' para la salida (%s)"
 
-#: io.c:873
+#: io.c:881
 #, c-format
 msgid "can't open pipe `%s' for input (%s)"
 msgstr "no se puede abrir la tubería `%s' para la entrada (%s)"
 
-#: io.c:904
+#: io.c:912
 #, c-format
 msgid "can't open two way pipe `%s' for input/output (%s)"
 msgstr "no se puede abrir la tubería de dos vías `%s' para entrada/salida (%s)"
 
-#: io.c:986
+#: io.c:994
 #, c-format
 msgid "can't redirect from `%s' (%s)"
 msgstr "no se puede redirigir desde `%s' (%s)"
 
-#: io.c:989
+#: io.c:997
 #, c-format
 msgid "can't redirect to `%s' (%s)"
 msgstr "no se puede redirigir a `%s' (%s)"
 
-#: io.c:1040
+#: io.c:1048
 msgid ""
 "reached system limit for open files: starting to multiplex file descriptors"
 msgstr ""
 "se alcanzó el límite del sistema para ficheros abiertos: comenzando a "
 "multiplexar los descriptores de fichero"
 
-#: io.c:1056
+#: io.c:1064
 #, c-format
 msgid "close of `%s' failed (%s)."
 msgstr "falló al cerrar `%s' (%s)."
 
-#: io.c:1064
+#: io.c:1072
 msgid "too many pipes or input files open"
 msgstr "demasiadas tuberías o ficheros de entrada abiertos"
 
-#: io.c:1086
+#: io.c:1094
 msgid "close: second argument must be `to' or `from'"
 msgstr "close: el segundo argumento debe ser `to' o `from'"
 
-#: io.c:1103
+#: io.c:1111
 #, c-format
 msgid "close: `%.*s' is not an open file, pipe or co-process"
 msgstr "close: `%.*s' no es un fichero abierto, tubería o co-proceso"
 
-#: io.c:1108
+#: io.c:1116
 msgid "close of redirection that was never opened"
 msgstr "se cerró una redirección que nunca se abrió"
 
-#: io.c:1205
+#: io.c:1213
 #, c-format
 msgid "close: redirection `%s' not opened with `|&', second argument ignored"
 msgstr ""
 "close: la redirección `%s' no se abrió con `|&', se descarta el segundo "
 "argumento"
 
-#: io.c:1222
+#: io.c:1230
 #, c-format
 msgid "failure status (%d) on pipe close of `%s' (%s)"
 msgstr "estado de fallo (%d) al cerrar la tubería de `%s' (%s)"
 
-#: io.c:1225
+#: io.c:1233
 #, c-format
 msgid "failure status (%d) on file close of `%s' (%s)"
 msgstr "estado de fallo (%d) al cerrar el fichero de `%s' (%s)"
 
-#: io.c:1245
+#: io.c:1253
 #, c-format
 msgid "no explicit close of socket `%s' provided"
 msgstr "no se provee el cerrado explícito del `socket' `%s'"
 
-#: io.c:1248
+#: io.c:1256
 #, c-format
 msgid "no explicit close of co-process `%s' provided"
 msgstr "no se provee el cerrado explícito del co-proceso `%s'"
 
-#: io.c:1251
+#: io.c:1259
 #, c-format
 msgid "no explicit close of pipe `%s' provided"
 msgstr "no se provee el cerrado explícito del la tubería `%s'"
 
-#: io.c:1254
+#: io.c:1262
 #, c-format
 msgid "no explicit close of file `%s' provided"
 msgstr "no se provee el cerrado explícito del fichero `%s'"
 
-#: io.c:1284 io.c:1342 main.c:864 main.c:906
+#: io.c:1292 io.c:1350 main.c:864 main.c:906
 #, c-format
 msgid "error writing standard output (%s)"
 msgstr "error al escribir en la salida estándar (%s)"
 
-#: io.c:1289 io.c:1348 main.c:866
+#: io.c:1297 io.c:1356 main.c:866
 #, c-format
 msgid "error writing standard error (%s)"
 msgstr "error al escribir en la salida estándar de error (%s)"
 
-#: io.c:1297
+#: io.c:1305
 #, c-format
 msgid "pipe flush of `%s' failed (%s)."
 msgstr "falló la limpieza de la tubería de `%s' (%s)."
 
-#: io.c:1300
+#: io.c:1308
 #, c-format
 msgid "co-process flush of pipe to `%s' failed (%s)."
 msgstr "falló la limpieza del co-proceso de la tubería a `%s' (%s)."
 
-#: io.c:1303
+#: io.c:1311
 #, c-format
 msgid "file flush of `%s' failed (%s)."
 msgstr "falló la limpieza del fichero de `%s' (%s)."
 
-#: io.c:1420
+#: io.c:1428
 #, c-format
 msgid "local port %s invalid in `/inet'"
 msgstr "puerto local %s inválido en `/inet'"
 
-#: io.c:1438
+#: io.c:1446
 #, c-format
 msgid "remote host and port information (%s, %s) invalid"
 msgstr "anfitrión remoto e información de puerto (%s, %s) inválidos"
 
-#: io.c:1590
+#: io.c:1598
 #, c-format
 msgid "no (known) protocol supplied in special filename `%s'"
 msgstr ""
 "no se proporciona algún protocolo (conocido) en el nombre de fichero "
 "especial `%s'"
 
-#: io.c:1604
+#: io.c:1612
 #, c-format
 msgid "special file name `%s' is incomplete"
 msgstr "el nombre de fichero especial `%s' está incompleto"
 
-#: io.c:1621
+#: io.c:1629
 msgid "must supply a remote hostname to `/inet'"
 msgstr "se debe proporcionar a `/inet' un nombre de anfitrión remoto"
 
-#: io.c:1639
+#: io.c:1647
 msgid "must supply a remote port to `/inet'"
 msgstr "se debe proporcionar a `/inet' un puerto remoto"
 
-#: io.c:1685
+#: io.c:1693
 msgid "TCP/IP communications are not supported"
 msgstr "no se admiten las comunicaciones TCP/IP"
 
-#: io.c:1867
+#: io.c:1875
 #, c-format
 msgid "could not open `%s', mode `%s'"
 msgstr "no se puede abrir `%s', modo `%s'"
 
-#: io.c:1917
+#: io.c:1925
 #, c-format
 msgid "close of master pty failed (%s)"
 msgstr "falló al cerrar el pty maestro (%s)"
 
-#: io.c:1919 io.c:2105 io.c:2305
+#: io.c:1927 io.c:2113 io.c:2313
 #, c-format
 msgid "close of stdout in child failed (%s)"
 msgstr "falló al cerrar la salida estándar en el hijo (%s)"
 
-#: io.c:1922
+#: io.c:1930
 #, c-format
 msgid "moving slave pty to stdout in child failed (dup: %s)"
 msgstr ""
 "falló el movimiento del pty esclavo a la salida estándar en el hijo (dup: %s)"
 
-#: io.c:1924 io.c:2110
+#: io.c:1932 io.c:2118
 #, c-format
 msgid "close of stdin in child failed (%s)"
 msgstr "falló al cerrar la entrada estándar en el hijo (%s)"
 
-#: io.c:1927
+#: io.c:1935
 #, c-format
 msgid "moving slave pty to stdin in child failed (dup: %s)"
 msgstr ""
 "falló el movimiento del pty esclavo a la entrada estándar en el hijo (dup: "
 "%s)"
 
-#: io.c:1929 io.c:1951
+#: io.c:1937 io.c:1959
 #, c-format
 msgid "close of slave pty failed (%s)"
 msgstr "falló al cerrar el pty esclavo (%s)"
 
-#: io.c:2040 io.c:2108 io.c:2276 io.c:2308
+#: io.c:2048 io.c:2116 io.c:2284 io.c:2316
 #, c-format
 msgid "moving pipe to stdout in child failed (dup: %s)"
 msgstr "falló el movimiento a la salida estándar en el hijo (dup: %s)"
 
-#: io.c:2047 io.c:2113
+#: io.c:2055 io.c:2121
 #, c-format
 msgid "moving pipe to stdin in child failed (dup: %s)"
 msgstr ""
 "falló el movimiento de la tubería a la entrada estándar en el hijo (dup: %s)"
 
-#: io.c:2073 io.c:2298
+#: io.c:2081 io.c:2306
 msgid "restoring stdout in parent process failed\n"
 msgstr "falló la restauración de la salida estándar en el proceso padre\n"
 
-#: io.c:2081
+#: io.c:2089
 msgid "restoring stdin in parent process failed\n"
 msgstr "falló la restauración de la entrada estándar en el proceso padre\n"
 
-#: io.c:2116 io.c:2310 io.c:2324
+#: io.c:2124 io.c:2318 io.c:2332
 #, c-format
 msgid "close of pipe failed (%s)"
 msgstr "falló al cerrar la tubería (%s)"
 
-#: io.c:2174
+#: io.c:2182
 msgid "`|&' not supported"
 msgstr "no se admite `|&'"
 
-#: io.c:2261
+#: io.c:2269
 #, c-format
 msgid "cannot open pipe `%s' (%s)"
 msgstr "no se puede abrir la tubería `%s' (%s)"
 
-#: io.c:2318
+#: io.c:2326
 #, c-format
 msgid "cannot create child process for `%s' (fork: %s)"
 msgstr "no se puede crear el proceso hijo para `%s' (fork: %s)"
 
-#: io.c:2790
+#: io.c:2798
 msgid "register_input_parser: received NULL pointer"
 msgstr ""
 
-#: io.c:2818
+#: io.c:2826
 #, c-format
 msgid "input parser `%s' conflicts with previously installed input parser `%s'"
 msgstr ""
 
-#: io.c:2825
+#: io.c:2833
 #, c-format
 msgid "input parser `%s' failed to open `%s'"
 msgstr ""
 
-#: io.c:2845
+#: io.c:2853
 msgid "register_output_wrapper: received NULL pointer"
 msgstr ""
 
-#: io.c:2873
+#: io.c:2881
 #, c-format
 msgid ""
 "output wrapper `%s' conflicts with previously installed output wrapper `%s'"
 msgstr ""
 
-#: io.c:2880
+#: io.c:2888
 #, c-format
 msgid "output wrapper `%s' failed to open `%s'"
 msgstr ""
 
-#: io.c:2901
+#: io.c:2909
 msgid "register_output_processor: received NULL pointer"
 msgstr ""
 
-#: io.c:2930
+#: io.c:2938
 #, c-format
 msgid ""
 "two-way processor `%s' conflicts with previously installed two-way processor "
 "`%s'"
 msgstr ""
 
-#: io.c:2939
+#: io.c:2947
 #, c-format
 msgid "two way processor `%s' failed to open `%s'"
 msgstr ""
 
-#: io.c:3064
+#: io.c:3072
 #, c-format
 msgid "data file `%s' is empty"
 msgstr "el fichero de datos `%s' está vacío"
 
-#: io.c:3106 io.c:3114
+#: io.c:3114 io.c:3122
 msgid "could not allocate more input memory"
 msgstr "no se puede reservar más memoria de entrada"
 
-#: io.c:3682
+#: io.c:3690
 msgid "multicharacter value of `RS' is a gawk extension"
 msgstr "el valor multicaracter de `RS' es una extensión de gawk"
 
-#: io.c:3771
+#: io.c:3779
 msgid "IPv6 communication is not supported"
 msgstr "no se admite la comunicación IPv6"
 
