@@ -1,7 +1,8 @@
 /* vms_args.c -- command line parsing, to emulate shell i/o redirection.
   		[ Escape sequence parsing now suppressed. ]
 
-   Copyright (C) 1991-1996, 1997, 2011, 2014 the Free Software Foundation, Inc.
+   Copyright (C) 1991-1996, 1997, 2011, 2014, 2016
+   the Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -319,7 +320,7 @@ static void
 vms_expand_wildcards( const char *prospective_filespec )
 {
     char *p, spec_buf[255+1], res_buf[255+1];
-    Dsc   spec, result;
+    struct dsc$descriptor_s spec, result;
     void *context;
     register int len = strlen(prospective_filespec);
 
@@ -333,8 +334,14 @@ vms_expand_wildcards( const char *prospective_filespec )
     else if (strchr(spec_buf, '*') == strchr(spec_buf, '%')  /* => both NULL */
 	  && strstr(spec_buf, "...") == NULL)
 	return;		/* no wildcards present; don't attempt file lookup */
-    spec.len = len,  spec.adr = spec_buf;
-    result.len = sizeof res_buf - 1,  result.adr = res_buf;
+    spec.dsc$w_length = len;
+    spec.dsc$a_pointer = spec_buf;
+    spec.dsc$b_dtype = DSC$K_DTYPE_T;
+    spec.dsc$b_class = DSC$K_CLASS_S;
+    result.dsc$w_length = sizeof res_buf - 1;
+    result.dsc$a_pointer = res_buf;
+    result.dsc$b_dtype = DSC$K_DTYPE_T;
+    result.dsc$b_class = DSC$K_CLASS_S;
 
     /* The filespec is already in v_argv[v_argc]; if we fail to match anything,
        we'll just leave it there (unlike most shells, where it would evaporate).
@@ -395,7 +402,7 @@ skipblanks( const char *ptr )
 static U_Long
 vms_define( const char *log_name, const char *trans_val )
 {
-    Dsc log_dsc;
+    struct dsc$descriptor_s log_dsc;
     static Descrip(lnmtable,"LNM$PROCESS_TABLE");
     static U_Long attr = LNM$M_CONFINE;
     static Itm itemlist[] = { {0,LNM$_STRING,0,0}, {0,0} };
@@ -407,8 +414,10 @@ vms_define( const char *log_name, const char *trans_val )
      && (trans_val[len] == '\0' || trans_val[len] == ':'))
 	return 0;
 
-    log_dsc.adr = (char *)log_name;
-    log_dsc.len = len;
+    log_dsc.dsc$a_pointer = (char *)log_name;
+    log_dsc.dsc$w_length = len;
+    log_dsc.dsc$b_dtype = DSC$K_DTYPE_T;
+    log_dsc.dsc$b_class = DSC$K_CLASS_S;
     itemlist[0].buffer = (char *)trans_val;
     itemlist[0].len = strlen(trans_val);
     return SYS$CRELNM(&attr, &lnmtable, &log_dsc, &acmode, itemlist);

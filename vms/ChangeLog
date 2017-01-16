@@ -1,3 +1,137 @@
+2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.1.4: Release tar ball made.
+
+2016-08-08         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: New test (basic) ofmtstrnum
+	               New test (extra) ignrcas3 - skipped.
+	               Updated test (shlib) filefuncs, backsmalls1
+
+2016-06-16         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: New tests (basic) hex2, mixed1, subback
+
+2016-05-30         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: New tests (basic) fsnul1
+	               New tests (ext) fpat4, symtab10
+	* vmstest.com: Outputs test_output.xml in junit format.
+
+2016-05-29         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* stage_gawk_install.com: Fix directory path
+	* vmstest.com: new tests
+	(basic) arrayind1, rscompat, sigpipe1
+	(ext) close1way2, clos1way3, clos1way4, clos1way5
+
+2016-04-10         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* generate_config_vms_h_gawk.com: define __attribute() as macro.
+
+2016-02-02         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* descrip.mms: Add gawk_debug target.
+	* vms_sort.com: Implement sort function for tests.
+	* vmstest.com: updates
+	  Reorganize test lists to make them easier to read and
+	  update.
+	(vms_debug): New command to switch to debug_gawk
+
+	New/fixed tests:
+	(basic): badassign1,dfamb1,exit2,nfloop,badbuild,
+		callparam,exitval2,exitval3,inpref,paramasfunc1,
+		paramasfunc2,regexpbrack,sortglos,rebrackloc
+		aryprm9,nulinsrc,rstest4,rstest5
+	(ext): id,profile4,profile5,crlf,dbugeval,fpat4,genpot,
+		indirectbuiltin,printfbad4,printhuge,profile0,
+		profile6,profile7,regnul1,regnul2,rsgetline,
+		rsglstdin,mbstr2,profile8,watchpoint1,rsstart3
+	(locale): backbigs1,backsmalls1,backsmalls2,mbprintf4
+	(shlib): inplace2,testext,lc_num1,mbprintf1,
+		mbprintf2,mbprintf3,mbprintf4,mbfw1,ordchr2
+	* vms.h, vms_args.c, vms_cli.c, vms_fwrite.c,
+	  vms_misc.c, vms_popen.c:
+	    Use VMS provided descriptor definitions.
+
+2016-01-27         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* generate_config_vms_h_gawk.com: Add missing define
+	  for macro TIME_T_UNSIGNED.  Remove supression of
+	  compiler message.
+
+2016-01-24         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: updates
+	(ofmta): Skip on VAX as VAX floating runtime is different.
+	(beginfile1): Handle NFS ODS-2 case encoded filenames.
+	(dumpvars): Fix test compare.
+	(gensub2): Capture stderr output for compare.
+	(define_gawklocale): set LC_ALL "utf8-20".
+
+2016-01-24         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* generate_config_vms_h_gawk.com: Supress compiler message
+	  about comparing an unsigned value to a negative number
+	  in missing_d/strftime.c.
+	* descrip.mms: Temporary comment out the use of bison or yacc
+	  until current ports are known to be available for VMS.
+	* build_gawk_pcsi_desc.com: Remove extra copy of a file being
+	  installed.
+
+2016-01-21         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* descrip.mms and vmsbuild.com: Remove the unused hand-updated
+	  version numbers.
+
+2016-01-10         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* build_gawk_pcsi_desc.com: Better detection for VMS Software
+	  Inc.'s OpenVMS releases.
+	* compare_gawk_source.com: Skip files that VMS can not diff
+	  with native tools.
+	* gawk_alias_setup: Install aliases in correct simulated
+	  Linux directory.
+	* pcsi_gawk_file_list.txt:  Install binaries and aliass in
+	  correct simulated Linux directory.
+	* remove_old_gawk.com: Look for old gawk images that may
+	  have been installed in the wrong directory.
+
+2015-05-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.1.3: Release tar ball made.
+
+2015-05-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* vmsbuild.com, descrip.mms: Bump patchlevel.
+
+2015-04-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.1.2: Release tar ball made.
+
+2015-04-08         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* generate_config_vms_h_gawk.com: Add custom.h include.
+
+2015-04-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* vmsbuild.com, descrip.mms: Bump patchlevel.
+
+2014-10-17         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* config_h.com: Use sys$disk: instead of prj_root: for
+	  copying the configure file.
+	* gawk_alias_setup.com: Fix removal of out of date aliases.
+	* vmsbuild.com: Fix a typo for symbol CNAME and a case sensitive
+	  test for "VAX" .eq. "vax" that failed.  Also disable verify
+	  while looking up the actual version.
+	* vmstest.com: Make sure that the test directory exists when
+	  using a search list.
+
+2014-04-18         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* gawk_alias_setup.com: Fix problem with file links on Vax/VMS.
+
 2014-04-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.1: Release tar ball made.

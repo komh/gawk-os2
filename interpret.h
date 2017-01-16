@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2014 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2015 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -23,7 +23,19 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
-
+#define UNFIELD(l, r) \
+{ \
+	/* if was a field, turn it into a var */ \
+	if ((r->flags & FIELD) == 0) { \
+		l = r; \
+	} else if (r->valref == 1) { \
+		r->flags &= ~FIELD; \
+		l = r; \
+	} else { \
+		l = dupnode(r); \
+		DEREF(r); \
+	} \
+}
 int
 r_interpret(INSTRUCTION *code)
 {
@@ -340,7 +352,12 @@ uninitialized_scalar:
 			lhs = r_get_field(t1, (Func_ptr *) 0, true);
 			decr_sp();
 			DEREF(t1);
-			r = dupnode(*lhs);     /* can't use UPREF here */
+			/* only for $0, up ref count */
+			if (*lhs == fields_arr[0]) {
+				r = *lhs;
+				UPREF(r);
+			} else
+				r = dupnode(*lhs);
 			PUSH(r);
 			break;
 
@@ -631,7 +648,8 @@ mod:
 			}
 
 			unref(*lhs);
-			*lhs = POP_SCALAR();
+			r = POP_SCALAR();
+			UNFIELD(*lhs, r);
 
 			/* execute post-assignment routine if any */
 			if (t1->astore != NULL)
@@ -649,11 +667,12 @@ mod:
 			lhs = get_lhs(pc->memory, false);
 			unref(*lhs);
 			r = pc->initval;	/* constant initializer */
-			if (r == NULL)
-				*lhs = POP_SCALAR();
-			else {
+			if (r != NULL) {
 				UPREF(r);
 				*lhs = r;
+			} else {
+				r = POP_SCALAR();
+				UNFIELD(*lhs, r);
 			}
 			break;
 
@@ -669,7 +688,8 @@ mod:
 			decr_sp();
 			DEREF(t1);
 			unref(*lhs);
-			*lhs = POP_SCALAR();
+			r = POP_SCALAR();
+			UNFIELD(*lhs, r);
 			assert(assign != NULL);
 			assign();
 		}
@@ -695,7 +715,6 @@ mod:
 				t1->stptr[nlen] = '\0';
 				t1->flags &= ~(NUMCUR|NUMBER|NUMINT);
 
-#if MBS_SUPPORT
 				if ((t1->flags & WSTRCUR) != 0 && (t2->flags & WSTRCUR) != 0) {
 					size_t wlen = t1->wstlen + t2->wstlen;
 
@@ -707,7 +726,6 @@ mod:
 					t1->flags |= WSTRCUR;
 				} else
 					free_wstr(*lhs);
-#endif
 			} else {
 				size_t nlen = t1->stlen + t2->stlen;  
 				char *p;
@@ -725,8 +743,8 @@ mod:
 			lhs = POP_ADDRESS();
 			r = TOP_SCALAR();
 			unref(*lhs);
-			*lhs = r;
 			UPREF(r);
+			UNFIELD(*lhs, r);
 			REPLACE(r);
 			break;
 
@@ -1038,10 +1056,52 @@ match_re:
 				f = lookup(t1->stptr);
 			}
 
-			if (f == NULL || f->type != Node_func) {
-				if (f->type == Node_ext_func || f->type == Node_old_ext_func)
-					fatal(_("cannot (yet) call extension functions indirectly"));
+			if (f == NULL) {
+				fatal(_("`%s' is not a function, so it cannot be called indirectly"),
+						t1->stptr);
+			} else if (f->type == Node_builtin_func) {
+				int arg_count = (pc + 1)->expr_count;
+				builtin_func_t the_func = lookup_builtin(t1->stptr);
+				
+				assert(the_func != NULL);
+
+				/* call it */
+				if (the_func == (builtin_func_t) do_sub)
+					r = call_sub(t1->stptr, arg_count);
+				else if (the_func == do_match)
+					r = call_match(arg_count);
+				else if (the_func == do_split || the_func == do_patsplit)
+					r = call_split_func(t1->stptr, arg_count);
 				else
+					r = the_func(arg_count);
+
+				PUSH(r);
+				break;
+			} else if (f->type != Node_func) {
+				if (   f->type == Node_ext_func
+				    || f->type == Node_old_ext_func) {
+					/* code copied from below, keep in sync */
+					INSTRUCTION *bc;
+					char *fname = pc->func_name;
+					int arg_count = (pc + 1)->expr_count;
+					static INSTRUCTION npc[2];
+
+					npc[0] = *pc;
+
+					bc = f->code_ptr;
+					assert(bc->opcode == Op_symbol);
+					if (f->type == Node_ext_func)
+						npc[0].opcode = Op_ext_builtin;	/* self modifying code */
+					else
+						npc[0].opcode = Op_old_ext_builtin;	/* self modifying code */
+					npc[0].extfunc = bc->extfunc;
+					npc[0].expr_count = arg_count;		/* actual argument count */
+					npc[1] = pc[1];
+					npc[1].func_name = fname;	/* name of the builtin */
+					npc[1].expr_count = bc->expr_count;	/* defined max # of arguments */
+					ni = npc; 
+					JUMPTO(ni);
+				} else
 					fatal(_("function called indirectly through `%s' does not exist"),
 							pc->func_name);	
 			}
@@ -1065,6 +1125,7 @@ match_re:
 			}
 
 			if (f->type == Node_ext_func || f->type == Node_old_ext_func) {
+				/* keep in sync with indirect call code */
 				INSTRUCTION *bc;
 				char *fname = pc->func_name;
 				int arg_count = (pc + 1)->expr_count;
@@ -1098,10 +1159,6 @@ match_re:
 			JUMPTO(ni);
 
 		case Op_K_getline_redir:
-			if ((currule == BEGINFILE || currule == ENDFILE)
-					&& pc->into_var == false
-					&& pc->redir_type == redirect_input)
-				fatal(_("`getline' invalid inside `%s' rule"), ruletab[currule]);
 			r = do_getline_redir(pc->into_var, pc->redir_type);
 			PUSH(r);
 			break;
@@ -1195,10 +1252,13 @@ match_re:
 				JUMPTO(ni);
 			}
 
-			if (inrec(curfile, & errcode) != 0) {
-				if (errcode > 0 && (do_traditional || ! pc->has_endfile))
-					fatal(_("error reading input file `%s': %s"),
+			if (! inrec(curfile, & errcode)) {
+				if (errcode > 0) {
+					update_ERRNO_int(errcode);
+					if (do_traditional || ! pc->has_endfile)
+						fatal(_("error reading input file `%s': %s"),
 						curfile->public.name, strerror(errcode));
+				}
 
 				JUMPTO(ni);
 			} /* else
@@ -1261,17 +1321,18 @@ match_re:
 				fatal(_("`exit' cannot be called in the current context"));
 
 			exiting = true;
-			t1 = POP_NUMBER();
-			exit_val = (int) get_number_si(t1);
-			DEREF(t1);
+			if ((t1 = POP_NUMBER()) != Nnull_string) {
+				exit_val = (int) get_number_si(t1);
 #ifdef VMS
-			if (exit_val == 0)
-				exit_val = EXIT_SUCCESS;
-			else if (exit_val == 1)
-				exit_val = EXIT_FAILURE;
-			/* else
-				just pass anything else on through */
+				if (exit_val == 0)
+					exit_val = EXIT_SUCCESS;
+				else if (exit_val == 1)
+					exit_val = EXIT_FAILURE;
+				/* else
+					just pass anything else on through */
 #endif
+			}
+			DEREF(t1);
 
 			if (currule == BEGINFILE || currule == ENDFILE) {
 

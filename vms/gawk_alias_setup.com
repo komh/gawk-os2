@@ -22,10 +22,8 @@ $   set proc/parse=extended
 $ endif
 $!
 $!
-$ call do_alias "gawk" "[bin]"
-$ call do_alias "gawk" "[bin]" "awk"
-$ call do_alias "gawk" "[bin]" "gawk" "[usr.bin]"
-$ call do_alias "gawk" "[bin]" "awk" "[usr.bin]"
+$ call do_alias "gawk" "[usr.bin]"
+$ call do_alias "gawk" "[usr.bin]" "awk"
 $ call do_alias "gawk.1" "[usr.share.man.man1]" "awk.1"
 $!
 $ exit
@@ -59,14 +57,43 @@ $    alias = "gnv$gnu:''p4'''p3'"
 $ endif
 $ if f$search(file) .nes. ""
 $ then
+$   fid = ""
+$   mess = f$environment("message")
+$   if f$search(alias) .nes. ""
+$   then
+$      on warn then goto fix_link
+$      set message/nofac/nosev/noident/notext
+$      fid = f$file_attributes(alias, "FID")
+$   endif
+$   goto fix_link_end
+$fix_link:
+$    set file/remove 'alias';
+$fix_link_end:
+$   set message'mess'
 $   if f$search(alias) .eqs. ""
 $   then
 $       set file/enter='alias' 'file'
 $   endif
 $   alias1 = alias + "exe"
-$   if (ftype .eqs. ".") .and. (f$search(alias1) .eqs. "")
+$   if (ftype .eqs. ".")
 $   then
+$     fid = ""
+$     mess = f$environment("message")
+$     if f$search(alias1) .nes. ""
+$     then
+$       on warn then goto fix_link1
+$       set message/nofac/nosev/noident/notext
+$       fid = f$file_attributes(alias1, "FID")
+$     endif
+$     goto fix_link_end1
+$fix_link1:
+$    set file/remove 'alias1';
+$fix_link_end1:
+$   set message'mess'
+$     if (f$search(alias1) .eqs. "")
+$     then
 $       set file/enter='alias1' 'file'
+$     endif
 $   endif
 $ endif
 $ exit
@@ -78,7 +105,7 @@ $ if p4 .eqs. "" then p4 = p2
 $ ftype = f$element(1, ".", p1)
 $ if ftype .eqs. "."
 $ then
-$   file = "gnv$gnu:''p2'''p1'.EXE"
+$   file = "gnv$gnu:''p2'gnv$''p1'.EXE"
 $   alias = "gnv$gnu:''p4'''p3'."
 $ else
 $   file = "gnv$gnu:''p2'''p1'"

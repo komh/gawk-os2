@@ -3,7 +3,8 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2014 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2014, 2016,
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -27,6 +28,8 @@
 
 extern FILE *output_fp;
 extern NODE **fmt_list;          /* declared in eval.c */
+
+NODE *success_node;
 
 static size_t SUBSEPlen;
 static char *SUBSEP;
@@ -701,7 +704,7 @@ value_info(NODE *n)
 	if ((n->flags & (STRING|STRCUR)) == STRCUR) {
 		fprintf(output_fp, "][");
 		fprintf(output_fp, "stfmt=%d, ", n->stfmt);	
-		fprintf(output_fp, "CONVFMT=\"%s\"", n->stfmt <= -1 ? "%ld"
+		fprintf(output_fp, "CONVFMT=\"%s\"", n->stfmt <= -1 ? "<unused>"
 					: fmt_list[n->stfmt]->stptr);
 	}
 
@@ -978,14 +981,13 @@ cmp_strings(const NODE *n1, const NODE *n2)
 		const unsigned char *cp1 = (const unsigned char *) s1;
 		const unsigned char *cp2 = (const unsigned char *) s2;
 
-#if MBS_SUPPORT
 		if (gawk_mb_cur_max > 1) {
 			ret = strncasecmpmbs((const unsigned char *) cp1,
 					     (const unsigned char *) cp2, lmin);
-		} else
-#endif
-		for (ret = 0; lmin-- > 0 && ret == 0; cp1++, cp2++)
-			ret = casetable[*cp1] - casetable[*cp2];
+		} else {
+			for (ret = 0; lmin-- > 0 && ret == 0; cp1++, cp2++)
+				ret = casetable[*cp1] - casetable[*cp2];
+		}
 		if (ret != 0)
 			return ret;
 		/*

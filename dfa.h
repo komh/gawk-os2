@@ -1,5 +1,5 @@
 /* dfa.h - declarations for GNU deterministic regexp compiler
-   Copyright (C) 1988, 1998, 2007, 2009-2014 Free Software Foundation, Inc.
+   Copyright (C) 1988, 1998, 2007, 2009-2016 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,15 +19,23 @@
 /* Written June, 1988 by Mike Haertel */
 
 #include <regex.h>
+#ifdef HAVE_STDBOOL_H
+#include <stdbool.h>
+#else
+#include "missing_d/gawkbool.h"
+#endif /* HAVE_STDBOOL_H */
 #include <stddef.h>
+
+#define _GL_ATTRIBUTE_MALLOC
 
 /* Element of a list of strings, at least one of which is known to
    appear in any R.E. matching the DFA. */
 struct dfamust
 {
-  int exact;
+  bool exact;
+  bool begline;
+  bool endline;
   char *must;
-  struct dfamust *next;
 };
 
 /* The dfa structure. It is completely opaque. */
@@ -38,20 +46,23 @@ struct dfa;
 /* Allocate a struct dfa.  The struct dfa is completely opaque.
    The returned pointer should be passed directly to free() after
    calling dfafree() on it. */
-extern struct dfa *dfaalloc (void);
+extern struct dfa *dfaalloc (void) _GL_ATTRIBUTE_MALLOC;
 
-/* Return the dfamusts associated with a dfa. */
-extern struct dfamust *dfamusts (struct dfa const *);
+/* Build and return the struct dfamust from the given struct dfa. */
+extern struct dfamust *dfamust (struct dfa const *);
 
-/* dfasyntax() takes three arguments; the first sets the syntax bits described
-   earlier in this file, the second sets the case-folding flag, and the
-   third specifies the line terminator. */
-extern void dfasyntax (reg_syntax_t, int, unsigned char);
+/* Free the storage held by the components of a struct dfamust. */
+extern void dfamustfree (struct dfamust *);
+
+/* dfasyntax() takes four arguments; the first is the dfa to operate on, the
+   second sets the syntax bits described earlier in this file, the third sets
+   the case-folding flag, and the fourth specifies the line terminator. */
+extern void dfasyntax (struct dfa *, reg_syntax_t, bool, unsigned char);
 
 /* Compile the given string of the given length into the given struct dfa.
    Final argument is a flag specifying whether to build a searching or an
    exact matcher. */
-extern void dfacomp (char const *, size_t, struct dfa *, int);
+extern void dfacomp (char const *, size_t, struct dfa *, bool);
 
 /* Search through a buffer looking for a match to the given struct dfa.
    Find the first occurrence of a string matching the regexp in the
@@ -60,32 +71,25 @@ extern void dfacomp (char const *, size_t, struct dfa *, int);
    points to the beginning of the buffer, and END points to the first byte
    after its end.  Note however that we store a sentinel byte (usually
    newline) in *END, so the actual buffer must be one byte longer.
-   When NEWLINE is nonzero, newlines may appear in the matching string.
+   When ALLOW_NL is true, newlines may appear in the matching string.
    If COUNT is non-NULL, increment *COUNT once for each newline processed.
    Finally, if BACKREF is non-NULL set *BACKREF to indicate whether we
-   encountered a back-reference (1) or not (0).  The caller may use this
-   to decide whether to fall back on a backtracking matcher. */
+   encountered a back-reference.  The caller can use this to decide
+   whether to fall back on a backtracking matcher.  */
 extern char *dfaexec (struct dfa *d, char const *begin, char *end,
-                      int newline, size_t *count, int *backref);
+                      bool allow_nl, size_t *count, bool *backref);
+
+/* Return a superset for D.  The superset matches everything that D
+   matches, along with some other strings (though the latter should be
+   rare, for efficiency reasons).  Return a null pointer if no useful
+   superset is available.  */
+extern struct dfa *dfasuperset (struct dfa const *d) _GL_ATTRIBUTE_PURE;
+
+/* The DFA is likely to be fast.  */
+extern bool dfaisfast (struct dfa const *) _GL_ATTRIBUTE_PURE;
 
 /* Free the storage held by the components of a struct dfa. */
 extern void dfafree (struct dfa *);
-
-/* Entry points for people who know what they're doing. */
-
-/* Initialize the components of a struct dfa. */
-extern void dfainit (struct dfa *);
-
-/* Incrementally parse a string of given length into a struct dfa. */
-extern void dfaparse (char const *, size_t, struct dfa *);
-
-/* Analyze a parsed regexp; second argument tells whether to build a searching
-   or an exact matcher. */
-extern void dfaanalyze (struct dfa *, int);
-
-/* Compute, for each possible character, the transitions out of a given
-   state, storing them in an array of integers. */
-extern void dfastate (ptrdiff_t, struct dfa *, ptrdiff_t []);
 
 /* Error handling. */
 
@@ -100,12 +104,7 @@ extern void dfawarn (const char *);
    The user must supply a dfaerror.  */
 extern _Noreturn void dfaerror (const char *);
 
-extern int using_utf8 (void);
+extern bool dfa_using_utf8 (void) _GL_ATTRIBUTE_PURE;
 
-/* Maximum number of characters that can be the case-folded
-   counterparts of a single character, not counting the character
-   itself.  This is 1 for towupper, 1 for towlower, and 1 for each
-   entry in LONESOME_LOWER; see dfa.c.  */
-enum { CASE_FOLDED_BUFSIZE = 1 + 1 + 19 };
-
-extern int case_folded_counterparts (wchar_t, wchar_t[CASE_FOLDED_BUFSIZE]);
+/* This must be called before calling any of the above dfa*() functions. */
+extern void dfa_init (void);

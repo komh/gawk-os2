@@ -11,7 +11,8 @@
  */
 
 /* 
- * Copyright (C) 1995-2004, 2008, 2009, 2011 the Free Software Foundation, Inc.
+ * Copyright (C) 1995-2004, 2008, 2009, 2011, 2016
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -47,12 +48,6 @@
 #define HAVE_MKTIME	1
 #endif
 
-/* For ULTRIX 4.3 */
-#ifdef ultrix
-#define HAVE_MKTIME     1
-#define GETGROUPS_NOT_STANDARD	1
-#endif
-
 /* For whiny users */
 #ifdef USE_INCLUDED_STRFTIME
 #undef HAVE_STRFTIME
@@ -65,14 +60,10 @@
 #define _TZSET 1
 #endif
 
-/* For z/OS, from Dave Pitts */
-#ifdef ZOS_USS
-#undef HAVE_DLFCN_H
-#undef HAVE_SYS_PARAM_H
-#undef HAVE_MCHECK_H
-#undef HAVE_SETENV
-#define setenv zos_setenv
-#define unsetenv zos_unsetenv
-extern int setenv(const char *name, const char *value, int rewrite);
-extern int unsetenv(const char *name);
+/* Junk for dfa.[ch] */
+/* The __pure__ attribute was added in gcc 2.96.  */
+#if __GNUC__ > 2 || (__GNUC__ == 2 && __GNUC_MINOR__ >= 96)
+# define _GL_ATTRIBUTE_PURE __attribute__ ((__pure__))
+#else
+# define _GL_ATTRIBUTE_PURE /* empty */
 #endif

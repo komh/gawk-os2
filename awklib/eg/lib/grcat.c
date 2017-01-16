@@ -1,7 +1,7 @@
 /*
  * grcat.c
  *
- * Generate a printable version of the group database
+ * Generate a printable version of the group database.
  */
 /*
  * Arnold Robbins, arnold@skeeve.com, May 1993
@@ -31,11 +31,11 @@ main(int argc, char **argv)
     int i;
 
     while ((g = getgrent()) != NULL) {
-#ifdef ZOS_USS
-        printf("%s:%ld:", g->gr_name, (long) g->gr_gid);
-#else
+#ifdef HAVE_STRUCT_GROUP_GR_PASSWD
         printf("%s:%s:%ld:", g->gr_name, g->gr_passwd,
                                      (long) g->gr_gid);
+#else
+        printf("%s:*:%ld:", g->gr_name, (long) g->gr_gid);
 #endif
         for (i = 0; g->gr_mem[i] != NULL; i++) {
             printf("%s", g->gr_mem[i]);

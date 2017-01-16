@@ -3,7 +3,8 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2014 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2016,
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -76,6 +77,10 @@
 #include <netdb.h>
 #endif /* HAVE_NETDB_H */
 
+#ifdef HAVE_SYS_SELECT_H
+#include <sys/select.h>
+#endif	/* HAVE_SYS_SELECT_H */
+
 #ifndef HAVE_GETADDRINFO
 #include "missing_d/getaddrinfo.h"
 #endif
@@ -110,6 +115,14 @@
 
 #ifdef __EMX__
 #include <process.h>
+
+#if !defined(_S_IFDIR) && defined(S_IFDIR)
+#define _S_IFDIR	S_IFDIR
+#endif
+
+#if !defined(_S_IRWXU) && defined(S_IRWXU)
+#define _S_IRWXU	S_IRWXU
+#endif
 #endif
 
 #ifndef ENFILE
@@ -166,6 +179,12 @@
 # define SOCKET			int
 #endif
 
+#else /* HAVE_SOCKETS */
+
+#ifndef closemaybesocket
+# define closemaybesocket(fd)	close(fd)
+#endif
+
 #endif /* HAVE_SOCKETS */
 
 #ifndef HAVE_SETSID
@@ -194,12 +213,11 @@
 #define INCREMENT_REC(X)	X++
 #endif
 
-typedef enum { CLOSE_ALL, CLOSE_TO, CLOSE_FROM } two_way_close_type;
-
 /* Several macros to make the code a bit clearer. */
 #define at_eof(iop)     (((iop)->flag & IOP_AT_EOF) != 0)
 #define has_no_data(iop)        ((iop)->dataend == NULL)
 #define no_data_left(iop)	((iop)->off >= (iop)->dataend)
+#define buffer_has_all_data(iop) ((iop)->dataend - (iop)->off == (iop)->public.sbuf.st_size)
 
 /*
  * The key point to the design is to split out the code that searches through
@@ -273,7 +291,23 @@ static RECVALUE (*matchrec)(IOBUF *iop, struct recmatch *recm, SCANSTATE *state)
 static int get_a_record(char **out, IOBUF *iop, int *errcode);
 
 static void free_rp(struct redirect *rp);
-static int inetfile(const char *str, int *length, int *family);
+
+struct inet_socket_info {
+	int family;		/* AF_UNSPEC, AF_INET, or AF_INET6 */
+	int protocol;		/* SOCK_STREAM or SOCK_DGRAM */
+	/*
+	 * N.B. If we used 'char *' or 'const char *' pointers to the
+	 * substrings, it would trigger compiler warnings about the casts
+	 * in either inetfile() or devopen().  So we use offset/len to
+	 * avoid that.
+	 */
+	struct {
+		int offset;
+		int len;
+	} localport, remotehost, remoteport;
+};
+
+static bool inetfile(const char *str, struct inet_socket_info *isn);
 
 static NODE *in_PROCINFO(const char *pidx1, const char *pidx2, NODE **full_idx);
 static long get_read_timeout(IOBUF *iop);
@@ -551,12 +585,12 @@ set_NR()
 
 /* inrec --- This reads in a record from the input file */
 
-int
+bool
 inrec(IOBUF *iop, int *errcode)
 {
 	char *begin;
 	int cnt;
-	int retval = 0;
+	bool retval = true;
 
 	if (at_eof(iop) && no_data_left(iop))
 		cnt = EOF;
@@ -566,13 +600,13 @@ inrec(IOBUF *iop, int *errcode)
 		cnt = get_a_record(& begin, iop, errcode);
 
 	if (cnt == EOF) {
-		retval = 1;
-		if (*errcode > 0)
-			update_ERRNO_int(*errcode);
+		retval = false;
 	} else {
 		INCREMENT_REC(NR);
 		INCREMENT_REC(FNR);
 		set_record(begin, cnt);
+		if (*errcode > 0)
+			retval = false;
 	}
 
 	return retval;
@@ -707,7 +741,9 @@ redirect(NODE *redir_exp, int redirtype, int *errflg)
 	int fd;
 	const char *what = NULL;
 	bool new_rp = false;
-	int len;	/* used with /inet */
+#ifdef HAVE_SOCKETS
+	struct inet_socket_info isi;
+#endif
 	static struct redirect *save_rp = NULL;	/* hold onto rp that should
 	                                         * be freed for reuse
 	                                         */
@@ -766,9 +802,9 @@ redirect(NODE *redir_exp, int redirtype, int *errflg)
 	 * Use /inet4 to force IPv4, /inet6 to force IPv6, and plain
 	 * /inet will be whatever we get back from the system.
 	 */
-	if (inetfile(str, & len, NULL)) {
+	if (inetfile(str, & isi)) {
 		tflag |= RED_SOCKET;
-		if (strncmp(str + len, "tcp/", 4) == 0)
+		if (isi.protocol == SOCK_STREAM)
 			tflag |= RED_TCP;	/* use shutdown when closing */
 	}
 #endif /* HAVE_SOCKETS */
@@ -859,9 +895,15 @@ redirect(NODE *redir_exp, int redirtype, int *errflg)
 			(void) flush_io();
 
 			os_restore_mode(fileno(stdin));
+#ifdef SIGPIPE
+			signal(SIGPIPE, SIG_DFL);
+#endif
 			if ((rp->output.fp = popen(str, binmode("w"))) == NULL)
 				fatal(_("can't open pipe `%s' for output (%s)"),
 						str, strerror(errno));
+#ifdef SIGPIPE
+			signal(SIGPIPE, SIG_IGN);
+#endif
 
 			/* set close-on-exec */
 			os_close_on_exec(fileno(rp->output.fp), str, "pipe", "to");
@@ -895,7 +937,7 @@ redirect(NODE *redir_exp, int redirtype, int *errflg)
 			direction = "to/from";
 			if (! two_way_open(str, rp)) {
 #ifdef HAVE_SOCKETS
-				if (inetfile(str, NULL, NULL)) {
+				if (inetfile(str, NULL)) {
 					*errflg = errno;
 					/* do not free rp, saving it for reuse (save_rp = rp) */
 					return NULL;
@@ -964,8 +1006,10 @@ redirect(NODE *redir_exp, int redirtype, int *errflg)
                                  (vaxc$errno == SS$_EXQUOTA ||
                                   vaxc$errno == SS$_EXBYTLM ||
                                   vaxc$errno == RMS$_ACC ||
-				  vaxc$errno == RMS$_SYN))
+				  vaxc$errno == RMS$_SYN)) {
 				close_one();
+				close_one();
+			}
 #endif
 			else {
 				/*
@@ -1131,7 +1175,7 @@ do_close(int nargs)
 
 /* close_rp --- separate function to just do closing */
 
-static int
+int
 close_rp(struct redirect *rp, two_way_close_type how)
 {
 	int status = 0;
@@ -1289,7 +1333,7 @@ flush_io()
 			warning(_("error writing standard error (%s)"), strerror(errno));
 		status++;
 	}
-	for (rp = red_head; rp != NULL; rp = rp->next)
+	for (rp = red_head; rp != NULL; rp = rp->next) {
 		/* flush both files and pipes, what the heck */
 		if ((rp->flag & RED_WRITE) != 0 && rp->output.fp != NULL) {
 			if (rp->output.gawk_fflush(rp->output.fp, rp->output.opaque)) {
@@ -1305,6 +1349,7 @@ flush_io()
 				status++;
 			}
 		}
+	}
 	if (status != 0)
 		status = -1;	/* canonicalize it */
 	return status;
@@ -1486,7 +1531,7 @@ socketopen(int family, int type, const char *localpname,
 #ifdef MSG_PEEK
 					char buf[10];
 					struct sockaddr_storage remote_addr;
-					socklen_t read_len = 0;
+					socklen_t read_len = sizeof(remote_addr);
 
 					if (recvfrom(socket_fd, buf, 1, MSG_PEEK,
 						(struct sockaddr *) & remote_addr,
@@ -1518,31 +1563,40 @@ nextrres:
 }
 #endif /* HAVE_SOCKETS */
 
-/* devopen --- handle /dev/std{in,out,err}, /dev/fd/N, regular files */
+
+/* devopen_simple --- handle "-", /dev/std{in,out,err}, /dev/fd/N */
 
 /*
- * Strictly speaking, "name" is not a "const char *" because we temporarily
- * change the string.
+ * 9/2014: Flow here is a little messy.
+ *
+ * For do_posix, we don't allow any of the special filenames.
+ *
+ * For do_traditional, we allow /dev/{stdin,stdout,stderr} since BWK awk
+ * (and mawk) support them.  But we don't allow /dev/fd/N or /inet.
+ *
+ * Note that for POSIX systems os_devopen() is a no-op.
  */
 
 int
-devopen(const char *name, const char *mode)
+devopen_simple(const char *name, const char *mode, bool try_real_open)
 {
 	int openfd;
 	char *cp;
 	char *ptr;
 	int flag = 0;
-	int len;
-	int family;
 
-	if (strcmp(name, "-") == 0)
-		return fileno(stdin);
+	if (strcmp(name, "-") == 0) {
+		if (mode[0] == 'r')
+			return fileno(stdin);
+		else
+			return fileno(stdout);
+	}
 
 	flag = str2mode(mode);
 	openfd = INVALID_HANDLE;
 
-	if (do_traditional)
-		goto strictopen;
+	if (do_posix)
+		goto done;
 
 	if ((openfd = os_devopen(name, flag)) != INVALID_HANDLE) {
 		os_close_on_exec(openfd, name, "file", "");
@@ -1558,6 +1612,8 @@ devopen(const char *name, const char *mode)
 			openfd = fileno(stdout);
 		else if (strcmp(cp, "stderr") == 0 && (flag & O_ACCMODE) == O_WRONLY)
 			openfd = fileno(stderr);
+		else if (do_traditional)
+			goto done;
 		else if (strncmp(cp, "fd/", 3) == 0) {
 			struct stat sbuf;
 
@@ -1568,76 +1624,45 @@ devopen(const char *name, const char *mode)
 				openfd = INVALID_HANDLE;
 		}
 		/* do not set close-on-exec for inherited fd's */
-		if (openfd != INVALID_HANDLE)
-			return openfd;
-	} else if (inetfile(name, & len, & family)) {
+	}
+done:
+	if (try_real_open)
+		openfd = open(name, flag, 0666);
+
+	return openfd;
+}
+
+/* devopen --- handle /dev/std{in,out,err}, /dev/fd/N, /inet, regular files */
+
+/*
+ * Strictly speaking, "name" is not a "const char *" because we temporarily
+ * change the string.
+ */
+
+int
+devopen(const char *name, const char *mode)
+{
+	int openfd;
+	char *cp;
+	int flag;
+	struct inet_socket_info isi;
+
+	openfd = devopen_simple(name, mode, false);
+	if (openfd != INVALID_HANDLE)
+		return openfd;
+
+	flag = str2mode(mode);
+
+	if (do_traditional) {
+		goto strictopen;
+	} else if (inetfile(name, & isi)) {
 #ifdef HAVE_SOCKETS
-		/* /inet/protocol/localport/hostname/remoteport */
-		int protocol;
-		char *hostname;
-		char *hostnameslastcharp;
-		char *localpname;
-		char *localpnamelastcharp;
+		cp = (char *) name;
 
-		cp = (char *) name + len;
-		/* which protocol? */
-		if (strncmp(cp, "tcp/", 4) == 0)
-			protocol = SOCK_STREAM;
-		else if (strncmp(cp, "udp/", 4) == 0)
-			protocol = SOCK_DGRAM;
-		else {
-			protocol = SOCK_STREAM;	/* shut up the compiler */
-			fatal(_("no (known) protocol supplied in special filename `%s'"),
-						name);
-		}
-		cp += 4;
-
-		/* which localport? */
-		localpname = cp;
-		while (*cp != '/' && *cp != '\0')
-			cp++;
-		/*                    
-		 * Require a port, let them explicitly put 0 if
-		 * they don't care.  
-		 */
-		if (*cp != '/' || cp == localpname)
-			fatal(_("special file name `%s' is incomplete"), name);
-
-		/*
-		 * We change the special file name temporarily because we
-		 * need a 0-terminated string here for conversion with atoi().
-		 * By using atoi() the use of decimal numbers is enforced.
-		 */
-		*cp = '\0';
-		localpnamelastcharp = cp;
-
-		/* which hostname? */
-		cp++;
-		hostname = cp;
-		while (*cp != '/' && *cp != '\0')
-			cp++; 
-		if (*cp != '/' || cp == hostname) {
-			*localpnamelastcharp = '/';
-			fatal(_("must supply a remote hostname to `/inet'"));
-		}
-		*cp = '\0';
-		hostnameslastcharp = cp;
-
-		/* which remoteport? */
-		cp++;
-		/*
-		 * The remote port ends the special file name.
-		 * This means there already is a '\0' at the end of the string.
-		 * Therefore no need to patch any string ending.
-		 *
-		 * Here too, require a port, let them explicitly put 0 if
-		 * they don't care.
-		 */
-		if (*cp == '\0') {
-			*localpnamelastcharp = '/';
-			*hostnameslastcharp = '/';
-			fatal(_("must supply a remote port to `/inet'"));
-		}
+		/* socketopen requires NUL-terminated strings */
+		cp[isi.localport.offset+isi.localport.len] = '\0';
+		cp[isi.remotehost.offset+isi.remotehost.len] = '\0';
+		/* remoteport comes last, so already NUL-terminated */
 
 		{
 #define DEFAULT_RETRIES 20
@@ -1674,13 +1699,14 @@ devopen(const char *name, const char *mode)
 		retries = def_retries;
 
 		do {
-			openfd = socketopen(family, protocol, localpname, cp, hostname);
+			openfd = socketopen(isi.family, isi.protocol, name+isi.localport.offset, name+isi.remoteport.offset, name+isi.remotehost.offset);
 			retries--;
 		} while (openfd == INVALID_HANDLE && retries > 0 && usleep(msleep) == 0);
 	}
 
-	*localpnamelastcharp = '/';
-	*hostnameslastcharp = '/';
+	/* restore original name string */
+	cp[isi.localport.offset+isi.localport.len] = '/';
+	cp[isi.remotehost.offset+isi.remotehost.len] = '/';
 #else /* ! HAVE_SOCKETS */
 	fatal(_("TCP/IP communications are not supported"));
 #endif /* HAVE_SOCKETS */
@@ -1694,9 +1720,8 @@ strictopen:
 		/* On OS/2 and Windows directory access via open() is
 		   not permitted.  */
 		struct stat buf;
-		int l, f;
 
-		if (!inetfile(name, &l, &f)
+		if (! inetfile(name, NULL)
 		    && stat(name, & buf) == 0 && S_ISDIR(buf.st_mode))
 			errno = EISDIR;
 	}
@@ -1718,7 +1743,7 @@ two_way_open(const char *str, struct redirect *rp)
 
 #ifdef HAVE_SOCKETS
 	/* case 1: socket */
-	if (inetfile(str, NULL, NULL)) {
+	if (inetfile(str, NULL)) {
 		int fd, newfd;
 
 		fd = devopen(str, "rw");
@@ -1761,7 +1786,7 @@ two_way_open(const char *str, struct redirect *rp)
 	if (find_two_way_processor(str, rp))
 		return true;
 
-#if defined(HAVE_TERMIOS_H) && ! defined(ZOS_USS)
+#if defined(HAVE_TERMIOS_H)
 	/* case 3: use ptys for two-way communications to child */
 	if (! no_ptys && pty_vs_pipe(str)) {
 		static bool initialized = false;
@@ -1862,56 +1887,75 @@ two_way_open(const char *str, struct redirect *rp)
 		goto use_pipes;
 
 	got_the_pty:
-		if ((slave = open(slavenam, O_RDWR)) < 0) {
-			close(master);
-			fatal(_("could not open `%s', mode `%s'"),
-				slavenam, "r+");
-		}
 
-#ifdef I_PUSH
 		/*
-		 * Push the necessary modules onto the slave to
-		 * get terminal semantics.
+		 * We specifically open the slave only in the child. This allows
+		 * certain, er, "limited" systems to work.  The open is specifically
+		 * without O_NOCTTY in order to make the slave become the controlling
+		 * terminal.
 		 */
-		ioctl(slave, I_PUSH, "ptem");
-		ioctl(slave, I_PUSH, "ldterm");
-#endif
-
-		tcgetattr(slave, & st);
-		st.c_iflag &= ~(ISTRIP | IGNCR | INLCR | IXOFF);
-		st.c_iflag |= (ICRNL | IGNPAR | BRKINT | IXON);
-		st.c_oflag &= ~OPOST;
-		st.c_cflag &= ~CSIZE;
-		st.c_cflag |= CREAD | CS8 | CLOCAL;
-		st.c_lflag &= ~(ECHO | ECHOE | ECHOK | NOFLSH | TOSTOP);
-		st.c_lflag |= ISIG;
-
-		/* Set some control codes to default values */
-#ifdef VINTR
-		st.c_cc[VINTR] = '\003';        /* ^c */
-#endif
-#ifdef VQUIT
-		st.c_cc[VQUIT] = '\034';        /* ^| */
-#endif
-#ifdef VERASE
-		st.c_cc[VERASE] = '\177';       /* ^? */
-#endif
-#ifdef VKILL
-		st.c_cc[VKILL] = '\025';        /* ^u */
-#endif
-#ifdef VEOF
-		st.c_cc[VEOF] = '\004'; /* ^d */
-#endif
-		tcsetattr(slave, TCSANOW, & st);
 
 		switch (pid = fork()) {
 		case 0:
 			/* Child process */
 			setsid();
 
+			if ((slave = open(slavenam, O_RDWR)) < 0) {
+				close(master);
+				fatal(_("could not open `%s', mode `%s'"),
+					slavenam, "r+");
+			}
+
+#ifdef I_PUSH
+			/*
+			 * Push the necessary modules onto the slave to
+			 * get terminal semantics.  Check that they aren't
+			 * already there to avoid hangs on said "limited" systems.
+			 */
+#ifdef I_FIND
+			if (ioctl(slave, I_FIND, "ptem") == 0)
+#endif
+				ioctl(slave, I_PUSH, "ptem");
+#ifdef I_FIND
+			if (ioctl(slave, I_FIND, "ldterm") == 0)
+#endif
+				ioctl(slave, I_PUSH, "ldterm");
+#endif
+			tcgetattr(slave, & st);
+
+			st.c_iflag &= ~(ISTRIP | IGNCR | INLCR | IXOFF);
+			st.c_iflag |= (ICRNL | IGNPAR | BRKINT | IXON);
+			st.c_oflag &= ~OPOST;
+			st.c_cflag &= ~CSIZE;
+			st.c_cflag |= CREAD | CS8 | CLOCAL;
+			st.c_lflag &= ~(ECHO | ECHOE | ECHOK | NOFLSH | TOSTOP);
+			st.c_lflag |= ISIG;
+
+			/* Set some control codes to default values */
+#ifdef VINTR
+			st.c_cc[VINTR] = '\003';        /* ^c */
+#endif
+#ifdef VQUIT
+			st.c_cc[VQUIT] = '\034';        /* ^| */
+#endif
+#ifdef VERASE
+			st.c_cc[VERASE] = '\177';       /* ^? */
+#endif
+#ifdef VKILL
+			st.c_cc[VKILL] = '\025';        /* ^u */
+#endif
+#ifdef VEOF
+			st.c_cc[VEOF] = '\004'; /* ^d */
+#endif
+
 #ifdef TIOCSCTTY
+			/*
+			 * This may not necessary anymore given that we
+			 * open the slave in the child, but it doesn't hurt.
+			 */
 			ioctl(slave, TIOCSCTTY, 0);
 #endif
+			tcsetattr(slave, TCSANOW, & st);
 
 			if (close(master) == -1)
 				fatal(_("close of master pty failed (%s)"), strerror(errno));
@@ -1938,17 +1982,9 @@ two_way_open(const char *str, struct redirect *rp)
 		case -1:
 			save_errno = errno;
 			close(master);
-			close(slave);
 			errno = save_errno;
 			return false;
 
-		}
-
-		/* parent */
-		if (close(slave) != 0) {
-			close(master);
-			(void) kill(pid, SIGKILL);
-			fatal(_("close of slave pty failed (%s)"), strerror(errno));
 		}
 
 		rp->pid = pid;
@@ -1987,7 +2023,7 @@ two_way_open(const char *str, struct redirect *rp)
 		first_pty_letter = '\0';	/* reset for next command */
 		return true;
 	}
-#endif /* defined(HAVE_TERMIOS_H) && ! defined(ZOS_USS) */
+#endif /* defined(HAVE_TERMIOS_H) */
 
 use_pipes:
 #ifndef PIPES_SIMULATED		/* real pipes */
@@ -2115,6 +2151,7 @@ use_pipes:
 		    || close(ctop[0]) == -1 || close(ctop[1]) == -1)
 			fatal(_("close of pipe failed (%s)"), strerror(errno));
 		/* stderr does NOT get dup'ed onto child's stdout */
+		signal(SIGPIPE, SIG_DFL);
 		execl("/bin/sh", "sh", "-c", str, NULL);
 		_exit(errno == ENOENT ? 127 : 126);
 	}
@@ -2308,6 +2345,7 @@ gawk_popen(const char *cmd, struct redirect *rp)
 			fatal(_("moving pipe to stdout in child failed (dup: %s)"), strerror(errno));
 		if (close(p[0]) == -1 || close(p[1]) == -1)
 			fatal(_("close of pipe failed (%s)"), strerror(errno));
+		signal(SIGPIPE, SIG_DFL);
 		execl("/bin/sh", "sh", "-c", cmd, NULL);
 		_exit(errno == ENOENT ? 127 : 126);
 	}
@@ -2372,9 +2410,18 @@ gawk_popen(const char *cmd, struct redirect *rp)
 	FILE *current;
 
 	os_restore_mode(fileno(stdin));
+#ifdef SIGPIPE
+	signal(SIGPIPE, SIG_DFL);
+#endif
+
 	current = popen(cmd, binmode("r"));
+
 	if ((BINMODE & BINMODE_INPUT) != 0)
 		os_setbinmode(fileno(stdin), O_BINARY);
+#ifdef SIGPIPE
+	signal(SIGPIPE, SIG_IGN);
+#endif
+
 	if (current == NULL)
 		return NULL;
 	os_close_on_exec(fileno(current), cmd, "pipe", "from");
@@ -2441,6 +2488,9 @@ do_getline_redir(int into_variable, enum redirval redirtype)
 				update_ERRNO_int(redir_error);
 		}
 		return make_number((AWKNUM) -1.0);
+	} else if ((rp->flag & RED_TWOWAY) != 0 && rp->iop == NULL) {
+		(void) close_rp(rp, CLOSE_ALL);
+		fatal(_("getline: attempt to read from closed read end of two-way pipe"));
 	}
 	iop = rp->iop;
 	if (iop == NULL)		/* end of input */
@@ -2524,7 +2574,6 @@ do_getline(int into_variable, IOBUF *iop)
 typedef struct {
 	const char *envname;
 	char **dfltp;		/* pointer to address of default path */
-	char try_cwd;		/* always search current directory? */
 	char **awkpath;		/* array containing library search paths */ 
 	int max_pathlen;	/* length of the longest item in awkpath */ 
 } path_info;
@@ -2532,13 +2581,11 @@ typedef struct {
 static path_info pi_awkpath = {
 	/* envname */	"AWKPATH",
 	/* dfltp */	& defpath,
-	/* try_cwd */	true,
 };
 
 static path_info pi_awklibpath = {
 	/* envname */	"AWKLIBPATH",
 	/* dfltp */	& deflibpath,
-	/* try_cwd */	false,
 };
 
 /* init_awkpath --- split path(=$AWKPATH) into components */
@@ -2596,30 +2643,6 @@ init_awkpath(path_info *pi)
 #undef INC_PATH
 }
 
-/* get_cwd -- get current working directory */
-
-static char *
-get_cwd ()
-{
-#define BSIZE	100
-	char *buf;
-	size_t bsize = BSIZE;
-
-	emalloc(buf, char *, bsize * sizeof(char), "get_cwd");
-	while (true) {
-		if (getcwd(buf, bsize) == buf)
-			return buf;
-		if (errno != ERANGE) {
-			efree(buf);
-			return NULL;
-		}
-		bsize *= 2;
-		erealloc(buf, char *, bsize * sizeof(char), "get_cwd");
-	}
-#undef BSIZE
-}
-
-
 /* do_find_source --- search $AWKPATH for file, return NULL if not found */ 
 
 static char *
@@ -2639,24 +2662,6 @@ do_find_source(const char *src, struct stat *stb, int *errcode, path_info *pi)
 		*errcode = errno;
 		efree(path);
 		return NULL;
-	}
-
-	/* try current directory before $AWKPATH search */
-	if (pi->try_cwd && stat(src, stb) == 0) {
-		path = get_cwd();
-		if (path == NULL) {
-			*errcode = errno;
-			return NULL;
-		}
-		erealloc(path, char *, strlen(path) + strlen(src) + 2, "do_find_source");
-#ifdef VMS
-		if (strcspn(path,">]:") == strlen(path))
-			strcat(path, "/");
-#else
-		strcat(path, "/");
-#endif
-		strcat(path, src);
-		return path;
 	}
 
 	if (pi->awkpath == NULL)
@@ -3129,10 +3134,8 @@ rs1scan(IOBUF *iop, struct recmatch *recm, SCANSTATE *state)
 {
 	char *bp;
 	char rs;
-#if MBS_SUPPORT
 	size_t mbclen = 0;
 	mbstate_t mbs;
-#endif
 
 	memset(recm, '\0', sizeof(struct recmatch));
 	rs = RS->stptr[0];
@@ -3143,7 +3146,6 @@ rs1scan(IOBUF *iop, struct recmatch *recm, SCANSTATE *state)
 	if (*state == INDATA)   /* skip over data we've already seen */
 		bp += iop->scanoff;
 
-#if MBS_SUPPORT
 	/*
 	 * From: Bruno Haible <bruno@clisp.org>
 	 * To: Aharon Robbins <arnold@skeeve.com>, gnits@gnits.org
@@ -3240,7 +3242,7 @@ rs1scan(IOBUF *iop, struct recmatch *recm, SCANSTATE *state)
 			return NOTERM;
 		}
 	}
-#endif
+
 	while (*bp != rs)
 		bp++;
 
@@ -3507,7 +3509,16 @@ get_a_record(char **out,        /* pointer to pointer to data */
 
 		ret = (*matchrec)(iop, & recm, & state);
 		iop->flag &= ~IOP_AT_START;
+		/* found the record, we're done, break the loop */
 		if (ret == REC_OK)
+			break;
+
+		/*
+		 * Likely found the record; if there's no more data
+		 * to be had (like from a tiny regular file), break the
+		 * loop. Otherwise, see if we can read more.
+		 */
+		if (ret == TERMNEAREND && buffer_has_all_data(iop))
 			break;
 
 		/* need to add more data to buffer */
@@ -3559,10 +3570,14 @@ get_a_record(char **out,        /* pointer to pointer to data */
 			break;
 		} else if (iop->count == 0) {
 			/*
-			 * hit EOF before matching RS, so end
-			 * the record and set RT to ""
+			 * Hit EOF before being certain that we've matched
+			 * the end of the record. If ret is TERMNEAREND,
+			 * we need to pull out what we've got in the buffer.
+			 * Eventually we'll come back here and see the EOF,
+			 * end the record and set RT to "".
 			 */
-			iop->flag |= IOP_AT_EOF;
+			if (ret != TERMNEAREND)
+				iop->flag |= IOP_AT_EOF;
 			break;
 		} else
 			iop->dataend += iop->count;
@@ -3669,7 +3684,7 @@ set_RS()
 	if (RS->stlen == 0) {
 		RS_is_null = true;
 		matchrec = rsnullscan;
-	} else if (RS->stlen > 1) {
+	} else if (RS->stlen > 1 && ! do_traditional) {
 		static bool warned = false;
 
 		RS_re_yes_case = make_regexp(RS->stptr, RS->stlen, false, true, true);
@@ -3744,35 +3759,92 @@ free_rp(struct redirect *rp)
 
 /* inetfile --- return true for a /inet special file, set other values */
 
-static int
-inetfile(const char *str, int *length, int *family)
+static bool
+inetfile(const char *str, struct inet_socket_info *isi)
 {
-	bool ret = false;
+#ifndef HAVE_SOCKETS
+	return false;
+#else
+	const char *cp = str;
+	struct inet_socket_info buf;
 
-	if (strncmp(str, "/inet/", 6) == 0) {
-		ret = true;
-		if (length != NULL)
-			*length = 6;
-		if (family != NULL)
-			*family = AF_UNSPEC;
-	} else if (strncmp(str, "/inet4/", 7) == 0) {
-		ret = true;
-		if (length != NULL)
-			*length = 7;
-		if (family != NULL)
-			*family = AF_INET;
-	} else if (strncmp(str, "/inet6/", 7) == 0) {
-		ret = true;
-		if (length != NULL)
-			*length = 7;
-		if (family != NULL)
-			*family = AF_INET6;
+	/* syntax: /inet/protocol/localport/hostname/remoteport */
+	if (strncmp(cp, "/inet", 5) != 0)
+		/* quick exit */
+		return false;
+	if (! isi)
+		isi = & buf;
+	cp += 5;
+	switch (*cp) {
+	case '/':
+		isi->family = AF_UNSPEC;
+		break;
+	case '4':
+		if (*++cp != '/')
+			return false;
+		isi->family = AF_INET;
+		break;
+	case '6':
+		if (*++cp != '/')
+			return false;
+		isi->family = AF_INET6;
+		break;
+	default:
+		return false;
+	}
+	cp++;	/* skip past '/' */
+
+	/* which protocol? */
+	if (strncmp(cp, "tcp/", 4) == 0)
+		isi->protocol = SOCK_STREAM;
+	else if (strncmp(cp, "udp/", 4) == 0)
+		isi->protocol = SOCK_DGRAM;
+	else
+		return false;
+	cp += 4;
+
+	/* which localport? */
+	isi->localport.offset = cp-str;
+	while (*cp != '/' && *cp != '\0')
+		cp++;
+	/*                    
+	 * Require a port, let them explicitly put 0 if
+	 * they don't care.  
+	 */
+	if (*cp != '/' || ((isi->localport.len = (cp-str)-isi->localport.offset) == 0))
+		return false;
+
+	/* which hostname? */
+	cp++;
+	isi->remotehost.offset = cp-str;
+	while (*cp != '/' && *cp != '\0')
+		cp++; 
+	if (*cp != '/' || ((isi->remotehost.len = (cp-str)-isi->remotehost.offset) == 0))
+		return false;
+
+	/* which remoteport? */
+	cp++;
+	/*
+	 * The remote port ends the special file name.
+	 * This means there already is a '\0' at the end of the string.
+	 * Therefore no need to patch any string ending.
+	 *
+	 * Here too, require a port, let them explicitly put 0 if
+	 * they don't care.
+	 */
+	isi->remoteport.offset = cp-str;
+	while (*cp != '/' && *cp != '\0')
+		cp++; 
+	if (*cp != '\0' || ((isi->remoteport.len = (cp-str)-isi->remoteport.offset) == 0))
+		return false;
+
 #ifndef HAVE_GETADDRINFO
+	/* final check for IPv6: */
+	if (isi->family == AF_INET6)
 		fatal(_("IPv6 communication is not supported"));
 #endif
-	}
-
-	return ret;
+	return true;
+#endif /* HAVE_SOCKETS */
 }
 
 /*

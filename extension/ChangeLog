@@ -1,3 +1,173 @@
+2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.1.4: Release tar ball made.
+
+2016-07-01         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace.c (do_inplace_begin): Flush stdout at the start to
+	try to avoid flushing problems on some obscure BSD systems.
+	* revtwoway.c (gawk_getdtablesize): Renamed from getdtablesize.
+	(getdtablesize): New macro. Avoids problems on FreeBSD 10
+	where configure didn't work correctly. Thanks to Nelson Beebe.
+	Update copyright year.
+
+2016-01-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c (do_statvfs): Define out f_fsid on AIX.
+
+2016-01-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c: Add statvfs function. Undocumented for now.
+	* configure.ac: Add appropriate stuff to check for statvfs.
+	* configure, configh.in: Regenerated.
+
+2015-12-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Add ext_custom.h so that it will be
+	included in the distribution tarballs.
+
+2015-12-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Make change of 2015-10-26 actually work.
+
+	* ext_custom.h: New file. Move _DEFAULT_SOURCE dance to here.
+	* configure.ac: Add call to AH_BOTTOM.
+	* configure: Regenerate.
+
+2015-11-15         Ville Skytta          <ville.skytta@iki.fi>
+
+	* fnmatch.3am, fork.3am, inplace.3am, ordchr.3am, readdir.3am,
+	readfile.3am, revoutput.3am, revtwoway.3am, rwarray.3am,
+	time.3am: Fix troff markup to avoid warnings.
+
+2015-10-26         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.h.in: Turn on _DEFAULT_SOURCE for very recent
+	GLIBC.  Thanks to Michal Jaegermann <michal.jnn@gmail.com>
+	for the report.
+
+2015-08-28	Daniel Richard G.	<skunk@iSKUNK.ORG>
+
+	* rwarray.c: Removed z/OS-specific code that is no longer needed due
+	to improvements in Gawk's general Autotools support.
+	* Makefile.am, configure.ac: Make use of the AC_ZOS_USS macro so
+	that this sub-project can support that platform as well.
+	* gawkfts.h, readdir.c: Use a proper platform cpp symbol to guard
+	z/OS-specific code, and eliminate the z/OS-specific use of "long"
+	inode numbers as "long long" works perfectly well there.
+
+2015-08-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* revoutput.c (init_revoutput): Don't install REVOUT if it's
+	there already. Makes the extension usable with -v.
+	* revoutput.3am: Add a BUGS section.
+
+2015-06-17         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* inplace.3am (BUGS): Document that ACLs are not preserved, and
+	a temporary file may be left behind if the program is killed by
+	a signal.
+
+2015-06-17         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* inplace.3am: Document new inplace variable to control whether
+	inplace editing is active.
+
+2015-05-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.1.3: Release tar ball made.
+
+2015-04-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.1.2: Release tar ball made.
+
+2015-04-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am, filefuncs.c, inplace.3am, inplace.c:
+	Update copyright years.
+
+2015-03-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure: Updated to libtool 2.4.6.
+
+2015-03-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace.3am (SYNOPSIS): Updated to not show the contents
+	of the extension.
+	(BUGS): Removed.
+
+2015-03-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace.c (do_inplace_begin): Jump through more hoops to satisfy
+	a newer version of clang.
+	* inplace.3am (BUGS): Add new section and documentation.
+
+2015-02-26         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Add rwarray0.c to the list.
+
+2015-02-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c: Punctuation fix.
+
+2015-01-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Infrastructure updates.
+
+	Automake 1.15. Libtool 2.4.5.
+
+	* configure.ac: Remove gettext macros.
+
+2015-01-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* testext.c (var_test): Adjust for PROCINFO now being there.
+
+2014-11-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace.c (do_inplace_begin): Jump through hoops to silence
+	GCC warnings about return value of chown.
+
+2014-10-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (uninstall-so): Remove *.lib too, per suggestion
+	from Andreas Buening.
+
+2014-10-12         KO Myung-Hun          <komh78@gmail.com>
+
+	Fixes for OS/2:
+
+	* Makefile.am (uninstall-so): Remove *.dll and *.a, also.
+
+2014-10-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace.c (do_inplace_begin): Use a cast to void in front
+	of the second call to chown to avoid compiler warnings from clang.
+
+2014-09-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c: Minor edits to sync with documentation.
+	* testext.c: Add test to get PROCINFO, expected to fail.
+
+2014-08-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (RM): Define for makes that don't have it,
+	such as on OpenBSD.  Thanks to Jeremie Courreges-Anglas
+	<jca@wxcvbn.org> for the report.
+
+2014-06-13         Paul Gortmaker        <paul.gortmaker@windriver.com>
+
+	* Makefile.am (uninstall-so): Came across below bug while cross
+	compiling, and changed both install-data-hook and uninstall-so
+	to use $(DESTDIR) on v4.1.1 before seeing most of the fix in
+	gawk-4.1.1-3-g976f73ab0356; here we ensure uninstall-so also
+	uses the $(DESTDIR) prefix on its use of pkgextensiondir.
+
+2014-04-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (install-data-hook): Use $(DESTDIR) when removing
+	the .la files. Thanks to Lars Wendler <polynomial-c@gentoo.org>
+	for the report and fix.
+
 2014-04-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.1: Release tar ball made.

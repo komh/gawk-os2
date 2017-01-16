@@ -2,7 +2,7 @@
 # Configuration script for pc/config.h
 # ----------------------------------------------------------------------
 
-# Copyright (C) 2011 the Free Software Foundation, Inc.
+# Copyright (C) 2011, 2016 the Free Software Foundation, Inc.
 
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -39,9 +39,7 @@ s/^#undef GETGROUPS_T *$/#define GETGROUPS_T gid_t/
 s/^#undef HAVE_ALARM *$/#define HAVE_ALARM 1/
 s/^#undef HAVE_ATEXIT *$/#define HAVE_ATEXIT 1/
 /^#undef HAVE_BTOWC *$/c\
-#ifdef _WIN32\
-#define HAVE_BTOWC 1\
-#endif
+#define HAVE_BTOWC 1
 /^#undef HAVE_DECL_TZNAME *$/c\
 #ifdef __MINGW32__\
 #define HAVE_DECL_TZNAME 1\
@@ -182,6 +180,10 @@ s/^#undef HAVE_SYSTEM *$/#define HAVE_SYSTEM 1/
 #define HAVE_SYS_TIME_H 1\
 #endif
 s/^#undef HAVE_SYS_TYPES_H *$/#define HAVE_SYS_TYPES_H 1/
+/^#undef HAVE_SYS_WAIT_H *$/c\
+#ifdef __DJGPP__\
+#define HAVE_SYS_WAIT_H 1\
+#endif
 /^#undef HAVE_TOWLOWER *$/c\
 #ifdef __MINGW32__\
 #define HAVE_TOWLOWER 1\
@@ -297,8 +299,4 @@ typedef int int32_t;\
 #if defined(__EMX__)\
 #define strcasecmp stricmp\
 #define strncasecmp strnicmp\
-#endif\
-\
-#if defined(__MINGW32__)\
-# define WEXITSTATUS(stat_val)  ((stat_val) & ~0xC0000000)\
 #endif

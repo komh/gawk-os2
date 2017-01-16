@@ -1,20 +1,4 @@
 $! vmsbuild.com -- Commands to build GAWK		Pat Rankin, Dec'89
-$!							   revised, Mar'90
-$!						gawk 2.13  revised, Jun'91
-$!						gawk 2.14  revised, Sep'92
-$!						gawk 2.15  revised, Oct'93
-$!						gawk 3.0   revised, Dec'95
-$!						gawk 3.0.1 revised, Nov'96
-$!						gawk 3.1.0 revised, Mar'01
-$!						gawk 3.1.1 revised, Apr'02
-$!						gawk 3.1.6 revised, Mar'07
-$!						gawk-bytecode revd, Jan'10
-$!						gawk 4.0.0 revd, May'11
-$!						gawk 4.1.0 revd, May'13
-$!						gawk 4.1.1 revd, Apr'14
-$!
-$ REL = "4.1"	!release version number
-$ PATCHLVL = "1"
 $!
 $ if (f$getsyi("HW_MODEL") .lt. 1024)
 $ then
@@ -48,7 +32,7 @@ $   CFLAGS = "/Incl=[]/Obj=[]/Opt=noInline/Def=(''CDEFS')''CCFLAGS'"
 $   LIBS = "sys$share:vaxcrtl.exe/Shareable"
 $  else  !!VAXC
 $!  neither GNUC nor VAXC, assume DECC (same for either VAX or Alpha)
-$ if arch_name .eqs. "vax"
+$ if arch_name .eqs. "VAX"
 $ then
 $   CFLOAT = ""
 $ else
@@ -58,7 +42,7 @@ $   CC = "cc/DECC/Prefix=All"
 $   CNAME = "/NAME=(AS_IS,SHORT)
 $   CINC = "/NESTED_INCLUDE=NONE"
 $   CFLAGS = "/Incl=([],[.vms])/Obj=[]/Def=(''CDEFS')''CINC'''CCFLAGS'"
-$   CFLAGS = CNAMES + CFLOAT + CFLAGS 
+$   CFLAGS = CNAME + CFLOAT + CFLAGS
 $   LIBS = ""	! DECC$SHR instead of VAXCRTL, no special link option needed
 $  endif !VAXC
 $ endif !GNUC
@@ -147,8 +131,8 @@ psect_attr=environ,noshr	!extern [noshare] char **
 stack=48	!preallocate more pages (default is 20)
 iosegment=128	!ditto (default is 32)
 $!
-$ v1 = f$verify(1)
 $ @[.vms]gawk_ident.com
+$ v1 = f$verify(1)
 $ open/append Fopt gawk.opt
 $ write Fopt libs
 $ close Fopt

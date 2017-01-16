@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 2004, 2010-2013 the Free Software Foundation, Inc.
+ * Copyright (C) 2004, 2010-2013, 2016 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -2801,7 +2801,7 @@ debug_prog(INSTRUCTION *pc)
 		unserialize(OPTION);
 		unsetenv("DGAWK_RESTART");
 		fprintf(out_fp, "Restarting ...\n");	
-		if (run[0] == 'T') 
+		if (strcasecmp(run, "true") == 0)
 			(void) do_run(NULL, 0);
 
 	} else if (command_file != NULL) {
@@ -3653,8 +3653,20 @@ debug_pre_execute(INSTRUCTION **pi)
 
 	assert(sourceline > 0);
 
-	if (check_breakpoint(pi)
-			|| check_watchpoint()
+	/*
+	 * 11/2015: This used to check breakpoints first, but that could
+	 * produce strange behavior, where a watchpoint doesn't print until
+	 * some time after the data changed.  This reworks things so that
+	 * watchpoints are checked first. It's a bit of a hack, but
+	 * the behavior for the user is more logical.
+	 */
+	if (check_watchpoint()) {
+		next_command();	/* return to debugger interface */
+		if (stop.command == D_return)
+			*pi = stop.pc;	/* jump to this instruction */
+		else if (cur_pc->opcode == Op_breakpoint)
+			cur_pc = cur_pc->nexti;    /* skip past the breakpoint instruction */
+	} else if (check_breakpoint(pi)
 			|| (stop.check_func && stop.check_func(pi))) {
 		next_command();	/* return to debugger interface */
 		if (stop.command == D_return)
@@ -3776,6 +3788,39 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 
 			
 	switch (pc->opcode) {
+	case Op_K_if:
+		print_func(fp, "[branch_if = %p] [branch_else = %p] [branch_else->lasti = %p]\n",
+				pc->branch_if, pc->branch_else, pc->branch_else->lasti);
+		break;
+
+	case Op_K_else:
+		print_func(fp, "[branch_end = %p]\n", pc->branch_end);
+		break;
+
+	case Op_K_while:
+		print_func(fp, "[while_body = %p] [target_break = %p]\n", (pc+1)->while_body, pc->target_break);
+		break;
+
+	case Op_K_do:
+		print_func(fp, "[doloop_cond = %p] [target_break = %p]\n", (pc+1)->doloop_cond, pc->target_break);
+		break;
+
+	case Op_K_for:
+		print_func(fp, "[forloop_cond = %p] ", (pc+1)->forloop_cond);
+		/* fall through */
+	case Op_K_arrayfor:
+		print_func(fp, "[forloop_body = %p] ", (pc+1)->forloop_body);
+		print_func(fp, "[target_break = %p] [target_continue = %p]\n", pc->target_break, pc->target_continue);
+		break;
+
+	case Op_K_switch:
+		print_func(fp, "[switch_start = %p] [switch_end = %p]\n", (pc+1)->switch_start, (pc+1)->switch_end);
+		break;
+
+	case Op_K_default:
+		print_func(fp, "[stmt_start = %p] [stmt_end = %p]\n", pc->stmt_start, pc->stmt_end);
+		break;
+
 	case Op_var_update:
 		print_func(fp, "[update_%s()]\n", get_spec_varname(pc->update_var));
 		break;
@@ -3858,6 +3903,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 	case Op_K_continue:
 		print_func(fp, "[target_jmp = %p]\n", pc->target_jmp);
 		break;
+
 	case Op_K_exit:
 		print_func(fp, "[target_end = %p] [target_atexit = %p]\n",
 						pc->target_end, pc->target_atexit);
@@ -5448,6 +5494,7 @@ do_eval(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	int ecount = 0, pcount = 0;
 	int ret;
 	int save_flags = do_flags;
+	SRCFILE *the_source;
 	
 	if (prog_running) {
 		this_frame = find_frame(0);
@@ -5458,7 +5505,7 @@ do_eval(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	ctxt = new_context();
 	ctxt->install_func = append_symbol;	/* keep track of newly installed globals */
 	push_context(ctxt);
-	(void) add_srcfile(SRC_CMDLINE, arg->a_string, srcfiles, NULL, NULL);
+	the_source = add_srcfile(SRC_CMDLINE, arg->a_string, srcfiles, NULL, NULL);
 	do_flags = false;
 	ret = parse_program(&code);
 	do_flags = save_flags;
@@ -5559,14 +5606,27 @@ do_eval(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 		this_func->param_cnt -= ecount;
 	}
 
-	/* always destroy symbol "@eval", however destroy all newly installed
+	/*
+	 * Always destroy symbol "@eval", however destroy all newly installed
 	 * globals only if fatal error (execute_code() returing NULL).
 	 */
 
 	pop_context();	/* switch to prev context */
 	free_context(ctxt, (ret_val != NULL));   /* free all instructions and optionally symbols */
-	if (ret_val != NULL)
-		destroy_symbol(f);	/* destroy "@eval" */
+
+	if (ret_val != NULL) {
+		/*
+		 * Remove @eval from FUNCTAB, so that above code
+		 * will work the next time around.
+		 */
+		NODE *s = make_string("@eval", 5);
+
+		(void) assoc_remove(func_table, s);
+		unref(s);
+	}
+
+	free_srcfile(the_source);
+
 	return false;
 }
 

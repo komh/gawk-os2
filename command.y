@@ -3,7 +3,8 @@
  */
 
 /* 
- * Copyright (C) 2004, 2010, 2011, 2014 the Free Software Foundation, Inc.
+ * Copyright (C) 2004, 2010, 2011, 2014, 2016
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -841,6 +842,8 @@ struct cmdtoken cmdtab[] = {
 	gettext_noop("end - end a list of commands or awk statements.") },
 { "eval", "", D_eval, D_EVAL, do_eval,
 	gettext_noop("eval stmt|[p1, p2, ...] - evaluate awk statement(s).") },
+{ "exit", "", D_quit, D_QUIT, do_quit,
+	gettext_noop("exit - (same as quit) exit debugger.") },
 { "finish", "", D_finish, D_FINISH, do_finish,
 	gettext_noop("finish - execute until selected stack frame returns.") },
 { "frame", "f", D_frame, D_FRAME, do_frame,
@@ -897,6 +900,8 @@ struct cmdtoken cmdtab[] = {
 	gettext_noop("up [N] - move N frames up the stack.") },
 { "watch", "w", D_watch, D_WATCH, do_watch,
 	gettext_noop("watch var - set a watchpoint for a variable.") },
+{ "where", "", D_backtrace, D_BACKTRACE, do_backtrace,
+	gettext_noop("where [N] - (same as backtrace) print trace of all or N innermost (outermost if N < 0) frames.") },
 { NULL, NULL, D_illegal, 0, (Func_cmd) 0,
 	 NULL },
 };
@@ -1020,7 +1025,11 @@ yyerror(const char *mesg, ...)
 /* yylex --- read a command and turn it into tokens */
 
 static int
+#ifdef USE_EBCDIC
+yylex_ebcdic(void)
+#else
 yylex(void)
+#endif
 {
 	static char *lexptr = NULL;
 	static char *lexend;
@@ -1112,7 +1121,7 @@ again:
 		}
 
 		while (c != '\0' && c != ' ' && c != '\t') {
-			if (! isalpha(c) && ! in_eval) {
+			if (! is_alpha(c) && ! in_eval) {
 				yyerror(_("invalid character in command"));
 				return '\n';
 			}
@@ -1280,12 +1289,12 @@ err:
 			|| c == ',' || c == '=')
 		return *lexptr++;
 
-	if (c != '_' && ! isalpha(c)) {
+	if (c != '_' && ! is_alpha(c)) {
 		yyerror(_("invalid character"));
 		return '\n';
 	}
 
-	while (isalnum(c) || c == '_')
+	while (is_identchar(c))
 		c = *++lexptr;
 	toklen = lexptr - tokstart;
 
@@ -1295,6 +1304,39 @@ err:
 	append_cmdarg(yylval);
 	return D_VARIABLE;
 }
+
+/* Convert single-character tokens coming out of yylex() from EBCDIC to
+   ASCII values on-the-fly so that the parse tables need not be regenerated
+   for EBCDIC systems.  */
+#ifdef USE_EBCDIC
+static int
+yylex(void)
+{
+	static char etoa_xlate[256];
+	static int do_etoa_init = 1;
+	int tok;
+
+	if (do_etoa_init)
+	{
+		for (tok = 0; tok < 256; tok++)
+			etoa_xlate[tok] = (char) tok;
+#ifdef HAVE___ETOA_L
+		/* IBM helpfully provides this function.  */
+		__etoa_l(etoa_xlate, sizeof(etoa_xlate));
+#else
+# error "An EBCDIC-to-ASCII translation function is needed for this system"
+#endif
+		do_etoa_init = 0;
+	}
+
+	tok = yylex_ebcdic();
+
+	if (tok >= 0 && tok <= 0xFF)
+		tok = etoa_xlate[tok];
+
+	return tok;
+}
+#endif /* USE_EBCDIC */
 
 /* find_argument --- find index in 'argtab' for a command option */
 

@@ -13,7 +13,7 @@ $! This generates a []config.h file and also a config_vms.h file,
 $! which is used to supplement that file.
 $!
 $!
-$! Copyright (C) 2014 the Free Software Foundation, Inc.
+$! Copyright (C) 2014, 2016 the Free Software Foundation, Inc.
 $!
 $! This file is part of GAWK, the GNU implementation of the
 $! AWK Progamming Language.
@@ -287,6 +287,13 @@ $ write cvh "        vms_status |= STS$K_SUCCESS;"
 $ write cvh "    }"
 $ write cvh "    decc$exit(vms_status);"
 $ write cvh "}"
+$ write cvh ""
+$ write cvh "#define TIME_T_UNSIGNED 1"
+$ write cvh "#include ""custom.h"""
+$ write cvh ""
+$ write cvh "#define __attribute(a)"
+$ write cvh ""
+$
 $!
 $! Close out the file
 $!

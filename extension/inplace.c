@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2013, 2014 the Free Software Foundation, Inc.
+ * Copyright (C) 2013-2015 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -125,6 +125,7 @@ do_inplace_begin(int nargs, awk_value_t *result)
 	int fd;
 
 	assert(result != NULL);
+	fflush(stdout);
 
 	if (state.tname)
 		fatal(ext_id, _("inplace_begin: in-place editing already active"));
@@ -170,10 +171,13 @@ do_inplace_begin(int nargs, awk_value_t *result)
 			state.tname, strerror(errno));
 
 	/* N.B. chown/chmod should be more portable than fchown/fchmod */
-	if (chown(state.tname, sbuf.st_uid, sbuf.st_gid) < 0)
-		/* checking chown here shuts up the compiler. bleah */
-		if (chown(state.tname, -1, sbuf.st_gid) < 0)
-			;
+	if (chown(state.tname, sbuf.st_uid, sbuf.st_gid) < 0) {
+		/* jumping through hoops to silence gcc and clang. :-( */
+		int junk;
+		junk = chown(state.tname, -1, sbuf.st_gid);
+		++junk;
+	}
+
 	if (chmod(state.tname, sbuf.st_mode) < 0)
 		fatal(ext_id, _("inplace_begin: chmod failed (%s)"),
 			strerror(errno));

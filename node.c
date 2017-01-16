@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003-2013,
+ * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003-2015,
  * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
@@ -37,6 +37,20 @@ NODE *(*make_number)(double) = r_make_number;
 NODE *(*str2number)(NODE *) = r_force_number;
 NODE *(*format_val)(const char *, int, NODE *) = r_format_val;
 int (*cmp_numbers)(const NODE *, const NODE *) = cmp_awknums;
+
+/* is_hex --- return true if a string looks like a hex value */
+
+static bool
+is_hex(const char *str)
+{
+	if (*str == '-' || *str == '+')
+		str++;
+
+	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+		return true;
+
+	return false;
+}
 
 /* force_number --- force a value to be numeric */
 
@@ -72,12 +86,13 @@ r_force_number(NODE *n)
 	 * This also allows hexadecimal floating point. Ugh.
 	 */
 	if (! do_posix) {
-		if (isalpha((unsigned char) *cp)) {
+		if (is_alpha((unsigned char) *cp)) {
 			return n;
 		} else if (n->stlen == 4 && is_ieee_magic_val(n->stptr)) {
 			if ((n->flags & MAYBE_NUM) != 0)
 				n->flags &= ~MAYBE_NUM;
 			n->flags |= NUMBER|NUMCUR;
+			n->flags &= ~STRING;
 			n->numbr = get_ieee_magic_val(n->stptr);
 
 			return n;
@@ -94,10 +109,9 @@ r_force_number(NODE *n)
 
 	if (   cp == cpend		/* only spaces, or */
 	    || (! do_posix		/* not POSIXLY paranoid and */
-	        && (isalpha((unsigned char) *cp)	/* letter, or */
+	        && (is_alpha((unsigned char) *cp)	/* letter, or */
 					/* CANNOT do non-decimal and saw 0x */
-		    || (! do_non_decimal_data && cp[0] == '0'
-		        && (cp[1] == 'x' || cp[1] == 'X'))))) {
+		    || (! do_non_decimal_data && is_hex(cp))))) {
 		return n;
 	}
 
@@ -112,6 +126,7 @@ r_force_number(NODE *n)
 			n->numbr = (AWKNUM)(*cp - '0');
 			n->flags |= newflags;
 			n->flags |= NUMCUR;
+			n->flags &= ~STRING;
 			if (cp == n->stptr)		/* no leading spaces */
 				n->flags |= NUMINT;
 		}
@@ -123,6 +138,7 @@ r_force_number(NODE *n)
 		if (! do_traditional && get_numbase(cp, true) != 10) {
 			n->numbr = nondec2awknum(cp, cpend - cp);
 			n->flags |= NUMCUR;
+			n->flags &= ~STRING;
 			ptr = cpend;
 			goto finish;
 		}
@@ -138,11 +154,20 @@ r_force_number(NODE *n)
 		ptr++;
 	*cpend = save;
 finish:
-	if (errno == 0 && ptr == cpend) {
-		n->flags |= newflags;
-		n->flags |= NUMCUR;
+	if (errno == 0) {
+		if (ptr == cpend) {
+			n->flags |= newflags;
+			n->flags |= NUMCUR;
+		}
+		/* else keep the leading numeric value without updating flags */
 	} else {
 		errno = 0;
+		/*
+		 * N.B. For subnormal values, strtod may return the
+		 * floating-point representation while setting errno to ERANGE.
+		 * We force the numeric value to 0 in such cases.
+		 */
+		n->numbr = 0;
 	}
 
 	return n;
@@ -221,7 +246,7 @@ r_format_val(const char *format, int index, NODE *s)
 		} else {
 			r = format_tree(format, fmt_list[index]->stlen, dummy, 2);
 			assert(r != NULL);
-			s->stfmt = (char) index;
+			s->stfmt = index;
 		}
 		s->flags = oflags;
 		s->stlen = r->stlen;
@@ -281,7 +306,6 @@ r_dupnode(NODE *n)
 	r->flags &= ~FIELD;
 	r->flags |= MALLOC;
 	r->valref = 1;
-#if MBS_SUPPORT
 	/*
 	 * DON'T call free_wstr(r) here!
 	 * r->wstptr still points at n->wstptr's value, and we
@@ -289,13 +313,11 @@ r_dupnode(NODE *n)
 	 */
 	r->wstptr = NULL;
 	r->wstlen = 0;
-#endif /* MBS_SUPPORT */
 
 	if ((n->flags & STRCUR) != 0) {
 		emalloc(r->stptr, char *, n->stlen + 2, "r_dupnode");
 		memcpy(r->stptr, n->stptr, n->stlen);
 		r->stptr[n->stlen] = '\0';
-#if MBS_SUPPORT
 		if ((n->flags & WSTRCUR) != 0) {
 			r->wstlen = n->wstlen;
 			emalloc(r->wstptr, wchar_t *, sizeof(wchar_t) * (n->wstlen + 2), "r_dupnode");
@@ -303,7 +325,6 @@ r_dupnode(NODE *n)
 			r->wstptr[n->wstlen] = L'\0';
 			r->flags |= WSTRCUR;
 		}
-#endif /* MBS_SUPPORT */
 	}
 	
 	return r;
@@ -322,10 +343,8 @@ r_make_number(double x)
 	r->valref = 1;
 	r->stptr = NULL;
 	r->stlen = 0;
-#if MBS_SUPPORT
 	r->wstptr = NULL;
 	r->wstlen = 0;
-#endif /* defined MBS_SUPPORT */
 	return r;
 }
 
@@ -368,11 +387,8 @@ make_str_node(const char *s, size_t len, int flags)
 	r->flags = (MALLOC|STRING|STRCUR);
 	r->valref = 1;
 	r->stfmt = -1;
-
-#if MBS_SUPPORT
 	r->wstptr = NULL;
 	r->wstlen = 0;
-#endif /* MBS_SUPPORT */
 
 	if ((flags & ALREADY_MALLOCED) != 0)
 		r->stptr = (char *) s;
@@ -387,15 +403,12 @@ make_str_node(const char *s, size_t len, int flags)
 		char *ptm;
 		int c;
 		const char *end;
-#if MBS_SUPPORT
 		mbstate_t cur_state;
 
 		memset(& cur_state, 0, sizeof(cur_state));
-#endif
 
 		end = &(r->stptr[len]);
 		for (pf = ptm = r->stptr; pf < end;) {
-#if MBS_SUPPORT
 			/*
 			 * Keep multibyte characters together. This avoids
 			 * problems if a subsequent byte of a multibyte
@@ -412,7 +425,7 @@ make_str_node(const char *s, size_t len, int flags)
 					continue;
 				}
 			}
-#endif
+
 			c = *pf++;
 			if (c == '\\') {
 				c = parse_escape(&pf);
@@ -642,7 +655,6 @@ get_numbase(const char *s, bool use_locale)
 	return 8;
 }
 
-#if MBS_SUPPORT
 /* str2wstr --- convert a multibyte string to a wide string */
 
 NODE *
@@ -721,22 +733,37 @@ str2wstr(NODE *n, size_t **ptr)
 		case (size_t) -2:
 		case (size_t) -1:
 			/*
-			 * Just skip the bad byte and keep going, so that
-			 * we get a more-or-less full string, instead of
-			 * stopping early. This is particularly important
-			 * for match() where we need to build the indices.
-			 */
-			sp++;
-			src_count--;
-			/*
 			 * mbrtowc(3) says the state of mbs becomes undefined
 			 * after a bad character, so reset it.
 			 */
 			memset(& mbs, 0, sizeof(mbs));
-			/* And warn the user something's wrong */
-			if (do_lint && ! warned) {
+
+			/* Warn the user something's wrong */
+			if (! warned) {
 				warned = true;
-				lintwarn(_("Invalid multibyte data detected. There may be a mismatch between your data and your locale."));
+				warning(_("Invalid multibyte data detected. There may be a mismatch between your data and your locale."));
+			}
+
+			/*
+			 * 8/2015: If we're using UTF, then instead of just
+			 * skipping the character, plug in the Unicode
+			 * replacement character. In most cases this gives
+			 * us "better" results, in that character counts
+			 * and string lengths tend to make more sense.
+			 *
+			 * Otherwise, just skip the bad byte and keep going,
+			 * so that we get a more-or-less full string, instead of
+			 * stopping early. This is particularly important
+			 * for match() where we need to build the indices.
+			 */
+			if (dfa_using_utf8()) {
+				count = 1;
+				wc = 0xFFFD;	/* unicode replacement character */
+				goto set_wc;
+			} else {
+				/* skip it and keep going */
+				sp++;
+				src_count--;
 			}
 			break;
 
@@ -744,6 +771,7 @@ str2wstr(NODE *n, size_t **ptr)
 			count = 1;
 			/* fall through */
 		default:
+		set_wc:
 			*wsp++ = wc;
 			src_count -= count;
 			while (count--)  {
@@ -891,7 +919,6 @@ out:	;
 
 	return NULL;
 }
-#endif /* MBS_SUPPORT */
 
 /* is_ieee_magic_val --- return true for +inf, -inf, +nan, -nan */
 
@@ -938,7 +965,6 @@ get_ieee_magic_val(const char *val)
 	return v;
 }
 
-#if MBS_SUPPORT
 wint_t btowc_cache[256];
 
 /* init_btowc_cache --- initialize the cache */
@@ -951,7 +977,6 @@ void init_btowc_cache()
 		btowc_cache[i] = btowc(i);
 	}
 }
-#endif
 
 #define BLOCKCHUNK 100
 

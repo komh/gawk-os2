@@ -1,5 +1,5 @@
-  Copyright (C) 2005, 2006, 2007, 2009, 2010, 2011, 2012, 2013, 2014
-  Free Software Foundation, Inc.
+  Copyright (C) 2005, 2006, 2007, 2009, 2010, 2011, 2012, 2013, 2014, 2015,
+  2016, Free Software Foundation, Inc.
   
   Copying and distribution of this file, with or without modification,
   are permitted in any medium without royalty provided the copyright
@@ -7,7 +7,7 @@
 
 README:
 
-This is GNU Awk 4.1.1. It is upwardly compatible with Brian Kernighan's
+This is GNU Awk 4.1.4. It is upwardly compatible with Brian Kernighan's
 version of Unix awk.  It is almost completely compliant with the
 2008 POSIX 1003.1 standard for awk. (See the note below about POSIX.)
 
@@ -21,8 +21,10 @@ Changes in this version are summarized in the NEWS file.
 Read the file POSIX.STD for a discussion of issues where the standard
 says one thing but gawk does something different.
 
-To format the documentation with TeX, use at least version 2014-03-18.17
+To format the documentation with TeX, use at least version 2016-02-05.07
 of texinfo.tex. There is a usable copy of texinfo.tex in the doc directory.
+You should also use at least version 6.1 of texindex and of makeinfo
+from the texinfo-6.1 distribution.
 
 INSTALLATION:
 
@@ -78,7 +80,7 @@ Arnold Robbins
 
 BUG REPORTS AND FIXES, non-Unix systems:
 
-MS-DOS with DJGPP:
+MS-DOS with DJGPP: (This port is deprecated.)
 	Scott Deifik
 	scottd.mail@sbcglobal.net
 
@@ -91,12 +93,13 @@ OS/2:
 	andreas.buening@nexgo.de
 
 VMS:
-	Pat Rankin
-	r.pat.rankin@gmail.com
-
 	John Malmberg
 	wb8tyw@qsl.net
 
-z/OS (OS/390):
+z/OS (OS/390) Contact:
+	Daniel Richard G.
+	skunk@iSKUNK.ORG
+
+z/OS (OS/390) Maintainer Emeritus:
 	Dave Pitts
 	dpitts@cozx.com

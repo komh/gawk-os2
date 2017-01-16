@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 2012, 2013 the Free Software Foundation, Inc.
+ * Copyright (C) 2012, 2013, 2016 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -29,3 +29,38 @@
  */
 
 #define FAKE_FD_VALUE 42
+
+#ifdef __MINGW32__
+/* Replacements for sys/wait.h macros.  */
+# define WEXITSTATUS(stv) (((unsigned)(stv)) & ~0xC0000000)
+/* MS-Windows programs that crash due to a fatal exception exit with
+   an exit code whose 2 MSB bits are set.  */
+# define WIFEXITED(stv)   ((((unsigned)(stv)) & 0xC0000000) == 0)
+# define WIFSIGNALED(stv) ((((unsigned)(stv)) & 0xC0000000) == 0xC0000000)
+# define WTERMSIG(stv)    w32_status_to_termsig ((unsigned)stv)
+# define WIFSTOPPED(stv)  (0)
+# define WSTOPSIG(stv)    (0)
+
+int w32_status_to_termsig (unsigned);
+
+/* Prototypes of for Posix functions for which we define replacements
+   in pc/ files.  */
+
+/* getid.c */
+unsigned int getuid (void);
+unsigned int geteuid (void);
+unsigned int getgid (void);
+unsigned int getegid (void);
+
+/* gawkmisc.pc */
+int unsetenv (const char *);
+int setenv (const char *, const char *, int);
+#endif	/* __MINGW32__ */
+
+#if defined(VMS) || defined(__DJGPP__) || defined(__MINGW32__)
+int getpgrp(void);
+#endif
+
+#if defined(__DJGPP__) || defined(__MINGW32__)
+int getppid(void);
+#endif

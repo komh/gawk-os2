@@ -6,10 +6,11 @@
  * Arnold Robbins and John Haque, update for 3.1.4, applied Mon Jun 14 13:55:30 IDT 2004
  * Arnold Robbins and Andrew Schorr, revised for new extension API, May 2012.
  * Arnold Robbins, add fts(), August 2012
+ * Arnold Robbins, add statvfs(), November 2015
  */
 
 /*
- * Copyright (C) 2001, 2004, 2005, 2010, 2011, 2012, 2013, 2014
+ * Copyright (C) 2001, 2004, 2005, 2010-2016
  * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
@@ -84,6 +85,10 @@
 #include <sys/sysmacros.h>
 #endif
 
+#if defined(HAVE_SYS_STATVFS_H) && defined(HAVE_STATVFS)
+#include <sys/statvfs.h>
+#endif
+
 #include "gawkapi.h"
 
 #include "gettext.h"
@@ -145,7 +150,7 @@ static const char *ext_version = "filefuncs extension: version 1.0";
 
 int plugin_is_GPL_compatible;
 
-/*  do_chdir --- provide dynamically loaded chdir() builtin for gawk */
+/*  do_chdir --- provide dynamically loaded chdir() function for gawk */
 
 static awk_value_t *
 do_chdir(int nargs, awk_value_t *result)
@@ -448,7 +453,7 @@ fill_stat_array(const char *name, awk_array_t array, struct stat *sbuf)
 		}
 	}
 
-	array_set(array, "type", make_const_string(type, strlen(type), &tmp));
+	array_set(array, "type", make_const_string(type, strlen(type), & tmp));
 
 	return 0;
 }
@@ -490,7 +495,7 @@ do_stat(int nargs, awk_value_t *result)
 	/* always empty out the array */
 	clear_array(array);
 
-	/* stat the file, if error, set ERRNO and return */
+	/* stat the file; if error, set ERRNO and return */
 	ret = statfunc(name, & sbuf);
 	if (ret < 0) {
 		update_ERRNO_int(errno);
@@ -501,6 +506,66 @@ do_stat(int nargs, awk_value_t *result)
 
 	return make_number(ret, result);
 }
+
+#if defined(HAVE_SYS_STATVFS_H) && defined(HAVE_STATVFS)
+
+/* do_statvfs --- provide a statvfs() function for gawk */
+
+static awk_value_t *
+do_statvfs(int nargs, awk_value_t *result)
+{
+	awk_value_t file_param, array_param;
+	char *name;
+	awk_array_t array;
+	int ret;
+	struct statvfs vfsbuf;
+
+	assert(result != NULL);
+
+	if (nargs != 2) {
+		if (do_lint)
+			lintwarn(ext_id, _("statvfs: called with wrong number of arguments"));
+		return make_number(-1, result);
+	}
+
+	/* file is first arg, array to hold results is second */
+	if (   ! get_argument(0, AWK_STRING, & file_param)
+	    || ! get_argument(1, AWK_ARRAY, & array_param)) {
+		warning(ext_id, _("stat: bad parameters"));
+		return make_number(-1, result);
+	}
+
+	name = file_param.str_value.str;
+	array = array_param.array_cookie;
+
+	/* always empty out the array */
+	clear_array(array);
+
+	/* stat the file; if error, set ERRNO and return */
+	ret = statvfs(name, & vfsbuf);
+	if (ret < 0) {
+		update_ERRNO_int(errno);
+		return make_number(ret, result);
+	}
+
+	array_set_numeric(array, "bsize", vfsbuf.f_bsize);	/* filesystem block size */
+	array_set_numeric(array, "frsize", vfsbuf.f_frsize);	/* fragment size */
+	array_set_numeric(array, "blocks", vfsbuf.f_blocks);	/* size of fs in f_frsize units */
+	array_set_numeric(array, "bfree", vfsbuf.f_bfree);	/* # free blocks */
+	array_set_numeric(array, "bavail", vfsbuf.f_bavail);	/* # free blocks for unprivileged users */
+	array_set_numeric(array, "files", vfsbuf.f_files);	/* # inodes */
+	array_set_numeric(array, "ffree", vfsbuf.f_ffree);	/* # free inodes */
+	array_set_numeric(array, "favail", vfsbuf.f_favail);	/* # free inodes for unprivileged users */
+#ifndef _AIX
+	array_set_numeric(array, "fsid", vfsbuf.f_fsid);	/* filesystem ID */
+#endif
+	array_set_numeric(array, "flag", vfsbuf.f_flag);	/* mount flags */
+	array_set_numeric(array, "namemax", vfsbuf.f_namemax);	/* maximum filename length */
+	
+
+	return make_number(ret, result);
+}
+#endif
 
 /* init_filefuncs --- initialization routine */
 
@@ -867,6 +932,9 @@ static awk_ext_func_t func_table[] = {
 	{ "stat",	do_stat, 2 },
 #ifndef __MINGW32__
 	{ "fts",	do_fts, 3 },
+#endif
+#if defined(HAVE_SYS_STATVFS_H) && defined(HAVE_STATVFS)
+	{ "statvfs",	do_statvfs, 2 },
 #endif
 };
 

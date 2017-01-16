@@ -7,7 +7,8 @@
  */
 
 /*
- * Copyright (C) 1995 - 2001, 2003-2014 the Free Software Foundation, Inc.
+ * Copyright (C) 1995 - 2001, 2003-2014, 2016,
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -46,32 +47,8 @@ extern SRCFILE *srcfiles;
 static bool
 is_letter(unsigned char c)
 {
-	switch (c) {
-	case 'a': case 'b': case 'c': case 'd': case 'e': case 'f':
-	case 'g': case 'h': case 'i': case 'j': case 'k': case 'l':
-	case 'm': case 'n': case 'o': case 'p': case 'q': case 'r':
-	case 's': case 't': case 'u': case 'v': case 'w': case 'x':
-	case 'y': case 'z':
-	case 'A': case 'B': case 'C': case 'D': case 'E': case 'F':
-	case 'G': case 'H': case 'I': case 'J': case 'K': case 'L':
-	case 'M': case 'N': case 'O': case 'P': case 'Q': case 'R':
-	case 'S': case 'T': case 'U': case 'V': case 'W': case 'X':
-	case 'Y': case 'Z':
-	case '_':
-		return true;
-	default:
-		return false;
-	}
+	return (is_alpha(c) || c == '_');
 }
-
-/* is_identifier_char --- return true if a character can be used in an identifier */
-
-static bool
-is_identifier_char(unsigned char c)
-{
-	return (is_letter(c) || isdigit(c));
-}
-
 
 #define INIT_FUNC	"dl_load"
 
@@ -224,7 +201,7 @@ make_builtin(const awk_ext_func_t *funcinfo)
 		return awk_false;
 
 	for (sp++; (c = *sp++) != '\0';) {
-		if (! is_identifier_char(c))
+		if (! is_identchar(c))
 			return awk_false;
 	}
 
@@ -279,7 +256,7 @@ make_old_builtin(const char *name, NODE *(*func)(int), int count)	/* temporary *
 		fatal(_("extension: illegal character `%c' in function name `%s'"), *sp, name);
 
 	for (sp++; (c = *sp++) != '\0';) {
-		if (! is_identifier_char(c))
+		if (! is_identchar(c))
 			fatal(_("extension: illegal character `%c' in function name `%s'"), c, name);
 	}
 
@@ -354,32 +331,18 @@ get_argument(int i)
 
 /*
  * get_actual_argument --- get the i'th scalar or array argument of a
- *	dynamically linked function, allowed to be optional.
+ *	dynamically linked function.
  */
 
 NODE *
-get_actual_argument(int i, bool optional, bool want_array)
+get_actual_argument(NODE *t, int i, bool want_array)
 {
-	NODE *t;
 	char *fname;
-	int pcount;
 	INSTRUCTION *pc;
 	
 	pc = TOP()->code_ptr;	/* Op_ext_builtin instruction */
 	fname = (pc + 1)->func_name;
-	pcount = (pc + 1)->expr_count;
  
-	t = get_argument(i);
-	if (t == NULL) {
-		if (i >= pcount)                /* must be fatal */
-			fatal(_("function `%s' defined to take no more than %d argument(s)"),
-					fname, pcount);
-		if (! optional)
-			fatal(_("function `%s': missing argument #%d"),
-					fname, i + 1);
-		return NULL;
-	}
-
 	if (t->type == Node_var_new) {
 		if (want_array)
 			return force_array(t, false);
@@ -420,6 +383,9 @@ void
 close_extensions()
 {
 	SRCFILE *s;
+
+	if (srcfiles == NULL)
+		return;
 
 	for (s = srcfiles->next; s != srcfiles; s = s->next) 
 		if (s->stype == SRC_EXTLIB && s->fini_func)

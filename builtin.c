@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2014 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -237,6 +237,9 @@ do_fflush(int nargs)
 		fp = rp->output.fp;
 		if (fp != NULL)
 			status = rp->output.gawk_fflush(fp, rp->output.opaque);
+		else if ((rp->flag & RED_TWOWAY) != 0)
+				warning(_("fflush: cannot flush: two-way pipe `%s' has closed write end"),
+					file);
 	} else if ((fp = stdfile(tmp->stptr, tmp->stlen)) != NULL) {
 		status = fflush(fp);
 	} else {
@@ -247,7 +250,6 @@ do_fflush(int nargs)
 	return make_number((AWKNUM) status);
 }
 
-#if MBS_SUPPORT
 /* strncasecmpmbs --- like strncasecmp (multibyte string version)  */
 
 int
@@ -327,14 +329,6 @@ index_multibyte_buffer(char* src, char* dest, int len)
 		dest[idx] = mbclen;
     }
 }
-#else
-/* a dummy function */
-static void
-index_multibyte_buffer(char* src ATTRIBUTE_UNUSED, char* dest ATTRIBUTE_UNUSED, int len ATTRIBUTE_UNUSED)
-{
-	cant_happen();
-}
-#endif
 
 /* do_index --- find index of a string */
 
@@ -345,7 +339,6 @@ do_index(int nargs)
 	const char *p1, *p2;
 	size_t l1, l2;
 	long ret;
-#if MBS_SUPPORT
 	bool do_single_byte = false;
 	mbstate_t mbs1, mbs2;
 
@@ -353,7 +346,6 @@ do_index(int nargs)
 		memset(& mbs1, 0, sizeof(mbstate_t));
 		memset(& mbs2, 0, sizeof(mbstate_t));
 	}
-#endif
 
 	POP_TWO_SCALARS(s1, s2);
 
@@ -383,7 +375,6 @@ do_index(int nargs)
 		goto out;
 	}
 
-#if MBS_SUPPORT
 	if (gawk_mb_cur_max > 1) {
 		s1 = force_wstring(s1);
 		s2 = force_wstring(s2);
@@ -394,14 +385,12 @@ do_index(int nargs)
 		do_single_byte = ((s1->wstlen == 0 && s1->stlen > 0) 
 					|| (s2->wstlen == 0 && s2->stlen > 0));
 	}
-#endif
 
 	/* IGNORECASE will already be false if posix */
 	if (IGNORECASE) {
 		while (l1 > 0) {
 			if (l2 > l1)
 				break;
-#if MBS_SUPPORT
 			if (! do_single_byte && gawk_mb_cur_max > 1) {
 				const wchar_t *pos;
 
@@ -412,21 +401,18 @@ do_index(int nargs)
 					ret = pos - s1->wstptr + 1;	/* 1-based */
 				goto out;
 			} else {
-#endif
-			/*
-			 * Could use tolower(*p1) == tolower(*p2) here.
-			 * See discussion in eval.c as to why not.
-			 */
-			if (casetable[(unsigned char)*p1] == casetable[(unsigned char)*p2]
-			    && (l2 == 1 || strncasecmp(p1, p2, l2) == 0)) {
-				ret = 1 + s1->stlen - l1;
-				break;
+				/*
+				 * Could use tolower(*p1) == tolower(*p2) here.
+				 * See discussion in eval.c as to why not.
+				 */
+				if (casetable[(unsigned char)*p1] == casetable[(unsigned char)*p2]
+				    && (l2 == 1 || strncasecmp(p1, p2, l2) == 0)) {
+					ret = 1 + s1->stlen - l1;
+					break;
+				}
+				l1--;
+				p1++;
 			}
-			l1--;
-			p1++;
-#if MBS_SUPPORT
-			}
-#endif
 		}
 	} else {
 		while (l1 > 0) {
@@ -437,7 +423,6 @@ do_index(int nargs)
 				ret = 1 + s1->stlen - l1;
 				break;
 			}
-#if MBS_SUPPORT
 			if (! do_single_byte && gawk_mb_cur_max > 1) {
 				const wchar_t *pos;
 
@@ -451,10 +436,6 @@ do_index(int nargs)
 				l1--;
 				p1++;
 			}
-#else
-			l1--;
-			p1++;
-#endif
 		}
 	}
 out:
@@ -532,6 +513,9 @@ do_length(int nargs)
 		 * Support for deferred loading of array elements requires that
 		 * we use the array length interface even though it isn't 
 		 * necessary for the built-in array types.
+		 *
+		 * 1/2015: The deferred arrays are gone, but this is probably
+		 * still a good idea.
 		 */
 
 		size = assoc_length(tmp);
@@ -544,7 +528,6 @@ do_length(int nargs)
 		lintwarn(_("length: received non-string argument"));
 	tmp = force_string(tmp);
 
-#if MBS_SUPPORT
 	if (gawk_mb_cur_max > 1) {
 		tmp = force_wstring(tmp);
 		len = tmp->wstlen;
@@ -555,7 +538,6 @@ do_length(int nargs)
 		 if (len == 0 && tmp->stlen > 0)
 			 len = tmp->stlen;
 	} else
-#endif
 		len = tmp->stlen;
 
 	DEREF(tmp);
@@ -678,7 +660,7 @@ format_tree(
 	int i, nc;
 	bool toofew = false;
 	char *obuf, *obufout;
-	size_t osiz, ofre;
+	size_t osiz, ofre, olen_final;
 	const char *chbuf;
 	const char *s0, *s1;
 	int cs1;
@@ -928,7 +910,10 @@ check_pos:
 		case '*':
 			if (cur == NULL)
 				break;
-			if (! do_traditional && isdigit((unsigned char) *s1)) {
+			if (! do_traditional && used_dollar && ! isdigit((unsigned char) *s1)) {
+				fatal(_("fatal: must use `count$' on all formats or none"));
+				break;	/* silence warnings */
+			} else if (! do_traditional && isdigit((unsigned char) *s1)) {
 				int val = 0;
 
 				for (; n0 > 0 && *s1 && isdigit((unsigned char) *s1); s1++, n0--) {
@@ -1058,7 +1043,6 @@ check_pos:
 				(void) force_number(arg);
 			if ((arg->flags & NUMBER) != 0) {
 				uval = get_number_uj(arg);
-#if MBS_SUPPORT
 				if (gawk_mb_cur_max > 1) {
 					char buf[100];
 					wchar_t wc;
@@ -1066,13 +1050,29 @@ check_pos:
 					size_t count;
 
 					memset(& mbs, 0, sizeof(mbs));
+
+					/* handle systems with too small wchar_t */
+					if (sizeof(wchar_t) < 4 && uval > 0xffff) {
+						if (do_lint)
+							lintwarn(
+						_("[s]printf: value %g is too big for %%c format"),
+									arg->numbr);
+
+						goto out0;
+					}
+
 					wc = uval;
 
 					count = wcrtomb(buf, wc, & mbs);
 					if (count == 0
-					    || count == (size_t)-1
-					    || count == (size_t)-2)
+					    || count == (size_t) -1) {
+						if (do_lint)
+							lintwarn(
+						_("[s]printf: value %g is not a valid wide character"),
+									arg->numbr);
+
 						goto out0;
+					}
 
 					memcpy(cpbuf, buf, count);
 					prec = count;
@@ -1083,11 +1083,7 @@ out0:
 				;
 				/* else,
 					fall through */
-#endif
-				if (do_lint && uval > 255) {
-					lintwarn("[s]printf: value %g is too big for %%c format",
-							arg->numbr);
-				}
+
 				cpbuf[0] = uval;
 				prec = 1;
 				cp = cpbuf;
@@ -1101,7 +1097,6 @@ out0:
 			 */
 			cp = arg->stptr;
 			prec = 1;
-#if MBS_SUPPORT
 			/*
 			 * First character can be multiple bytes if
 			 * it's a multibyte character. Grr.
@@ -1112,14 +1107,13 @@ out0:
 
 				memset(& state, 0, sizeof(state));
 				count = mbrlen(cp, arg->stlen, & state);
-				if (count > 0) {
+				if (count != (size_t) -1 && count != (size_t) -2 && count > 0) {
 					prec = count;
 					/* may need to increase fw so that padding happens, see pr_tail code */
 					if (fw > 0)
 						fw += count - 1;
 				}
 			}
-#endif
 			goto pr_tail;
 		case 's':
 			need_format = false;
@@ -1557,7 +1551,7 @@ mpf1:
 			s0 = s1;
 			break;
 		default:
-			if (do_lint && isalpha(cs1))
+			if (do_lint && is_alpha(cs1))
 				lintwarn(_("ignoring unknown format specifier character `%c': no argument converted"), cs1);
 			break;
 		}
@@ -1578,7 +1572,10 @@ mpf1:
 			_("too many arguments supplied for format string"));
 	}
 	bchunk(s0, s1 - s0);
-	r = make_str_node(obuf, obufout - obuf, ALREADY_MALLOCED);
+	olen_final = obufout - obuf;
+	if (ofre > 0)
+		erealloc(obuf, char *, olen_final + 2, "format_tree");
+	r = make_str_node(obuf, olen_final, ALREADY_MALLOCED);
 	obuf = NULL;
 out:
 	{
@@ -1673,8 +1670,13 @@ do_printf(int nargs, int redirtype)
 		if (redir_exp->type != Node_val)
 			fatal(_("attempt to use array `%s' in a scalar context"), array_vname(redir_exp));
 		rp = redirect(redir_exp, redirtype, & errflg);
-		if (rp != NULL)
+		if (rp != NULL) {
+			if ((rp->flag & RED_TWOWAY) != 0 && rp->output.fp == NULL) {
+				(void) close_rp(rp, CLOSE_ALL);
+				fatal(_("printf: attempt to write to closed write end of two-way pipe"));
+			}
 			fp = rp->output.fp;
+		}
 	} else if (do_debug)	/* only the debugger can change the default output */
 		fp = output_fp;
 	else
@@ -1747,7 +1749,14 @@ do_substr(int nargs)
 			else if (do_lint == DO_LINT_INVALID && ! (d_length >= 0))
 				lintwarn(_("substr: length %g is not >= 0"), d_length);
 			DEREF(t1);
-			return dupnode(Nnull_string);
+			/*
+			 * Return explicit null string instead of doing
+			 * dupnode(Nnull_string) so that if the result
+			 * is checked with the combination of length()
+			 * and lint, no error is reported about using
+			 * an uninitialized value. Same thing later, too.
+			 */
+			return make_string("", 0);
 		}
 		if (do_lint) {
 			if (double_to_int(d_length) != d_length)
@@ -1786,13 +1795,11 @@ do_substr(int nargs)
 	if (nargs == 2) {	/* third arg. missing */
 		/* use remainder of string */
 		length = t1->stlen - indx;	/* default to bytes */
-#if MBS_SUPPORT
 		if (gawk_mb_cur_max > 1) {
 			t1 = force_wstring(t1);
 			if (t1->wstlen > 0)	/* use length of wide char string if we have one */
 				length = t1->wstlen - indx;
 		}
-#endif
 		d_length = length;	/* set here in case used in diagnostics, below */
 	}
 
@@ -1801,16 +1808,14 @@ do_substr(int nargs)
 		if (do_lint && (do_lint == DO_LINT_ALL || ((indx | length) != 0)))
 			lintwarn(_("substr: source string is zero length"));
 		DEREF(t1);
-		return dupnode(Nnull_string);
+		return make_string("", 0);
 	}
 
 	/* get total len of input string, for following checks */
-#if MBS_SUPPORT
 	if (gawk_mb_cur_max > 1) {
 		t1 = force_wstring(t1);
 		src_len = t1->wstlen;
 	} else
-#endif
 		src_len = t1->stlen;
 
 	if (indx >= src_len) {
@@ -1818,7 +1823,7 @@ do_substr(int nargs)
 			lintwarn(_("substr: start index %g is past end of string"),
 				d_index);
 		DEREF(t1);
-		return dupnode(Nnull_string);
+		return make_string("", 0);
 	}
 	if (length > src_len - indx) {
 		if (do_lint)
@@ -1828,7 +1833,6 @@ do_substr(int nargs)
 		length = src_len - indx;
 	}
 
-#if MBS_SUPPORT
 	/* force_wstring() already called */
 	if (gawk_mb_cur_max == 1 || t1->wstlen == t1->stlen)
 		/* single byte case */
@@ -1858,9 +1862,6 @@ do_substr(int nargs)
 		*cp = '\0';
 		r = make_str_node(substr, cp - substr, ALREADY_MALLOCED);
 	}
-#else
-	r = make_string(t1->stptr + indx, length);
-#endif
 
 	DEREF(t1);
 	return r;
@@ -1874,7 +1875,7 @@ do_strftime(int nargs)
 	NODE *t1, *t2, *t3, *ret;
 	struct tm *tm;
 	time_t fclock;
-	long clock_val;
+	double clock_val;
 	char *bufp;
 	size_t buflen, bufsize;
 	char buf[BUFSIZ];
@@ -1883,6 +1884,8 @@ do_strftime(int nargs)
 	int do_gmt;
 	NODE *val = NULL;
 	NODE *sub = NULL;
+	static const time_t time_t_min = TYPE_MINIMUM(time_t);
+	static const time_t time_t_max = TYPE_MAXIMUM(time_t);
 
 	/* set defaults first */
 	format = def_strftime_format;	/* traditional date format */
@@ -1922,10 +1925,25 @@ do_strftime(int nargs)
 			if (do_lint && (t2->flags & (NUMCUR|NUMBER)) == 0)
 				lintwarn(_("strftime: received non-numeric second argument"));
 			(void) force_number(t2);
-			clock_val = get_number_si(t2);
-			if (clock_val < 0)
-				fatal(_("strftime: second argument less than 0 or too big for time_t"));
+			clock_val = get_number_d(t2);
 			fclock = (time_t) clock_val;
+			/*
+			 * Protect against negative value being assigned
+			 * to unsigned time_t.
+			 */
+			if (clock_val < 0 && fclock > 0) {
+				if (do_lint)
+					lintwarn(_("strftime: second argument less than 0 or too big for time_t"));
+				return make_string("", 0);
+			}
+
+			/* And check that the value is in range */
+			if (clock_val < time_t_min || clock_val > time_t_max) {
+				if (do_lint)
+					lintwarn(_("strftime: second argument out of range for time_t"));
+				return make_string("", 0);
+			}
+
 			DEREF(t2);
 		}
 
@@ -1948,6 +1966,9 @@ do_strftime(int nargs)
 		tm = gmtime(& fclock);
 	else
 		tm = localtime(& fclock);
+
+	if (tm == NULL)
+		return make_string("", 0);
 
 	bufp = buf;
 	bufsize = sizeof(buf);
@@ -2051,9 +2072,10 @@ NODE *
 do_system(int nargs)
 {
 	NODE *tmp;
-	int ret = 0;
+	AWKNUM ret = 0;		/* floating point on purpose, compat Unix awk */
 	char *cmd;
 	char save;
+	int status;
 
 	if (do_sandbox)
 		fatal(_("'system' function not allowed in sandbox mode"));
@@ -2070,11 +2092,47 @@ do_system(int nargs)
 		cmd[tmp->stlen] = '\0';
 
 		os_restore_mode(fileno(stdin));
-		ret = system(cmd);
-		if (ret != -1)
-			ret = WEXITSTATUS(ret);
+#ifdef SIGPIPE
+		signal(SIGPIPE, SIG_DFL);
+#endif
+
+		status = system(cmd);
+		/*
+		 * 3/2016. What to do with ret? It's never simple.
+		 * POSIX says to use the full return value. BWK awk
+		 * divides the result by 256.  That normally gives the
+		 * exit status but gives a weird result for death-by-signal.
+		 * So we compromise as follows:
+		 */
+		ret = status;
+		if (status != -1) {
+			if (do_posix)
+				;	/* leave it alone, full 16 bits */
+			else if (do_traditional)
+#ifdef __MINGW32__
+			  ret = (((unsigned)status) & ~0xC0000000);
+#else
+				ret = (status / 256.0);
+#endif
+			else if (WIFEXITED(status))
+				ret = WEXITSTATUS(status); /* normal exit */
+			else if (WIFSIGNALED(status)) {
+				bool coredumped = false;
+#ifdef WCOREDUMP
+				coredumped = WCOREDUMP(status);
+#endif
+				/* use 256 since exit values are 8 bits */
+				ret = WTERMSIG(status) +
+					(coredumped ? 512 : 256);
+			} else
+				ret = 0;	/* shouldn't get here */
+		}
+
 		if ((BINMODE & BINMODE_INPUT) != 0)
 			os_setbinmode(fileno(stdin), O_BINARY);
+#ifdef SIGPIPE
+		signal(SIGPIPE, SIG_IGN);
+#endif
 
 		cmd[tmp->stlen] = save;
 	}
@@ -2101,8 +2159,13 @@ do_print(int nargs, int redirtype)
 		if (redir_exp->type != Node_val)
 			fatal(_("attempt to use array `%s' in a scalar context"), array_vname(redir_exp));
 		rp = redirect(redir_exp, redirtype, & errflg);
-		if (rp != NULL)
+		if (rp != NULL) {
+			if ((rp->flag & RED_TWOWAY) != 0 && rp->output.fp == NULL) {
+				(void) close_rp(rp, CLOSE_ALL);
+				fatal(_("print: attempt to write to closed write end of two-way pipe"));
+			}
 			fp = rp->output.fp;
+		}
 	} else if (do_debug)	/* only the debugger can change the default output */
 		fp = output_fp;
 	else
@@ -2116,12 +2179,8 @@ do_print(int nargs, int redirtype)
 			fatal(_("attempt to use array `%s' in a scalar context"), array_vname(tmp));
 		}
 
-		if ((tmp->flags & (NUMBER|STRING)) == NUMBER) {
-			if (OFMTidx == CONVFMTidx)
-				args_array[i] = force_string(tmp);
-			else
-				args_array[i] = format_val(OFMT, OFMTidx, tmp);
-		}
+		if ((tmp->flags & STRCUR) == 0 || (tmp->stfmt != -1 && tmp->stfmt != OFMTidx))
+			args_array[i] = format_val(OFMT, OFMTidx, tmp);
 	}
 
 	if (redir_exp != NULL) {
@@ -2165,8 +2224,13 @@ do_print_rec(int nargs, int redirtype)
 	if (redirtype != 0) {
 		redir_exp = TOP();
 		rp = redirect(redir_exp, redirtype, & errflg);
-		if (rp != NULL)
+		if (rp != NULL) {
+			if ((rp->flag & RED_TWOWAY) != 0 && rp->output.fp == NULL) {
+				(void) close_rp(rp, CLOSE_ALL);
+				fatal(_("print: attempt to write to closed write end of two-way pipe"));
+			}
 			fp = rp->output.fp;
+		}
 		DEREF(redir_exp);
 		decr_sp();
 	} else
@@ -2192,7 +2256,6 @@ do_print_rec(int nargs, int redirtype)
 		rp->output.gawk_fflush(rp->output.fp, rp->output.opaque);
 }
 
-#if MBS_SUPPORT
 
 /* is_wupper --- function version of iswupper for passing function pointers */
 
@@ -2257,7 +2320,6 @@ wide_tolower(wchar_t *wstr, size_t wlen)
 {
 	wide_change_case(wstr, wlen, is_wupper, to_wlower);
 }
-#endif
 
 /* do_tolower --- lower case a string */
 
@@ -2280,14 +2342,11 @@ do_tolower(int nargs)
 			cp < cp2; cp++)
 			if (isupper(*cp))
 				*cp = tolower(*cp);
-	}
-#if MBS_SUPPORT
-	else {
+	} else {
 		force_wstring(t2);
 		wide_tolower(t2->wstptr, t2->wstlen);
 		wstr2str(t2);
 	}
-#endif
 
 	DEREF(t1);
 	return t2;
@@ -2314,14 +2373,11 @@ do_toupper(int nargs)
 			cp < cp2; cp++)
 			if (islower(*cp))
 				*cp = toupper(*cp);
-	}
-#if MBS_SUPPORT
-	else {
+	} else {
 		force_wstring(t2);
 		wide_toupper(t2->wstptr, t2->wstlen);
 		wstr2str(t2);
 	}
-#endif
 
 	DEREF(t1);
 	return t2;
@@ -2471,13 +2527,12 @@ do_match(int nargs)
 		size_t *wc_indices = NULL;
 
 		rlength = REEND(rp, t1->stptr) - RESTART(rp, t1->stptr);	/* byte length */
-#if MBS_SUPPORT
 		if (rlength > 0 && gawk_mb_cur_max > 1) {
 			t1 = str2wstr(t1, & wc_indices);
 			rlength = wc_indices[rstart + rlength - 1] - wc_indices[rstart] + 1;
 			rstart = wc_indices[rstart];
 		}
-#endif
+
 		rstart++;	/* now it's 1-based indexing */
 	
 		/* Build the array only if the caller wants the optional subpatterns */
@@ -2499,12 +2554,10 @@ do_match(int nargs)
 					start = t1->stptr + s;
 					subpat_start = s;
 					subpat_len = len = SUBPATEND(rp, t1->stptr, ii) - s;
-#if MBS_SUPPORT
 					if (len > 0 && gawk_mb_cur_max > 1) {
 						subpat_start = wc_indices[s];
 						subpat_len = wc_indices[s + len - 1] - subpat_start + 1;
 					}
-#endif
 	
 					it = make_string(start, len);
 					it->flags |= MAYBE_NUM;	/* user input */
@@ -2647,23 +2700,28 @@ do_match(int nargs)
  * 2001 standard:
  * 
  * sub(ere, repl[, in ])
- *  Substitute the string repl in place of the first instance of the extended regular
- *  expression ERE in string in and return the number of substitutions. An ampersand
- *  ('&') appearing in the string repl shall be replaced by the string from in that
- *  matches the ERE. An ampersand preceded with a backslash ('\') shall be
- *  interpreted as the literal ampersand character. An occurrence of two consecutive
- *  backslashes shall be interpreted as just a single literal backslash character. Any
- *  other occurrence of a backslash (for example, preceding any other character) shall
- *  be treated as a literal backslash character. Note that if repl is a string literal (the
- *  lexical token STRING; see Grammar (on page 170)), the handling of the
- *  ampersand character occurs after any lexical processing, including any lexical
- *  backslash escape sequence processing. If in is specified and it is not an lvalue (see
- *  Expressions in awk (on page 156)), the behavior is undefined. If in is omitted, awk
- *  shall use the current record ($0) in its place.
+ *  Substitute the string repl in place of the first instance of the
+ *  extended regular expression ERE in string in and return the number of
+ *  substitutions. An ampersand ('&') appearing in the string repl shall
+ *  be replaced by the string from in that matches the ERE. An ampersand
+ *  preceded with a backslash ('\') shall be interpreted as the literal
+ *  ampersand character. An occurrence of two consecutive backslashes shall
+ *  be interpreted as just a single literal backslash character. Any other
+ *  occurrence of a backslash (for example, preceding any other character)
+ *  shall be treated as a literal backslash character. Note that if repl is a
+ *  string literal (the lexical token STRING; see Grammar (on page 170)), the
+ *  handling of the ampersand character occurs after any lexical processing,
+ *  including any lexical backslash escape sequence processing. If in is
+ *  specified and it is not an lvalue (see Expressions in awk (on page 156)),
+ *  the behavior is undefined. If in is omitted, awk shall use the current
+ *  record ($0) in its place.
  *
- * 11/2010: The text in the 2008 standard is the same as just quoted.  However, POSIX behavior
- * is now the default.  This can change the behavior of awk programs.  The old behavior
- * is not available.
+ * 11/2010: The text in the 2008 standard is the same as just quoted.
+ * However, POSIX behavior is now the default.  This can change the behavior
+ * of awk programs.  The old behavior is not available.
+ *
+ * 7/2011: Reverted backslash handling to what it used to be. It was in
+ * gawk for too long. Should have known better.
  */
 
 /*
@@ -2718,6 +2776,8 @@ do_sub(int nargs, unsigned int flags)
 				if ((t1->flags & NUMCUR) != 0)
 					goto set_how_many;
 
+				warning(_("gensub: third argument `%.*s' treated as 1"),
+						(int) t1->stlen, t1->stptr);
 				how_many = 1;
 			}
 		} else {
@@ -2730,8 +2790,8 @@ set_how_many:
 				how_many = d;
 			else
 				how_many = LONG_MAX;
-			if (d == 0)
-				warning(_("gensub: third argument of 0 treated as 1"));
+			if (d <= 0)
+				warning(_("gensub: third argument %g treated as 1"), d);
 		}
 		DEREF(t1);
 
@@ -2769,14 +2829,11 @@ set_how_many:
 
 	text = t->stptr;
 	textlen = t->stlen;
-	buflen = textlen + 2;
 
 	repl = s->stptr;
 	replend = repl + s->stlen;
 	repllen = replend - repl;
-	emalloc(buf, char *, buflen + 2, "do_sub");
-	buf[buflen] = '\0';
-	buf[buflen + 1] = '\0';
+
 	ampersands = 0;
 
 	/*
@@ -2815,8 +2872,10 @@ set_how_many:
 					leave alone, it goes into the output */
 			} else {
 				/* gawk default behavior since 1996 */
-				if (strncmp(scan, "\\\\\\&", 4) == 0) {
+				if (strncmp(scan, "\\\\\\&", 4) == 0
+				    || strncmp(scan, "\\\\\\\\", 4) == 0) {	/* 2016: fixed */
 					/* \\\& --> \& */
+					/* \\\\ --> \\ */
 					repllen -= 2;
 					scan += 3;
 				} else if (strncmp(scan, "\\\\&", 3) == 0) {
@@ -2835,6 +2894,13 @@ set_how_many:
 	}
 
 	lastmatchnonzero = false;
+
+	/* guesstimate how much room to allocate; +2 forces > 0 */
+	buflen = textlen + (ampersands + 1) * repllen + 2;
+	emalloc(buf, char *, buflen + 2, "do_sub");
+	buf[buflen] = '\0';
+	buf[buflen + 1] = '\0';
+
 	bp = buf;
 	for (current = 1;; current++) {
 		matches++;
@@ -2914,10 +2980,12 @@ set_how_many:
 						*bp++ = *scan;
 					} else {
 						/* gawk default behavior since 1996 */
-						if (strncmp(scan, "\\\\\\&", 4) == 0) {
+						if (strncmp(scan, "\\\\\\&", 4) == 0
+						    || strncmp(scan, "\\\\\\\\", 4) == 0) {	/* 2016: fixed */
 							/* \\\& --> \& */
+							/* \\\\ --> \\ */
 							*bp++ = '\\';
-							*bp++ = '&';
+							*bp++ = scan[3];
 							scan += 3;
 						} else if (strncmp(scan, "\\\\&", 3) == 0) {
 							/* \\& --> \<string> */
@@ -3004,6 +3072,146 @@ done:
 	return make_number((AWKNUM) matches);
 }
 
+/* call_sub --- call do_sub indirectly */
+
+NODE *
+call_sub(const char *name, int nargs)
+{
+	unsigned int flags = 0;
+	NODE *regex, *replace, *glob_flag;
+	NODE **lhs, *rhs;
+	NODE *zero = make_number(0.0);
+	NODE *result;
+
+	if (name[0] == 'g') {
+		if (name[1] == 'e')
+			flags = GENSUB;
+		else
+			flags = GSUB;
+	}
+
+	if (flags == 0 || flags == GSUB) {
+		/* sub or gsub */
+		if (nargs != 2)
+			fatal(_("%s: can be called indirectly only with two arguments"), name);
+
+		replace = POP_STRING();
+		regex = POP();	/* the regex */
+		/*
+		 * push regex
+		 * push replace
+		 * push $0
+		 */
+		regex = make_regnode(Node_regex, regex);
+		PUSH(regex);
+		PUSH(replace);
+		lhs = r_get_field(zero, (Func_ptr *) 0, true);
+		nargs++;
+		PUSH_ADDRESS(lhs);
+	} else {
+		/* gensub */
+		if (nargs == 4)
+			rhs = POP();
+		else
+			rhs = NULL;
+		glob_flag = POP_STRING();
+		replace = POP_STRING();
+		regex = POP();	/* the regex */
+		/*
+		 * push regex
+		 * push replace
+		 * push glob_flag
+		 * if (nargs = 3) {
+		 *	 push $0
+		 *	 nargs++
+		 * }
+		 */
+		regex = make_regnode(Node_regex, regex);
+		PUSH(regex);
+		PUSH(replace);
+		PUSH(glob_flag);
+		if (rhs == NULL) {
+			lhs = r_get_field(zero, (Func_ptr *) 0, true);
+			rhs = *lhs;
+			UPREF(rhs);
+			PUSH(rhs);
+			nargs++;
+		}
+		else
+			PUSH(rhs);
+	}
+
+	unref(zero);
+	result = do_sub(nargs, flags);
+	if (flags != GENSUB)
+		reset_record();
+	return result;
+}
+
+/* call_match --- call do_match indirectly */
+
+NODE *
+call_match(int nargs)
+{
+	NODE *regex, *text, *array;
+	NODE *result;
+
+	regex = text = array = NULL;
+	if (nargs == 3)
+		array = POP();
+	regex = POP();
+
+	/* Don't need to pop the string just to push it back ... */
+
+	regex = make_regnode(Node_regex, regex);
+	PUSH(regex);
+
+	if (array)
+		PUSH(array);
+
+	result = do_match(nargs);
+	return result;
+}
+
+/* call_split_func --- call do_split or do_pat_split indirectly */
+
+NODE *
+call_split_func(const char *name, int nargs)
+{
+	NODE *regex, *seps;
+	NODE *result;
+
+	regex = seps = NULL;
+	if (nargs < 2)
+		fatal(_("indirect call to %s requires at least two arguments"),
+				name);
+
+	if (nargs == 4)
+		seps = POP();
+
+	if (nargs >= 3) {
+		regex = POP_STRING();
+		regex = make_regnode(Node_regex, regex);
+	} else {
+		if (name[0] == 's') {
+			regex = make_regnode(Node_regex, FS_node->var_value);
+			regex->re_flags |= FS_DFLT;
+		} else
+			regex = make_regnode(Node_regex, FPAT_node->var_value);
+		nargs++;
+	}
+
+	/* Don't need to pop the string or the data array */
+
+	PUSH(regex);
+
+	if (seps)
+		PUSH(seps);
+
+	result = (name[0] == 's') ? do_split(nargs) : do_patsplit(nargs);
+
+	return result;
+}
 
 /* make_integer - Convert an integer to a number node.  */
 
@@ -3308,6 +3516,7 @@ nondec2awknum(char *str, size_t len)
 	} else {
 decimal:
 		save = str[len];
+		str[len] = '\0';
 		retval = strtod(str, NULL);
 		str[len] = save;
 	}
@@ -3550,7 +3759,6 @@ do_bindtextdomain(int nargs)
 static size_t
 mbc_byte_count(const char *ptr, size_t numchars)
 {
-#if MBS_SUPPORT
 	mbstate_t cur_state;
 	size_t sum = 0;
 	int mb_len;
@@ -3571,9 +3779,6 @@ mbc_byte_count(const char *ptr, size_t numchars)
 	}
 
 	return sum;
-#else
-	return numchars;
-#endif
 }
 
 /* mbc_char_count --- return number of m.b. chars in string, up to numbytes bytes */
@@ -3581,7 +3786,6 @@ mbc_byte_count(const char *ptr, size_t numchars)
 static size_t
 mbc_char_count(const char *ptr, size_t numbytes)
 {
-#if MBS_SUPPORT
 	mbstate_t cur_state;
 	size_t sum = 0;
 	int mb_len;
@@ -3604,7 +3808,4 @@ mbc_char_count(const char *ptr, size_t numbytes)
 	}
 
 	return sum;
-#else
-	return numbytes;
-#endif
 }

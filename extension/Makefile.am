@@ -1,7 +1,7 @@
 #
 # extension/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 1995-2006, 2012 the Free Software Foundation, Inc.
+# Copyright (C) 1995-2006, 2012-2015 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -27,7 +27,10 @@ AM_CPPFLAGS = -I$(srcdir)/..
 
 # This variable insures that aclocal runs
 # correctly after changing configure.ac
-ACLOCAL_AMFLAGS = -I m4
+ACLOCAL_AMFLAGS = -I m4 -I ../m4
+
+# For some make's, e.g. OpenBSD, that don't define this
+RM = rm -f
 
 # Note: rwarray does not currently compile.
 
@@ -100,20 +103,26 @@ testext_la_LIBADD     = $(MY_LIBS)
 
 install-data-hook:
 	for i in $(pkgextension_LTLIBRARIES) ; do \
-		$(RM) $(pkgextensiondir)/$$i ; \
+		$(RM) $(DESTDIR)$(pkgextensiondir)/$$i ; \
 	done
 
 # Keep the uninstall check working:
 uninstall-so:
-	$(RM) $(pkgextensiondir)/*.so
+	$(RM) $(DESTDIR)$(pkgextensiondir)/*.so
+	$(RM) $(DESTDIR)$(pkgextensiondir)/*.dll
+	$(RM) $(DESTDIR)$(pkgextensiondir)/*.a
+	$(RM) $(DESTDIR)$(pkgextensiondir)/*.lib
 
 uninstall-recursive: uninstall-so
 
 EXTRA_DIST = build-aux/config.rpath  \
 	ChangeLog \
 	ChangeLog.0 \
+	ext_custom.h \
 	fts.3 \
-	README.fts
+	m4 \
+	README.fts \
+	rwarray0.c
 
 dist_man_MANS = \
 	filefuncs.3am fnmatch.3am fork.3am inplace.3am \

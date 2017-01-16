@@ -3,7 +3,8 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2013 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016,
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -96,7 +97,7 @@ str_array_init(NODE *symbol ATTRIBUTE_UNUSED, NODE *subs ATTRIBUTE_UNUSED)
 	} else
 		null_array(symbol);
 
-	return (NODE **) ! NULL;
+	return & success_node;
 }
 
 
@@ -137,7 +138,18 @@ str_lookup(NODE *symbol, NODE *subs)
 		hash1 = code1 % (unsigned long) symbol->array_size;
 	}
 
-	if (subs->stfmt != -1) {
+
+	/*
+	 * Repeat after me: "Array indices are always strings."
+	 * "Array indices are always strings."
+	 * "Array indices are always strings."
+	 * "Array indices are always strings."
+	 * ....
+	 * If subs is a STRNUM, copy it; don't clear the MAYBE_NUM
+	 * flag on it since other variables could be using the same
+	 * reference-counted value.
+	 */
+	if (subs->stfmt != -1 || (subs->flags & MAYBE_NUM) != 0) {
 		NODE *tmp;
 
 		/*
@@ -167,6 +179,8 @@ str_lookup(NODE *symbol, NODE *subs)
 
 		subs = dupnode(subs);
 	}
+
+	assert((subs->flags & MAYBE_NUM) == 0);
 
 	getbucket(b);
 	b->ahnext = symbol->buckets[hash1];
@@ -273,7 +287,7 @@ str_remove(NODE *symbol, NODE *subs)
 				symbol->ainit(symbol, NULL);	/* re-initialize symbol */
 			}
 
-			return (NODE **) ! NULL;	/* return success */
+			return & success_node;	/* return success */
 		}
 	}
 

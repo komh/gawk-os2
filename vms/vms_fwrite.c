@@ -1,6 +1,7 @@
 /* vms_fwrite.c - augmentation for the fwrite() function.
 
-   Copyright (C) 1991-1996, 2010, 2011, 2014 the Free Software Foundation, Inc.
+   Copyright (C) 1991-1996, 2010, 2011, 2014, 2016
+   the Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -78,12 +79,16 @@ tty_fwrite( const void *buf, size_t size, size_t number, FILE *file )
     if (chan == 0) {	/* if not initialized, need to assign a channel */
 	if (isatty(file_num) > 0	/* isatty: 1=yes, 0=no, -1=problem */
 	    && ! do_debug) {
-	    Dsc  device;
+	    struct dsc$descriptor_s  device;
 	    char devnam[255+1];
 
 	    fgetname(file, devnam);			/* get 'file's name */
-	    device.len = strlen(device.adr = devnam);	/* create descriptor */
-	    if (vmswork(SYS$ASSIGN(&device, &chan, 0, (Dsc *)0))) {
+            /* create descriptor */
+	    device.dsc$w_length = strlen(device.dsc$a_pointer = devnam);
+            device.dsc$b_dtype = DSC$K_DTYPE_T;
+            device.dsc$b_class = DSC$K_CLASS_S;
+	    if (vmswork(SYS$ASSIGN(&device, &chan, 0,
+                                  (struct dsc$descriptor_s *)0))) {
 		/* get an event flag; use #0 if problem */
 		if (evfn == -1 && vmsfail(LIB$GET_EF(&evfn)))  evfn = 0;
 	    } else  chan = 0;	    /* $ASSIGN failed */

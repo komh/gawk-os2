@@ -1,7 +1,7 @@
 #
 # Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 2000-2014 the Free Software Foundation, Inc.
+# Copyright (C) 2000-2016 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -59,15 +59,23 @@ EXTRA_DIST = \
 	ylwrap
 
 # The order to do things in.
+#
 # Build explicitly in "." in order to build gawk first, so
 # that `make check' without a prior `make' works.
-SUBDIRS = \
-	. \
-	awklib \
-	doc \
-	po \
-	extension \
-	test
+#
+# Build in extension before test so that
+# 	./configure && make check
+# works properly too.
+#
+# Build in awklib after in doc, since we want to extract
+# sample files if doc/gawk.texi changed.
+SUBDIRS = .
+
+if ENABLE_EXTENSIONS
+SUBDIRS += extension
+endif
+
+SUBDIRS += doc awklib po test
 
 # what to make and install
 bin_PROGRAMS = gawk
@@ -144,22 +152,29 @@ CLEANFILES = core core.*
 # We want hard links for install-exec-hook, below
 LN= ln
 
+# For some make's, e.g. OpenBSD, that don't define this
+RM = rm -f
+
 # First, add a link from gawk to gawk-X.Y.Z.
 #
 # For GNU systems where gawk is awk, add a link to awk.
 # (This is done universally, which may not always be right, but
 # there's no easy way to distinguish GNU from non-GNU systems.)
+#
+# Use the transform, in case --program-prefix=XXX
 install-exec-hook:
 	(cd $(DESTDIR)$(bindir); \
-	$(LN) gawk$(EXEEXT) gawk-$(VERSION)$(EXEEXT) 2>/dev/null ; \
-	if [ ! -f awk ]; \
-	then	$(LN_S) gawk$(EXEEXT) awk; \
+	name=`echo gawk | sed '$(transform)'` ; \
+	$(LN) $${name}$(EXEEXT) gawk-$(VERSION)$(EXEEXT) 2>/dev/null ; \
+	if [ ! -f awk$(EXEEXT) ]; \
+	then	$(LN_S) $${name}$(EXEEXT) awk$(EXEEXT); \
 	fi; exit 0)
 
 # Undo the above when uninstalling
 uninstall-links:
 	(cd $(DESTDIR)$(bindir); \
-	if [ -f awk ] && cmp awk gawk$(EXEEXT) > /dev/null; then rm -f awk; fi ; \
+	name=`echo gawk | sed '$(transform)'` ; \
+	if [ -f awk$(EXEEXT) ] && cmp awk$(EXEEXT) $${name}$(EXEEXT) > /dev/null; then rm -f awk$(EXEEXT); fi ; \
 	rm -f gawk-$(VERSION)$(EXEEXT); exit 0)
 
 uninstall-recursive: uninstall-links
@@ -170,16 +185,16 @@ check-local: gawk$(EXEEXT)
 # A little extra clean up when making distributions.
 # And additional set up for the pc directory.
 dist-hook:
-	cd $(distdir)/extension ; rm -f *.o *.so
-	cd $(srcdir)/pc ; \
+	cd "$(distdir)"/extension ; rm -f *.o *.so
+	cd "$(srcdir)"/pc ; \
 	chmod u+w config.h ; \
 	sed -n -f configpk.sed < ../configure.ac > /tmp/tmp.sed ; \
 	sed -f config.sed < ../configh.in > /tmp/config.tmp ; \
 	sed -f /tmp/tmp.sed < /tmp/config.tmp > config.h ; \
 	$(RM) /tmp/tmp.sed /tmp/config.tmp
 	pwd
-	chmod u+w $(distdir)/pc/config.h
-	cp $(srcdir)/pc/config.h $(distdir)/pc/config.h
+	chmod u+w "$(distdir)"/pc/config.h
+	cp "$(srcdir)"/pc/config.h "$(distdir)"/pc/config.h
 
 # Special rules for individual files
 # Use of awk instead of $(AWK) is deliberate, in case gawk doesn't build
@@ -187,18 +202,18 @@ dist-hook:
 
 awkgram.c: awkgram.y
 	$(YACC) $(AM_YFLAGS) $(YFLAGS) $<
-	sed 's/parse error/syntax error/g' < y.tab.c | awk -f $(srcdir)/bisonfix.awk awkgram > $*.c && rm y.tab.c
+	sed 's/parse error/syntax error/g' < y.tab.c | awk -f "$(srcdir)"/bisonfix.awk awkgram > $*.c && rm y.tab.c
 	if test -f y.tab.h; then \
 	if cmp -s y.tab.h $*.h; then rm -f y.tab.h; else mv y.tab.h $*.h; fi; \
 	else :; fi
 
 command.c: command.y
 	$(YACC) -p zz $<
-	sed 's/parse error/syntax error/g' < y.tab.c | awk -f $(srcdir)/bisonfix.awk command > $*.c && rm y.tab.c
+	sed 's/parse error/syntax error/g' < y.tab.c | awk -f "$(srcdir)"/bisonfix.awk command > $*.c && rm y.tab.c
 
 # This is for my development & testing.
 efence: gawk
-	$(CC) $(LDFLAGS) -o gawk $$(ls *.o | grep -v '_p.o$$') $(LIBS) -lefence
+	$(CC) $(LDFLAGS) -o gawk $$(ls *.o | grep -v '_p.o$$') $(LDADD) $(LIBS) -lefence
 
 diffout valgrind-scan:
 	@cd test && $(MAKE) $(AM_MAKEFLAGS) $@
@@ -212,3 +227,6 @@ valgrind-noleak:
 	cd test; rm -f log.[0-9]*; \
 	make check VALGRIND="valgrind --leak-check=no --log-file=log.%p"; \
 	make valgrind-scan
+
+spell:
+	cd "$(srcdir)"/doc ; $(MAKE) spell

@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2014 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -95,13 +95,11 @@ extern int errno;
 #include "missing_d/gawkbool.h"
 #endif
 
-#include "mbsupport.h" /* defines MBS_SUPPORT */
-
-#if MBS_SUPPORT
 /* We can handle multibyte strings.  */
 #include <wchar.h>
 #include <wctype.h>
-#endif
+
+#include "mbsupport.h" /* defines stuff for DJGPP to fake MBS */
 
 #ifdef STDC_HEADERS
 #include <float.h>
@@ -110,24 +108,12 @@ extern int errno;
 #undef CHARBITS
 #undef INTBITS
 
-#if !defined(ZOS_USS)
 #if HAVE_INTTYPES_H
 # include <inttypes.h>
 #endif
 #if HAVE_STDINT_H
 # include <stdint.h>
 #endif
-#else /* ZOS_USS */
-#include <limits.h>
-#include <sys/time.h>
-#define INT32_MAX INT_MAX
-#define INT32_MIN INT_MIN
-#ifndef __uint32_t
-#define __uint32_t 1
-typedef  unsigned long uint32_t;
-#endif
-typedef  long int32_t;
-#endif /* !ZOS_USS */
 
 /* ----------------- System dependencies (with more includes) -----------*/
 
@@ -161,11 +147,10 @@ typedef int off_t;
 #ifdef NEED_MEMORY_H
 #include <memory.h>
 #endif	/* NEED_MEMORY_H */
-#else	/* not HAVE_STRING_H */
+#endif /* HAVE_STRING_H */
 #ifdef HAVE_STRINGS_H
 #include <strings.h>
 #endif	/* HAVE_STRINGS_H */
-#endif	/* not HAVE_STRING_H */
 
 #if HAVE_UNISTD_H
 #include <unistd.h>
@@ -191,15 +176,6 @@ extern char *memcpy_ulong(char *dest, const char *src, unsigned long l);
 #if HAVE_MEMSET_ULONG
 extern void *memset_ulong(void *dest, int val, unsigned long l);
 #define memset memset_ulong
-#endif
-
-#ifdef HAVE_LIBSIGSEGV
-#include <sigsegv.h>
-#else
-typedef void *stackoverflow_context_t;
-#define sigsegv_install_handler(catchsegv) signal(SIGSEGV, catchsig)
-/* define as 0 rather than empty so that (void) cast on it works */
-#define stackoverflow_install_handler(catchstackoverflow, extra_stack, STACK_SIZE) 0
 #endif
 
 #if defined(__EMX__) || defined(__MINGW32__)
@@ -297,6 +273,7 @@ typedef enum nodevals {
 	Node_func,		/* lnode is param. list, rnode is body */
 	Node_ext_func,		/* extension function, code_ptr is builtin code */
 	Node_old_ext_func,	/* extension function, code_ptr is builtin code */
+	Node_builtin_func,	/* built-in function, main use is for FUNCTAB */
 
 	Node_array_ref,		/* array passed by ref as parameter */
 	Node_array_tree,	/* Hashed array tree (HAT) */
@@ -403,10 +380,8 @@ typedef struct exp_node {
 			size_t slen;
 			long sref;
 			int idx;
-#if MBS_SUPPORT
 			wchar_t *wsp;
 			size_t wslen;
-#endif
 		} val;
 	} sub;
 	NODETYPE type;
@@ -416,6 +391,45 @@ typedef struct exp_node {
 #		define	MALLOC	0x0001       /* can be free'd */
 
 /* type = Node_val */
+	/*
+	 * STRING and NUMBER are mutually exclusive. They represent the
+	 * type of a value as assigned.
+	 *
+	 * STRCUR and NUMCUR are not mutually exclusive. They represent that
+	 * the particular type of value is up to date.  For example,
+	 *
+	 * 	a = 5		# NUMBER | NUMCUR
+	 * 	b = a ""	# Adds STRCUR to a, since a string value
+	 * 			# is now available. But the type hasn't changed!
+	 *
+	 * 	a = "42"	# STRING | STRCUR
+	 * 	b = a + 0	# Adds NUMCUR to a, since numeric value
+	 * 			# is now available. But the type hasn't changed!
+	 *
+	 * MAYBE_NUM is the joker.  It means "this is string data, but
+	 * the user may have really wanted it to be a number. If we have
+	 * to guess, like in a comparison, turn it into a number."
+	 * For example,    gawk -v a=42 ....
+	 * Here, `a' gets STRING|STRCUR|MAYBE_NUM and then when used where
+	 * a number is needed, it gets turned into a NUMBER and STRING
+	 * is cleared.
+	 *
+	 * WSTRCUR is for efficiency. If in a multibyte locale, and we
+	 * need to do something character based (substr, length, etc.)
+	 * we create the corresponding wide character string and store it,
+	 * and add WSTRCUR to the flags so that we don't have to do the
+	 * conversion more than once.
+	 *
+	 * The NUMINT flag may be used with a value of any type -- NUMBER,
+	 * STRING, or STRNUM. It indicates that the string representation
+	 * equals the result of sprintf("%ld", <numeric value>). So, for
+	 * example, NUMINT should NOT be set if it's a strnum or string value
+	 * where the string is " 1" or "01" or "+1" or "1.0" or "0.1E1". This
+	 * is a hint to indicate that an integer array optimization may be
+	 * used when this value appears as a subscript.
+	 *
+	 * We hope that the rest of the flags are self-explanatory. :-)
+	 */
 #		define	STRING	0x0002       /* assigned as string */
 #		define	STRCUR	0x0004       /* string value is current */
 #		define	NUMCUR	0x0008       /* numeric value is current */
@@ -1063,6 +1077,9 @@ extern afunc_t str_array_func[];
 extern afunc_t cint_array_func[];
 extern afunc_t int_array_func[];
 
+/* special node used to indicate success in array routines (not NULL) */
+extern NODE *success_node;
+
 extern BLOCK nextfree[];
 extern bool field0_valid;
 
@@ -1112,11 +1129,7 @@ extern int exit_val;
 #define do_lint             (do_flags & (DO_LINT_INVALID|DO_LINT_ALL))
 #define do_lint_old         (do_flags & DO_LINT_OLD)
 #endif
-#if MBS_SUPPORT
 extern int gawk_mb_cur_max;
-#else
-#define gawk_mb_cur_max	(1)
-#endif
 
 #if defined (HAVE_GETGROUPS) && defined(NGROUPS_MAX) && NGROUPS_MAX > 0
 extern GETGROUPS_T *groupset;
@@ -1261,47 +1274,12 @@ DEREF(NODE *r)
 #define	cant_happen()	r_fatal("internal error line %d, file: %s", \
 				__LINE__, __FILE__)
 
-#define	emalloc(var,ty,x,str)	(void)((var=(ty)malloc((size_t)(x))) ||\
-				 (fatal(_("%s: %s: can't allocate %ld bytes of memory (%s)"),\
-					(str), #var, (long) (x), strerror(errno)),0))
-#define	erealloc(var,ty,x,str)	(void)((var = (ty)realloc((char *)var, (size_t)(x))) \
-				||\
-				 (fatal(_("%s: %s: can't allocate %ld bytes of memory (%s)"),\
-					(str), #var, (long) (x), strerror(errno)),0))
+#define	emalloc(var,ty,x,str)	(void) (var = (ty) emalloc_real((size_t)(x), str, #var, __FILE__, __LINE__))
+#define	erealloc(var,ty,x,str)	(void) (var = (ty) erealloc_real((void *) var, (size_t)(x), str, #var, __FILE__, __LINE__))
 
 #define efree(p)	free(p)
 
-static inline NODE *
-force_string(NODE *s)
-{
-	if ((s->flags & STRCUR) != 0
-		    && (s->stfmt == -1 || s->stfmt == CONVFMTidx)
-	)
-		return s;
-	return format_val(CONVFMT, CONVFMTidx, s);
-}
-
-#ifdef GAWKDEBUG
-#define unref	r_unref
-#define	force_number	str2number
-#else /* not GAWKDEBUG */
-
-static inline void
-unref(NODE *r)
-{
-	if (r != NULL && --r->valref <= 0)
-		r_unref(r);
-}
-
-static inline NODE *
-force_number(NODE *n)
-{
-	return (n->flags & NUMCUR) ? n : str2number(n);
-}
-
-#endif /* GAWKDEBUG */
-
-#define fatal		set_loc(__FILE__, __LINE__), r_fatal
+#define fatal		(*(set_loc(__FILE__, __LINE__), r_fatal))
 
 extern jmp_buf fatal_tag;
 extern bool fatal_tag_valid;
@@ -1372,10 +1350,17 @@ extern NODE *stopme(int nargs);
 extern void shadow_funcs(void);
 extern int check_special(const char *name);
 extern SRCFILE *add_srcfile(enum srctype stype, char *src, SRCFILE *curr, bool *already_included, int *errcode);
-extern void register_deferred_variable(const char *name, NODE *(*load_func)(void));
+extern void free_srcfile(SRCFILE *thisfile);
 extern int files_are_same(char *path, SRCFILE *src);
 extern void valinfo(NODE *n, Func_print print_func, FILE *fp);
 extern void negate_num(NODE *n);
+typedef NODE *(*builtin_func_t)(int);	/* function that implements a built-in */
+extern builtin_func_t lookup_builtin(const char *name);
+extern void install_builtins(void);
+extern bool is_alpha(int c);
+extern bool is_alnum(int c);
+extern bool is_identchar(int c);
+extern NODE *make_regnode(int type, NODE *exp);
 /* builtin.c */
 extern double double_to_int(double d);
 extern NODE *do_exp(int nargs);
@@ -1405,6 +1390,9 @@ extern NODE *do_rand(int nargs);
 extern NODE *do_srand(int nargs);
 extern NODE *do_match(int nargs);
 extern NODE *do_sub(int nargs, unsigned int flags);
+extern NODE *call_sub(const char *name, int nargs);
+extern NODE *call_match(int nargs);
+extern NODE *call_split_func(const char *name, int nargs);
 extern NODE *format_tree(const char *, size_t, NODE **, long);
 extern NODE *do_lshift(int nargs);
 extern NODE *do_rshift(int nargs);
@@ -1417,10 +1405,8 @@ extern AWKNUM nondec2awknum(char *str, size_t len);
 extern NODE *do_dcgettext(int nargs);
 extern NODE *do_dcngettext(int nargs);
 extern NODE *do_bindtextdomain(int nargs);
-#if MBS_SUPPORT
 extern int strncasecmpmbs(const unsigned char *,
 			  const unsigned char *, size_t);
-#endif
 /* eval.c */
 extern void PUSH_CODE(INSTRUCTION *cp);
 extern INSTRUCTION *POP_CODE(void);
@@ -1453,6 +1439,7 @@ extern NODE **r_get_lhs(NODE *n, bool reference);
 extern STACK_ITEM *grow_stack(void);
 extern void dump_fcall_stack(FILE *fp);
 extern int register_exec_hook(Func_pre_exec preh, Func_post_exec posth);
+extern NODE **r_get_field(NODE *n, Func_ptr *assign, bool reference);
 /* ext.c */
 extern NODE *do_ext(int nargs);
 void load_ext(const char *lib_name);	/* temporary */
@@ -1462,14 +1449,15 @@ extern void close_extensions(void);
 extern void make_old_builtin(const char *, NODE *(*)(int), int);
 extern awk_bool_t make_builtin(const awk_ext_func_t *);
 extern NODE *get_argument(int);
-extern NODE *get_actual_argument(int, bool, bool);
-#define get_scalar_argument(i, opt)  get_actual_argument((i), (opt), false)
-#define get_array_argument(i, opt)   get_actual_argument((i), (opt), true)
+extern NODE *get_actual_argument(NODE *, int, bool);
+#define get_scalar_argument(n, i)  get_actual_argument((n), (i), false)
+#define get_array_argument(n, i)   get_actual_argument((n), (i), true)
 #endif
 /* field.c */
 extern void init_fields(void);
 extern void set_record(const char *buf, int cnt);
 extern void reset_record(void);
+extern void rebuild_record(void);
 extern void set_NF(void);
 extern NODE **get_field(long num, Func_ptr *assign);
 extern NODE *do_split(int nargs);
@@ -1524,13 +1512,16 @@ extern struct redirect *redirect(NODE *redir_exp, int redirtype, int *errflg);
 extern NODE *do_close(int nargs);
 extern int flush_io(void);
 extern int close_io(bool *stdio_problem);
+typedef enum { CLOSE_ALL, CLOSE_TO, CLOSE_FROM } two_way_close_type;
+extern int close_rp(struct redirect *rp, two_way_close_type how);
+extern int devopen_simple(const char *name, const char *mode, bool try_real_open);
 extern int devopen(const char *name, const char *mode);
 extern int srcopen(SRCFILE *s);
 extern char *find_source(const char *src, struct stat *stb, int *errcode, int is_extlib);
 extern NODE *do_getline_redir(int intovar, enum redirval redirtype);
 extern NODE *do_getline(int intovar, IOBUF *iop);
 extern struct redirect *getredirect(const char *str, int len);
-extern int inrec(IOBUF *iop, int *errcode);
+extern bool inrec(IOBUF *iop, int *errcode);
 extern int nextfile(IOBUF **curfile, bool skipping);
 /* main.c */
 extern int arg_assign(char *arg, bool initing);
@@ -1566,6 +1557,7 @@ extern NODE *do_mpfr_srand(int);
 extern NODE *do_mpfr_strtonum(int);
 extern NODE *do_mpfr_xor(int);
 extern void init_mpfr(mpfr_prec_t, const char *);
+extern void cleanup_mpfr(void);
 extern NODE *mpg_node(unsigned int);
 extern const char *mpg_fmt(const char *, ...);
 extern int mpg_strtoui(mpz_ptr, char *, size_t, char **, int);
@@ -1601,7 +1593,6 @@ extern NODE *r_dupnode(NODE *n);
 extern NODE *make_str_node(const char *s, size_t len, int flags);
 extern void *more_blocks(int id);
 extern int parse_escape(const char **string_ptr);
-#if MBS_SUPPORT
 extern NODE *str2wstr(NODE *n, size_t **ptr);
 extern NODE *wstr2str(NODE *n);
 #define force_wstring(n)	str2wstr(n, NULL)
@@ -1615,9 +1606,6 @@ extern wint_t btowc_cache[];
 #define btowc_cache(x) btowc_cache[(x)&0xFF]
 extern void init_btowc_cache();
 #define is_valid_character(b)	(btowc_cache[(b)&0xFF] != WEOF)
-#else
-#define free_wstr(NODE)	/* empty */
-#endif
 /* re.c */
 extern Regexp *make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal);
 extern int research(Regexp *rp, char *str, int start, size_t len, int flags);
@@ -1635,7 +1623,7 @@ extern void load_symbols();
 extern void init_symbol_table();
 extern NODE *symbol_table;
 extern NODE *func_table;
-extern NODE *install_symbol(char *name, NODETYPE type);
+extern NODE *install_symbol(const char *name, NODETYPE type);
 extern NODE *remove_symbol(NODE *r);
 extern void destroy_symbol(NODE *r);
 extern void release_symbols(NODE *symlist, int keep_globals);
@@ -1656,6 +1644,7 @@ extern void free_context(AWK_CONTEXT *ctxt, bool keep_globals);
 extern NODE **variable_list();
 extern NODE **function_list(bool sort);
 extern void print_vars(NODE **table, Func_print print_func, FILE *fp);
+extern bool check_param_names(void);
 
 /* floatcomp.c */
 #ifdef HAVE_UINTMAX_T
@@ -1675,6 +1664,11 @@ extern uintmax_t adjust_uint(uintmax_t n);
 #endif /* ! defined(VMS)) */
 #endif /* WEXITSTATUS */
 
+/* For z/OS, from Dave Pitts. EXIT_FAILURE is normally 8, make it 1. */
+#if defined(EXIT_FAILURE) && EXIT_FAILURE == 8
+# undef EXIT_FAILURE
+#endif
+
 /* EXIT_SUCCESS and EXIT_FAILURE normally come from <stdlib.h> */
 #ifndef EXIT_SUCCESS
 # define EXIT_SUCCESS 0
@@ -1685,16 +1679,6 @@ extern uintmax_t adjust_uint(uintmax_t n);
 /* EXIT_FATAL is specific to gawk, not part of Standard C */
 #ifndef EXIT_FATAL
 # define EXIT_FATAL   2
-#endif
-
-/* For z/OS, from Dave Pitts. EXIT_FAILURE is normally 8, make it 1. */
-#ifdef ZOS_USS
-
-#ifdef EXIT_FAILURE
-#undef EXIT_FAILURE
-#endif
-
-#define EXIT_FAILURE 1
 #endif
 
 /* ------------------ Inline Functions ------------------ */
@@ -1786,3 +1770,75 @@ dupnode(NODE *n)
 	return r_dupnode(n);
 }
 #endif
+
+/* force_string --- force a node to have a string value */
+
+static inline NODE *
+force_string(NODE *s)
+{
+	if ((s->flags & STRCUR) != 0
+		    && (s->stfmt == -1 || s->stfmt == CONVFMTidx)
+	)
+		return s;
+	return format_val(CONVFMT, CONVFMTidx, s);
+}
+
+#ifdef GAWKDEBUG
+#define unref	r_unref
+#define	force_number	str2number
+#else /* not GAWKDEBUG */
+
+/* unref --- decrease the reference count and/or free a node */
+
+static inline void
+unref(NODE *r)
+{
+	if (r != NULL && --r->valref <= 0)
+		r_unref(r);
+}
+
+/* force_number --- force a  node to have a numeric value */
+
+static inline NODE *
+force_number(NODE *n)
+{
+	return (n->flags & NUMCUR) != 0 ? n : str2number(n);
+}
+
+#endif /* GAWKDEBUG */
+
+/* emalloc_real --- malloc with error checking */
+
+static inline void *
+emalloc_real(size_t count, const char *where, const char *var, const char *file, int line)
+{
+	void *ret;
+
+	if (count == 0)
+		fatal("%s:%d: emalloc called with zero bytes", file, line);
+
+	ret = (void *) malloc(count);
+	if (ret == NULL)
+		fatal(_("%s:%d:%s: %s: can't allocate %ld bytes of memory (%s)"),
+			file, line, where, var, (long) count, strerror(errno));
+
+	return ret;
+}
+
+/* erealloc_real --- realloc with error checking */
+
+static inline void *
+erealloc_real(void *ptr, size_t count, const char *where, const char *var, const char *file, int line)
+{
+	void *ret;
+
+	if (count == 0)
+		fatal("%s:%d: erealloc called with zero bytes", file, line);
+
+	ret = (void *) realloc(ptr, count);
+	if (ret == NULL)
+		fatal(_("%s:%d:%s: %s: can't reallocate %ld bytes of memory (%s)"),
+			file, line, where, var, (long) count, strerror(errno));
+
+	return ret;
+}

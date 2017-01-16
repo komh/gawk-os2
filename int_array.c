@@ -3,7 +3,8 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2013 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016,
+ * the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -74,7 +75,37 @@ int_array_init(NODE *symbol, NODE *subs ATTRIBUTE_UNUSED)
 	} else
 		null_array(symbol);
 
-	return (NODE **) ! NULL;
+	return & success_node;
+}
+
+/*
+ * standard_integer_string -- check whether the string matches what
+ * sprintf("%ld", <value>) would produce. This is accomplished by accepting
+ * only strings that look like /^0$/ or /^-?[1-9][0-9]*$/. This should be
+ * faster than comparing vs. the results of actually calling sprintf.
+ */
+
+static bool
+standard_integer_string(const char *s, size_t len)
+{
+	const char *end;
+
+	if (len == 0)
+		return false;
+	if (*s == '0' && len == 1)
+		return true;
+	end = s + len;
+	/* ignore leading minus sign */
+	if (*s == '-' && ++s == end)
+		return false;
+	/* check first char is [1-9] */
+	if (*s < '1' || *s > '9')
+		return false;
+	while (++s < end) {
+		if (*s < '0' || *s > '9')
+			return false;
+	}
+	return true;
 }
 
 /* is_integer --- check if subscript is an integer */
@@ -82,22 +113,52 @@ int_array_init(NODE *symbol, NODE *subs ATTRIBUTE_UNUSED)
 NODE **
 is_integer(NODE *symbol, NODE *subs)
 {
+#ifndef CHECK_INTEGER_USING_FORCE_NUMBER
 	long l;
+#endif
 	AWKNUM d;
+
+	if ((subs->flags & NUMINT) != 0)
+		/* quick exit */
+		return & success_node;
 
 	if (subs == Nnull_string || do_mpfr)
 		return NULL;
 
-	if ((subs->flags & NUMINT) != 0)
-		return (NODE **) ! NULL;
+#ifdef CHECK_INTEGER_USING_FORCE_NUMBER
+	/*
+	 * This approach is much simpler, because we remove all of the strtol
+	 * logic below. But this may be slower in some usage cases.
+	 */
+	if ((subs->flags & NUMCUR) == 0) {
+		str2number(subs);
 
-	if ((subs->flags & NUMBER) != 0) {
+		/* check again in case force_number set NUMINT */
+		if ((subs->flags & NUMINT) != 0)
+			return & success_node;
+	}
+#else /* CHECK_INTEGER_USING_FORCE_NUMBER */
+	if ((subs->flags & NUMCUR) != 0) {
+#endif /* CHECK_INTEGER_USING_FORCE_NUMBER */
 		d = subs->numbr;
 		if (d <= INT32_MAX && d >= INT32_MIN && d == (int32_t) d) {
-			subs->flags |= NUMINT;
-			return (NODE **) ! NULL;
+			/*
+			 * The numeric value is an integer, but we must
+			 * protect against strings that cannot be generated
+			 * from sprintf("%ld", <subscript>). This can happen
+			 * with strnum or string values. We could skip this
+			 * check for pure NUMBER values, but unfortunately the
+			 * code does not currently distinguish between NUMBER
+			 * and strnum values.
+			 */
+			if (   (subs->flags & STRCUR) == 0
+			    || standard_integer_string(subs->stptr, subs->stlen)) {
+				subs->flags |= NUMINT;
+				return & success_node;
+			}
 		}
 		return NULL;
+#ifndef CHECK_INTEGER_USING_FORCE_NUMBER
 	}
 
 	/* a[3]=1; print "3" in a    -- true
@@ -126,7 +187,7 @@ is_integer(NODE *symbol, NODE *subs)
 				subs->flags |= NUMBER;
 			}
 			subs->flags |= (NUMCUR|NUMINT);
-			return (NODE **) ! NULL;
+			return & success_node;
 		}
 
 		cpend = cp + len;
@@ -146,10 +207,11 @@ is_integer(NODE *symbol, NODE *subs)
 		subs->flags |= NUMCUR;
 		if (l <= INT32_MAX && l >= INT32_MIN) {
 			subs->flags |= NUMINT;
-			return (NODE **) ! NULL;
+			return & success_node;
 		}
 	}
 	return NULL;
+#endif /* CHECK_INTEGER_USING_FORCE_NUMBER */
 }
 
 
@@ -303,7 +365,7 @@ int_remove(NODE *symbol, NODE *subs)
 		}
 		symbol->table_size--;
 		assert(symbol->table_size > 0);
-		return (NODE **) ! NULL;
+		return & success_node;
 	}
 
 	k = subs->numbr;
@@ -372,7 +434,7 @@ removed:
 		freenode(xn);
 	}
 
-	return (NODE **) ! NULL;	/* return success */
+	return & success_node;	/* return success */
 }
 
 

@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 2012, 2013 the Free Software Foundation, Inc.
+ * Copyright (C) 2012, 2013, 2015 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -39,6 +39,8 @@ mpz_t MFNR;
 bool do_ieee_fmt;	/* IEEE-754 floating-point emulation */
 mpfr_rnd_t ROUND_MODE;
 
+static mpfr_prec_t default_prec;
+
 static mpfr_rnd_t get_rnd_mode(const char rmode);
 static NODE *mpg_force_number(NODE *n);
 static NODE *mpg_make_number(double);
@@ -70,7 +72,7 @@ static inline mpfr_ptr mpg_tofloat(mpfr_ptr mf, mpz_ptr mz);
 void
 init_mpfr(mpfr_prec_t prec, const char *rmode)
 {
-	mpfr_set_default_prec(prec);
+	mpfr_set_default_prec(default_prec = prec);
 	ROUND_MODE = get_rnd_mode(rmode[0]);
 	mpfr_set_default_rounding_mode(ROUND_MODE);
 	make_number = mpg_make_number;
@@ -87,6 +89,15 @@ init_mpfr(mpfr_prec_t prec, const char *rmode)
 	mpz_init(mpzval);
 
 	register_exec_hook(mpg_interpret, 0);
+}
+
+/* cleanup_mpfr --- clean stuff up, mainly for valgrind */
+
+void
+cleanup_mpfr(void)
+{
+	mpfr_clear(_mpf_t1);
+	mpfr_clear(_mpf_t2);
 }
 
 /* mpg_node --- allocate a node to store MPFR float or GMP integer */
@@ -112,10 +123,8 @@ mpg_node(unsigned int tp)
 	r->flags |= MALLOC|NUMBER|NUMCUR;
 	r->stptr = NULL;
 	r->stlen = 0;
-#if MBS_SUPPORT
 	r->wstptr = NULL;
 	r->wstlen = 0;
-#endif /* defined MBS_SUPPORT */
 	return r;
 }
 
@@ -370,7 +379,7 @@ mpg_format_val(const char *format, int index, NODE *s)
 	} else {
 		r = format_tree(format, fmt_list[index]->stlen, dummy, 2);
 		assert(r != NULL);
-		s->stfmt = (char) index;
+		s->stfmt = index;
 	}
 	s->flags = oflags;
 	s->stlen = r->stlen;
@@ -518,7 +527,7 @@ set_PREC()
 	if ((val->flags & MAYBE_NUM) != 0)
 		force_number(val);
 
-	if ((val->flags & (STRING|NUMBER)) == STRING) {
+	if ((val->flags & STRCUR) != 0) {
 		int i, j;
 
 		/* emulate IEEE-754 binary format */
@@ -554,7 +563,7 @@ set_PREC()
 	}
 
 	if (prec > 0)
-		mpfr_set_default_prec(prec);
+		mpfr_set_default_prec(default_prec = prec);
 }
 
 
@@ -688,22 +697,37 @@ do_mpfr_atan2(int nargs)
 	return res;
 }
 
+/* do_mpfr_func --- run an MPFR function - not inline, for debugging */
 
-#define SPEC_MATH(X)						\
-NODE *t1, *res;							\
-mpfr_ptr p1;							\
-int tval;							\
-t1 = POP_SCALAR();						\
-if (do_lint && (t1->flags & (NUMCUR|NUMBER)) == 0)		\
-	lintwarn(_("%s: received non-numeric argument"), #X);	\
-force_number(t1);						\
-p1 = MP_FLOAT(t1);						\
-res = mpg_float();						\
-tval = mpfr_##X(res->mpg_numbr, p1, ROUND_MODE);			\
-IEEE_FMT(res->mpg_numbr, tval);					\
-DEREF(t1);							\
-return res
+static inline NODE *
+do_mpfr_func(const char *name,
+		int (*mpfr_func)(),	/* putting argument types just gets the compiler confused */
+		int nargs)
+{
+	NODE *t1, *res;
+	mpfr_ptr p1;
+	int tval;
+	mpfr_prec_t argprec;
 
+	t1 = POP_SCALAR();
+	if (do_lint && (t1->flags & (NUMCUR|NUMBER)) == 0)
+		lintwarn(_("%s: received non-numeric argument"), name);
+
+	force_number(t1);
+	p1 = MP_FLOAT(t1);
+	res = mpg_float();
+	if ((argprec = mpfr_get_prec(p1)) > default_prec)
+		mpfr_set_prec(res->mpg_numbr, argprec);	/* needed at least for sqrt() */
+	tval = mpfr_func(res->mpg_numbr, p1, ROUND_MODE);
+	IEEE_FMT(res->mpg_numbr, tval);
+	DEREF(t1);
+	return res;
+}
+
+#define SPEC_MATH(X)				\
+NODE *result;					\
+result = do_mpfr_func(#X, mpfr_##X, nargs);	\
+return result
 
 /* do_mpfr_sin --- do the sin function */
 
@@ -1194,9 +1218,17 @@ mpg_tofloat(mpfr_ptr mf, mpz_ptr mz)
 		prec -= (size_t) mpz_scan1(mz, 0);	/* least significant 1 bit index starting at 0 */
 		if (prec > MPFR_PREC_MAX)
 			prec = MPFR_PREC_MAX;
-		if (prec > PRECISION_MIN) 
-			mpfr_set_prec(mf, prec);
+		else if (prec < PRECISION_MIN)
+			prec = PRECISION_MIN;
 	}
+	else
+		prec = PRECISION_MIN;
+	/*
+	 * Always set the precision to avoid hysteresis, since do_mpfr_func 
+	 * may copy our precision.
+	 */
+	if (prec != mpfr_get_prec(mf))
+		mpfr_set_prec(mf, prec);
 
 	mpfr_set_z(mf, mz, ROUND_MODE);
 	return mf;
@@ -1354,8 +1386,27 @@ mpg_mod(NODE *t1, NODE *t2)
 	int tval;
 
 	if (is_mpg_integer(t1) && is_mpg_integer(t2)) {
+		/*
+		 * 8/2014: Originally, this was just
+		 *
+		 * r = mpg_integer();
+		 * mpz_mod(r->mpg_i, t1->mpg_i, t2->mpg_i);
+		 *
+		 * But that gave very strange results with negative numerator:
+		 *
+		 *	$ ./gawk -M 'BEGIN { print -15 % 7 }'
+		 *	6
+		 *
+		 * So instead we use mpz_tdiv_qr() to get the correct result
+		 * and just throw away the quotient. We could not find any
+		 * reason why mpz_mod() wasn't working correctly.
+		 */
+		NODE *dummy_quotient;
+
 		r = mpg_integer();
-		mpz_mod(r->mpg_i, t1->mpg_i, t2->mpg_i);
+		dummy_quotient = mpg_integer();
+		mpz_tdiv_qr(dummy_quotient->mpg_i, r->mpg_i, t1->mpg_i, t2->mpg_i);
+		unref(dummy_quotient);
 	} else {
 		mpfr_ptr p1, p2;
 		p1 = MP_FLOAT(t1);

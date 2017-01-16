@@ -36,6 +36,8 @@ EXTRA_DIST = ChangeLog ChangeLog.0 README.card ad.block setter.outline \
 	api-figure2.png api-figure2.txt \
 	api-figure3.eps api-figure3.fig api-figure3.pdf \
 	api-figure3.png api-figure3.txt \
+	array-elements.eps array-elements.fig array-elements.pdf \
+	array-elements.png array-elements.txt \
 	gawktexi.in sidebar.awk \
 	general-program.eps general-program.fig general-program.pdf \
 	general-program.png general-program.txt \
@@ -45,6 +47,7 @@ EXTRA_DIST = ChangeLog ChangeLog.0 README.card ad.block setter.outline \
 	lflashlight-small.xpic lflashlight.eps lflashlight.pdf \
 	rflashlight-small.xpic rflashlight.eps rflashlight.pdf \
 	statist.jpg statist.eps statist.pdf \
+	wordlist \
 	bc_notes
 
 # Get rid of generated files when cleaning
@@ -60,6 +63,7 @@ SEDME2 = sed '/%%Page: 10 10/,/0 Cg EP/d'
 CARDSRC = $(srcdir)/macros $(srcdir)/cardfonts $(srcdir)/colors awkcard.tr
 CARDSRC_N = $(srcdir)/macros $(srcdir)/cardfonts $(srcdir)/no.colors awkcard.tr
 CARDFILES= $(CARDSRC) ad.block awkcard.in setter.outline
+PAPEROPTS= -dpaper=letter -P-pletter
 
 # Use this if your troff can correctly handle macros from 'colors' file
 AWKCARD = awkcard.ps
@@ -75,7 +79,7 @@ gawk.texi: $(srcdir)/gawktexi.in $(srcdir)/sidebar.awk
 
 postscript: gawk.ps gawkinet.ps gawk.1.ps igawk.1.ps $(AWKCARD)
 
-pdf: postscript gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf igawk.1.pdf
+pdf-local: postscript gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf igawk.1.pdf
 
 gawk.ps: gawk.dvi
 	TEXINPUTS=$(srcdir): dvips -o gawk.ps gawk.dvi
@@ -99,10 +103,14 @@ awkcard.tr: awkcard.in
 	sed 's:SRCDIR:$(srcdir):' < $(srcdir)/awkcard.in > awkcard.tr
 
 awkcard.ps: $(CARDFILES)
-	$(TROFF) $(CARDSRC) | $(SEDME) | cat $(srcdir)/setter.outline - | $(SEDME2) > awkcard.ps
+	$(TROFF) $(PAPEROPTS) $(CARDSRC) | $(SEDME) | cat $(srcdir)/setter.outline - | $(SEDME2) > awkcard.ps
 
 awkcard.nc: $(CARDFILES)
-	$(TROFF) $(CARDSRC_N) | $(SEDME) | cat $(srcdir)/setter.outline - | $(SEDME2) > awkcard.ps && touch awkcard.nc
+	$(TROFF) $(PAPEROPTS) $(CARDSRC_N) | $(SEDME) | cat $(srcdir)/setter.outline - | $(SEDME2) > awkcard.ps && touch awkcard.nc
 
 awkcard.pdf: awkcard.ps
 	ps2pdf awkcard.ps awkcard.pdf
+
+spell:
+	export LC_ALL=C ; spell "$(srcdir)"/gawktexi.in | \
+	sort -u | comm -23 - "$(srcdir)"/wordlist

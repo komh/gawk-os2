@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2013 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -122,7 +122,7 @@ char casetable[] = {
 	C('\360'), C('\361'), C('\362'), C('\363'), C('\364'), C('\365'), C('\366'), C('\367'),
 	C('\370'), C('\371'), C('\372'), C('\373'), C('\374'), C('\375'), C('\376'), C('\377'),
 };
-#elif 'a' == 0x81 /* it's EBCDIC */
+#elif defined(USE_EBCDIC)
 char casetable[] = {
  /*00  NU    SH    SX    EX    PF    HT    LC    DL */
       0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07,
@@ -215,10 +215,13 @@ load_casetable(void)
 	if (cp == NULL || strcmp(cp, "C") == 0 || strcmp(cp, "POSIX") == 0)
 		return;
 
-#ifndef ZOS_USS
+#ifndef USE_EBCDIC
+	/* use of isalpha is ok here (see is_alpha in awkgram.y) */
 	for (i = 0200; i <= 0377; i++) {
 		if (isalpha(i) && islower(i) && i != toupper(i))
 			casetable[i] = toupper(i);
+		else
+			casetable[i] = i;
 	}
 #endif
 #endif
@@ -241,6 +244,7 @@ static const char *const nodetypes[] = {
 	"Node_func",
 	"Node_ext_func",
 	"Node_old_ext_func",
+	"Node_builtin_func",
 	"Node_array_ref",
 	"Node_array_tree",
 	"Node_array_leaf",
@@ -528,7 +532,7 @@ posix_compare(NODE *s1, NODE *s2)
 		 * In either case, ret will be the right thing to return.
 		 */
 	}
-#if MBS_SUPPORT
+#if ! defined(__DJGPP__)
 	else {
 		/* Similar logic, using wide characters */
 		(void) force_wstring(s1);
@@ -608,15 +612,14 @@ cmp_nodes(NODE *t1, NODE *t2)
 		const unsigned char *cp1 = (const unsigned char *) t1->stptr;
 		const unsigned char *cp2 = (const unsigned char *) t2->stptr;
 
-#if MBS_SUPPORT
 		if (gawk_mb_cur_max > 1) {
 			ret = strncasecmpmbs((const unsigned char *) cp1,
 					     (const unsigned char *) cp2, l);
-		} else
-#endif
-		/* Could use tolower() here; see discussion above. */
-		for (ret = 0; l-- > 0 && ret == 0; cp1++, cp2++)
-			ret = casetable[*cp1] - casetable[*cp2];
+		} else {
+			/* Could use tolower() here; see discussion above. */
+			for (ret = 0; l-- > 0 && ret == 0; cp1++, cp2++)
+				ret = casetable[*cp1] - casetable[*cp2];
+		}
 	} else
 		ret = memcmp(t1->stptr, t2->stptr, l);
 
@@ -706,6 +709,8 @@ set_IGNORECASE()
 	load_casetable();
 	if (do_traditional)
 		IGNORECASE = false;
+	else if ((n->flags & (NUMCUR|NUMBER)) != 0)
+		IGNORECASE = ! iszero(n);
 	else if ((n->flags & (STRING|STRCUR)) != 0) {
 		if ((n->flags & MAYBE_NUM) == 0) {
 			(void) force_string(n);
@@ -714,9 +719,7 @@ set_IGNORECASE()
 			(void) force_number(n);
 			IGNORECASE = ! iszero(n);
 		}
-	} else if ((n->flags & (NUMCUR|NUMBER)) != 0)
-		IGNORECASE = ! iszero(n);
-	else
+	} else
 		IGNORECASE = false;		/* shouldn't happen */
                  
 	set_RS();	/* set_RS() calls set_FS() if need be, for us */
@@ -803,9 +806,35 @@ set_BINMODE()
 void
 set_OFS()
 {
+	static bool first = true;
+	size_t new_ofs_len;
+
+	if (first)	/* true when called from init_vars() in main() */
+		first = false;
+	else {
+		/* rebuild $0 using OFS that was current when $0 changed */
+		if (! field0_valid) {
+			get_field(UNLIMITED - 1, NULL);
+			rebuild_record();
+		}
+	}
+
+	/*
+	 * Save OFS value for use in building record and in printing.
+	 * Can't just have OFS point into the OFS_node since it's
+	 * already updated when we come into this routine, and we need
+	 * the old value to rebuild the record (see above).
+	 */
 	OFS_node->var_value = force_string(OFS_node->var_value);
-	OFS = OFS_node->var_value->stptr;
-	OFSlen = OFS_node->var_value->stlen;
+	new_ofs_len = OFS_node->var_value->stlen;
+
+	if (OFS == NULL)
+		emalloc(OFS, char *, new_ofs_len + 2, "set_OFS");
+	else if (OFSlen < new_ofs_len)
+		erealloc(OFS, char *, new_ofs_len + 2, "set_OFS");
+
+	memcpy(OFS, OFS_node->var_value->stptr, OFS_node->var_value->stlen);
+	OFSlen = new_ofs_len;
 	OFS[OFSlen] = '\0';
 }
 
@@ -922,6 +951,10 @@ set_LINT()
 	int old_lint = do_lint;
 	NODE *n = LINT_node->var_value;
 
+	/* start with clean defaults */
+	lintfunc = r_warning;
+	do_flags &= ~(DO_LINT_ALL|DO_LINT_INVALID);
+
 	if ((n->flags & (STRING|STRCUR)) != 0) {
 		if ((n->flags & MAYBE_NUM) == 0) {
 			const char *lintval;
@@ -931,38 +964,24 @@ set_LINT()
 			lintval = n->stptr;
 			lintlen = n->stlen;
 			if (lintlen > 0) {
-				do_flags |= DO_LINT_ALL;
-				if (lintlen == 5 && strncmp(lintval, "fatal", 5) == 0)
-					lintfunc = r_fatal;
-				else if (lintlen == 7 && strncmp(lintval, "invalid", 7) == 0) {
-					do_flags &= ~ DO_LINT_ALL;
+				if (lintlen == 7 && strncmp(lintval, "invalid", 7) == 0)
 					do_flags |= DO_LINT_INVALID;
-				} else
-					lintfunc = warning;
-			} else {
-				do_flags &= ~(DO_LINT_ALL|DO_LINT_INVALID);
-				lintfunc = warning;
+				else {
+					do_flags |= DO_LINT_ALL;
+					if (lintlen == 5 && strncmp(lintval, "fatal", 5) == 0)
+						lintfunc = r_fatal;
+				}
 			}
 		} else {
 			(void) force_number(n);
 			if (! iszero(n))
 				do_flags |= DO_LINT_ALL;
-			else
-				do_flags &= ~(DO_LINT_ALL|DO_LINT_INVALID);
-			lintfunc = warning;
 		}
 	} else if ((n->flags & (NUMCUR|NUMBER)) != 0) {
 		(void) force_number(n);
 		if (! iszero(n))
 			do_flags |= DO_LINT_ALL;
-		else
-			do_flags &= ~(DO_LINT_ALL|DO_LINT_INVALID);
-		lintfunc = warning;
-	} else
-		do_flags &= ~(DO_LINT_ALL|DO_LINT_INVALID);	/* shouldn't happen */
-
-	if (! do_lint)
-		lintfunc = warning;
+	}
 
 	/* explicitly use warning() here, in case lintfunc == r_fatal */
 	if (old_lint != do_lint && old_lint && ! do_lint)
@@ -1127,7 +1146,7 @@ r_get_lhs(NODE *n, bool reference)
 					array_vname(n));
 		if (n->orig_array->type != Node_var) {
 			n->orig_array->type = Node_var;
-			n->orig_array->var_value = Nnull_string;
+			n->orig_array->var_value = dupnode(Nnull_string);
 		}
 		/* fall through */
 	case Node_var_new:
@@ -1153,7 +1172,7 @@ r_get_lhs(NODE *n, bool reference)
 
 /* r_get_field --- get the address of a field node */
  
-static inline NODE **
+NODE **
 r_get_field(NODE *n, Func_ptr *assign, bool reference)
 {
 	long field_num;
@@ -1298,7 +1317,13 @@ setup_frame(INSTRUCTION *pc)
 
 		if (m->type == Node_param_list)
 			m = GET_PARAM(m->param_cnt);
-			
+
+		/* $0 needs to be passed by value to a function */
+		if (m == fields_arr[0]) {
+			DEREF(m);
+			m = dupnode(m);
+		}
+
 		switch (m->type) {
 		case Node_var_new:
 		case Node_var_array:

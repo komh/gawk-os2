@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2013 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2015 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -35,8 +35,8 @@ static int var_count;	/* total number of global variables and functions */
 
 static NODE *symbol_list;
 static void (*install_func)(NODE *) = NULL;
-static NODE *make_symbol(char *name, NODETYPE type);
-static NODE *install(char *name, NODE *parm, NODETYPE type);
+static NODE *make_symbol(const char *name, NODETYPE type);
+static NODE *install(const char *name, NODE *parm, NODETYPE type);
 static void free_bcpool(INSTRUCTION *pl);
 
 static AWK_CONTEXT *curr_ctxt = NULL;
@@ -75,7 +75,7 @@ init_symbol_table()
  */
 
 NODE *
-install_symbol(char *name, NODETYPE type)
+install_symbol(const char *name, NODETYPE type)
 {
 	return install(name, NULL, type);
 }
@@ -112,14 +112,14 @@ lookup(const char *name)
 			continue;
 
 		n = in_array(tables[i], tmp);
-		if (n != NULL) {
-			unref(tmp);
-			return n;
-		}
+		if (n != NULL)
+			break;
 	}
 
 	unref(tmp);
-	return n;	/* NULL */
+	if (n == NULL || n->type == Node_val)	/* non-variable in SYMTAB */
+		return NULL;
+	return n;	/* new place */
 }
 
 /* make_params --- allocate function parameters for the symbol table */
@@ -155,11 +155,13 @@ install_params(NODE *func)
 
 	if (func == NULL)
 		return;
+
 	assert(func->type == Node_func);
-	if ((pcount = func->param_cnt) <= 0
-			|| (parms = func->fparms) == NULL
-	)
+
+	if (   (pcount = func->param_cnt) <= 0
+	    || (parms = func->fparms) == NULL)
 		return;
+
 	for (i = 0; i < pcount; i++)
 		(void) install(parms[i].param, parms + i, Node_param_list);
 }
@@ -177,10 +179,11 @@ remove_params(NODE *func)
 
 	if (func == NULL)
 		return;
+
 	assert(func->type == Node_func);
-	if ((pcount = func->param_cnt) <= 0
-			|| (parms = func->fparms) == NULL
-	)
+
+	if (   (pcount = func->param_cnt) <= 0
+	    || (parms = func->fparms) == NULL)
 		return;
 
 	for (i = pcount - 1; i >= 0; i--) {
@@ -191,11 +194,11 @@ remove_params(NODE *func)
 		assert(p->type == Node_param_list);
 		tmp = make_string(p->vname, strlen(p->vname));
 		tmp2 = in_array(param_table, tmp);
-		if (tmp2 != NULL && tmp2->dup_ent != NULL) {
+		if (tmp2 != NULL && tmp2->dup_ent != NULL)
 			tmp2->dup_ent = tmp2->dup_ent->dup_ent;
-		} else {
+		else
 			(void) assoc_remove(param_table, tmp);
-		}
+
 		unref(tmp);
 	}
 
@@ -274,7 +277,7 @@ destroy_symbol(NODE *r)
 /* make_symbol --- allocates a global symbol for the symbol table. */
 
 static NODE *
-make_symbol(char *name, NODETYPE type)
+make_symbol(const char *name, NODETYPE type)
 {
 	NODE *r;
 
@@ -284,7 +287,7 @@ make_symbol(char *name, NODETYPE type)
 		null_array(r);
 	else if (type == Node_var)
 		r->var_value = dupnode(Nnull_string);
-	r->vname = name;
+	r->vname = (char *) name;
 	r->type = type;
 
 	return r;
@@ -293,7 +296,7 @@ make_symbol(char *name, NODETYPE type)
 /* install --- install a global name or function parameter in the symbol table */
 
 static NODE *
-install(char *name, NODE *parm, NODETYPE type)
+install(const char *name, NODE *parm, NODETYPE type)
 {
 	NODE *r;
 	NODE **aptr;
@@ -306,20 +309,22 @@ install(char *name, NODE *parm, NODETYPE type)
 
 	if (type == Node_param_list) {
 		table = param_table;
-	} else if (type == Node_func || type == Node_ext_func) {
+	} else if (   type == Node_func
+		   || type == Node_ext_func
+		   || type == Node_builtin_func) {
 		table = func_table;
 	} else if (installing_specials) {
 		table = global_table;
 	}
 
-	if (parm != NULL) {
+	if (parm != NULL)
 		r = parm;
-	} else {
+	else {
 		/* global symbol */
 		r = make_symbol(name, type);
 		if (type == Node_func)
 			func_count++;
-		if (type != Node_ext_func && table != global_table)
+		if (type != Node_ext_func && type != Node_builtin_func && table != global_table)
 			var_count++;	/* total, includes Node_func */
 	}
 
@@ -343,7 +348,6 @@ simple:
 
 	return r;
 }
-
 
 /* comp_symbol --- compare two (variable or function) names */
 
@@ -393,7 +397,7 @@ get_symbols(SYMBOL_TYPE what, bool sort)
 
 		for (i = count = 0; i < max; i += 2) {
 			r = list[i+1];
-			if (r->type == Node_ext_func)
+			if (r->type == Node_ext_func || r->type == Node_builtin_func)
 				continue;
 			assert(r->type == Node_func);
 			table[count++] = r;
@@ -405,7 +409,8 @@ get_symbols(SYMBOL_TYPE what, bool sort)
 		max = the_table->table_size * 2;
 
 		list = assoc_list(the_table, "@unsorted", ASORTI);
-		emalloc(table, NODE **, (var_count + 1) * sizeof(NODE *), "get_symbols");
+		/* add three: one for FUNCTAB, one for SYMTAB, and one for a final NULL */
+		emalloc(table, NODE **, (var_count + 1 + 1 + 1) * sizeof(NODE *), "get_symbols");
 
 		for (i = count = 0; i < max; i += 2) {
 			r = list[i+1];
@@ -413,6 +418,9 @@ get_symbols(SYMBOL_TYPE what, bool sort)
 				continue;
 			table[count++] = r;
 		}
+
+		table[count++] = func_table;
+		table[count++] = symbol_table;
 	}
 
 	efree(list);
@@ -508,7 +516,7 @@ append_symbol(NODE *r)
 	symbol_list->rnode = p;
 }
 
-/* release_symbol --- free symbol list and optionally remove symbol from symbol table */
+/* release_symbols --- free symbol list and optionally remove symbol from symbol table */
 
 void
 release_symbols(NODE *symlist, int keep_globals)
@@ -517,7 +525,8 @@ release_symbols(NODE *symlist, int keep_globals)
 
 	for (p = symlist->rnode; p != NULL; p = next) {
 		if (! keep_globals) {
-			/* destroys globals, function, and params
+			/*
+			 * destroys globals, function, and params
 			 * if still in symbol table
 			 */
 			destroy_symbol(p->lnode);
@@ -538,7 +547,7 @@ load_symbols()
 	NODE *sym_array;
 	NODE **aptr;
 	long i, j, max;
-	NODE *user, *extension, *untyped, *scalar, *array;
+	NODE *user, *extension, *untyped, *scalar, *array, *built_in;
 	NODE **list;
 	NODE *tables[4];
 
@@ -557,18 +566,19 @@ load_symbols()
 	memset(sym_array, '\0', sizeof(NODE));	/* PPC Mac OS X wants this */
 	null_array(sym_array);
 
+	unref(tmp);
 	unref(*aptr);
 	*aptr = sym_array;
 
 	sym_array->parent_array = PROCINFO_node;
 	sym_array->vname = estrdup("identifiers", 11);
-	make_aname(sym_array);
 
 	user = make_string("user", 4);
 	extension = make_string("extension", 9);
 	scalar = make_string("scalar", 6);
 	untyped = make_string("untyped", 7);
 	array = make_string("array", 5);
+	built_in = make_string("builtin", 7);
 
 	for (i = 0; tables[i] != NULL; i++) {
 		list = assoc_list(tables[i], "@unsorted", ASORTI);
@@ -579,6 +589,7 @@ load_symbols()
 			r = list[j+1];
 			if (   r->type == Node_ext_func
 			    || r->type == Node_func
+			    || r->type == Node_builtin_func
 			    || r->type == Node_var
 			    || r->type == Node_var_array
 			    || r->type == Node_var_new) {
@@ -592,6 +603,9 @@ load_symbols()
 					break;
 				case Node_func:
 					*aptr = dupnode(user);
+					break;
+				case Node_builtin_func:
+					*aptr = dupnode(built_in);
 					break;
 				case Node_var:
 					*aptr = dupnode(scalar);
@@ -616,6 +630,67 @@ load_symbols()
 	unref(scalar);
 	unref(untyped);
 	unref(array);
+}
+
+/* check_param_names --- make sure no parameter is the name of a function */
+
+bool
+check_param_names(void)
+{
+	int i, j;
+	NODE **list;
+	NODE *f;
+	long max;
+	bool result = true;
+	NODE n;
+
+	if (func_table->table_size == 0)
+		return result;
+
+	max = func_table->table_size * 2;
+
+	memset(& n, 0, sizeof n);
+	n.type = Node_val;
+	n.flags = STRING|STRCUR;
+	n.stfmt = -1;
+
+	/*
+	 * assoc_list() returns an array with two elements per awk array
+	 * element. Elements i and i+1 in the C array represent the key
+	 * and value of element j in the awk array. Thus the loops use += 2
+	 * to go through the awk array.
+	 *
+	 * In this case, the name is in list[i], and the function is
+	 * in list[i+1]. Just what we need.
+	 */
+
+	list = assoc_list(func_table, "@unsorted", ASORTI);
+
+	for (i = 0; i < max; i += 2) {
+		f = list[i+1];
+		if (f->type == Node_builtin_func || f->param_cnt == 0)
+			continue;
+
+		/* loop over each param in function i */
+		for (j = 0; j < f->param_cnt; j++) {
+			/* compare to function names */
+
+			/* use a fake node to avoid malloc/free of make_string */
+			n.stptr = f->fparms[j].param;
+			n.stlen = strlen(f->fparms[j].param);
+
+			if (in_array(func_table, & n)) {
+				error(
+			_("function `%s': can't use function `%s' as a parameter name"),
+					list[i]->stptr,
+					f->fparms[j].param);
+				result = false;
+			}
+		}
+	}
+
+	efree(list);
+	return result;
 }
 
 #define pool_size	d.dl

@@ -13,7 +13,7 @@
 .		if \w'\(rq' .ds rq "\(rq
 .	\}
 .\}
-.TH GAWK 1 "Mar 08 2014" "Free Software Foundation" "Utility Commands"
+.TH GAWK 1 "Mar 7 2016" "Free Software Foundation" "Utility Commands"
 .SH NAME
 gawk \- pattern scanning and processing language
 .SH SYNOPSIS
@@ -231,7 +231,8 @@ and so on.)
 .PD
 \fB\-\^\-debug\fR[\fB=\fIfile\fR]
 Enable debugging of \*(AK programs.
-By default, the debugger reads commands interactively from the terminal.
+By default, the debugger reads commands interactively from the keyboard
+(standard input).
 The optional
 .IR file
 argument specifies a file with a list
@@ -626,7 +627,7 @@ specifies a search path to use when finding source files named with
 the
 .B \-l
 option.  If this variable does not exist, the default path is
-\fB".:/usr/local/lib/gawk"\fR.
+\fB"/usr/local/lib/gawk"\fR.
 (The actual directory may vary, depending upon how
 .I gawk
 was built and installed.)
@@ -1086,15 +1087,11 @@ Use the
 operator to test for these elements.
 The following elements are guaranteed to be available:
 .RS
-.TP \w'\fBPROCINFO["version"]\fR'u+1n
+.TP \w'\fBPROCINFO["strftime"]\fR'u+1n
 \fBPROCINFO["egid"]\fP
 The value of the
 .IR getegid (2)
 system call.
-.TP
-\fBPROCINFO["strftime"]\fP
-The default time format string for
-.BR strftime() .
 .TP
 \fBPROCINFO["euid"]\fP
 The value of the
@@ -1112,6 +1109,11 @@ or \fB"FIELDWIDTHS"\fP if field splitting with
 .B FIELDWIDTHS
 is in effect.
 .TP
+\fBPROCINFO["gid"]\fP
+The value of the
+.IR getgid (2)
+system call.
+.TP
 \fBPROCINFO["identifiers"]\fP
 A subarray, indexed by the names of all identifiers used in the
 text of the AWK program.
@@ -1126,9 +1128,14 @@ For each identifier, the value of the element is one of the following:
 \fB"array"\fR
 The identifier is an array.
 .TP
+\fB"builtin"\fR
+The identifier is a built-in function.
+.TP
 \fB"extension"\fR
 The identifier is an extension function loaded via
-.BR @load .
+.B @load
+or
+.BR \-l .
 .TP
 \fB"scalar"\fR
 The identifier is a scalar.
@@ -1142,11 +1149,6 @@ doesn't know yet).
 The identifier is a user-defined function.
 .RE
 .TP
-\fBPROCINFO["gid"]\fP
-The value of the
-.IR getgid (2)
-system call.
-.TP
 \fBPROCINFO["pgrpid"]\fP
 The process group ID of the current process.
 .TP
@@ -1156,10 +1158,67 @@ The process ID of the current process.
 \fBPROCINFO["ppid"]\fP
 The parent process ID of the current process.
 .TP
+\fBPROCINFO["strftime"]\fP
+The default time format string for
+.BR strftime() .
+.TP
 \fBPROCINFO["uid"]\fP
 The value of the
 .IR getuid (2)
 system call.
+.TP
+\fBPROCINFO["version"]\fP
+the version of
+.IR gawk .
+.PP
+The following elements are present if loading dynamic
+extensions is available:
+.TP
+\fBPROCINFO["api_major"]\fP
+The major version of the extension API.
+.TP
+\fBPROCINFO["api_minor"]\fP
+The minor version of the extension API.
+.PP
+The following elements are available if MPFR support is
+compiled into
+.IR gawk\^ :
+.TP
+\fBPROCINFO["gmp_version"]\fP
+The version of the GNU MP library used for arbitrary precision
+number support in
+.IR gawk .
+.TP
+\fBPROCINFO["mpfr_version"]\fP
+The version of the GNU MPFR library used for arbitrary precision
+number support in
+.IR gawk .
+.TP
+\fBPROCINFO["prec_max"]\fP
+The maximum precision supported by the GNU MPFR library for
+arbitrary precision floating-point numbers.
+.TP
+\fBPROCINFO["prec_min"]\fP
+The minimum precision allowed by the GNU MPFR library for
+arbitrary precision floating-point numbers.
+.PP
+The following elements may set by a program to
+change
+.IR gawk 's
+behavior:
+.TP
+\fBPROCINFO["\fIcommand\fB", "pty"]\fR
+Use a pseudo-tty for two-way communication with
+.I command
+instead of setting up two one-way pipes.
+.TP
+\fBPROCINFO["\fIinput\fB", "READ_TIMEOUT"]\fR
+The timeout in milliseconds for reading data from
+.IR input ,
+where
+.I input
+is a redirection string or a filename. A value of zero or
+less than zero means no timeout.
 .TP
 \fBPROCINFO["sorted_in"]\fP
 If this element exists in
@@ -1200,52 +1259,6 @@ are the
 corresponding values of the two elements being compared.
 It should return a number less than, equal to, or greater than 0,
 depending on how the elements of the array are to be ordered.
-.TP
-\fBPROCINFO["input", "READ_TIMEOUT"]\fP
-The timeout in milliseconds for reading data from
-.IR input ,
-where
-.I input
-is a redirection string or a filename. A value of zero or
-less than zero means no timeout.
-.TP
-\fBPROCINFO["mpfr_version"]\fP
-The version of the GNU MPFR library used for arbitrary precision
-number support in
-.IR gawk .
-This entry is not present if MPFR support is not compiled into
-.IR gawk .
-.TP
-\fBPROCINFO["gmp_version"]\fP
-The version of the GNU MP library used for arbitrary precision
-number support in
-.IR gawk .
-This entry is not present if MPFR support is not compiled into
-.IR gawk .
-.TP
-\fBPROCINFO["prec_max"]\fP
-The maximum precision supported by the GNU MPFR library for
-arbitrary precision floating-point numbers.
-This entry is not present if MPFR support is not compiled into
-.IR gawk .
-.TP
-\fBPROCINFO["prec_min"]\fP
-The minimum precision allowed by the GNU MPFR library for
-arbitrary precision floating-point numbers.
-This entry is not present if MPFR support is not compiled into
-.IR gawk .
-.TP
-\fBPROCINFO["api_major"]\fP
-The major version of the extension API.
-This entry is not present if loading dynamic extensions is not available.
-.TP
-\fBPROCINFO["api_minor"]\fP
-The minor version of the extension API.
-This entry is not present if loading dynamic extensions is not available.
-.TP
-\fBPROCINFO["version"]\fP
-the version of
-.IR gawk .
 .RE
 .TP
 .B ROUNDMODE
@@ -1930,7 +1943,7 @@ and
 For example, the name
 .B e
 might be used to represent all of
-\*(lqe,\*(rq \*(lqe\h'-\w:e:u'\',\*(rq and \*(lqe\h'-\w:e:u'\`.\*(rq
+\*(lqe\*(rq, \*(lqe\h'-\w:e:u'\'\*(rq, and \*(lqe\h'-\w:e:u'\`\*(rq.
 In this case,
 .B [[=e=]]
 is a regular expression
@@ -2246,6 +2259,7 @@ Execute the command
 .IR cmd-line ,
 and return the exit status.
 (This may not be available on non-\*(PX systems.)
+See the manual for the full details on the exit status.
 .TP
 \&\fBfflush(\fR[\fIfile\^\fR]\fB)\fR
 Flush any buffers associated with the open output file or pipe
@@ -3264,7 +3278,7 @@ sign, like so:
 .RS
 .ft B
 .nf
-function  myfunc()
+function myfunc()
 {
 	print "myfunc called"
 	\&.\|.\|.
@@ -3278,6 +3292,8 @@ function  myfunc()
 .fi
 .ft R
 .RE
+As of version 4.1.2, this works with user-defined functions,
+built-in functions, and extension functions.
 .PP
 If
 .B \-\^\-lint
@@ -3906,11 +3922,6 @@ The
 .B \-F
 option is not necessary given the command line variable assignment feature;
 it remains only for backwards compatibility.
-.PP
-Syntactically invalid single character programs tend to overflow
-the parse stack, generating a rather unhelpful message.  Such programs
-are surprisingly difficult to diagnose in the completely general case,
-and the effort to do so really is not worth it.
 .SH SEE ALSO
 .IR egrep (1),
 .IR sed (1),
@@ -3976,7 +3987,7 @@ We thank him.
 .SH COPYING PERMISSIONS
 Copyright \(co 1989, 1991, 1992, 1993, 1994, 1995, 1996,
 1997, 1998, 1999, 2001, 2002, 2003, 2004, 2005, 2007, 2009,
-2010, 2011, 2012, 2013, 2014
+2010, 2011, 2012, 2013, 2014, 2016
 Free Software Foundation, Inc.
 .PP
 Permission is granted to make and distribute verbatim copies of
