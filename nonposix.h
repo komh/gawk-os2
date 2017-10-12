@@ -75,3 +75,10 @@ int getppid(void);
 wint_t btowc (int c);
 wint_t putwc (wchar_t wc, FILE *stream);
 #endif
+
+#ifdef __KLIBC__
+#include <dlfcn.h>
+
+#define dlsym(h, n) os2_dlsym(h, n)
+void *os2_dlsym(void *handle, const char *name);
+#endif /* __KLIBC__ */

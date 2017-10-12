@@ -548,6 +548,22 @@ _os2_unixroot_path(const char *path)
 
   return (result) ? (const char*) result : path;
 }
+
+#ifdef __KLIBC__
+
+/* replacement of dlsym(). This appends '_' to name. */
+void *os2_dlsym(void *handle, const char *name)
+{
+    char sym[strlen(name) + 1 + 1]; /* 1 for '_', 1 for NUL */
+
+    sym[0] = '_';
+    strcpy(sym + 1, name);
+
+    return (dlsym)(handle, sym);
+}
+
+#endif /* __KLIBC__ */
+
 #endif /* __EMX__ */
 
 #ifdef __MINGW32__
