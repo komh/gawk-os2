@@ -39,7 +39,6 @@ AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
 pkgdatadir = $(datadir)/awk
 pkglibexecdir = $(libexecdir)/awk
 
-bin_SCRIPTS = igawk
 pkglibexec_PROGRAMS = pwcat grcat
 AUXAWK = passwd.awk group.awk
 nodist_grcat_SOURCES = grcat.c
@@ -47,7 +46,7 @@ nodist_pwcat_SOURCES = pwcat.c
 
 CLEANFILES = $(nodist_grcat_SOURCES) $(nodist_pwcat_SOURCES)
 
-all: $(srcdir)/stamp-eg $(AUXPROGS) igawk $(AUXAWK)
+all: $(srcdir)/stamp-eg $(AUXPROGS) $(AUXAWK)
 
 install-exec-hook: $(AUXAWK)
 	$(mkinstalldirs) $(DESTDIR)$(pkgdatadir)
@@ -59,10 +58,9 @@ install-exec-hook: $(AUXAWK)
 # pkglibexecdir and pkgdatadir are removed in the top level Makefile's uninstall
 uninstall-local:
 	rm -fr $(DESTDIR)$(pkglibexecdir)/* $(DESTDIR)$(pkgdatadir)/*
-	rm -f $(DESTDIR)$(bindir)/igawk
 
 clean-local:
-	rm -f $(AUXAWK) igawk *.exe
+	rm -f $(AUXAWK) *.exe
 	rm -fr eg.old
 	rm -fr grcat.dSYM pwcat.dSYM
 
@@ -84,9 +82,6 @@ grcat.c: $(srcdir)/eg/lib/grcat.c
 
 $(srcdir)/eg/lib/pwcat.c $(srcdir)/eg/lib/grcat.c $(srcdir)/eg/prog/igawk.sh \
 $(srcdir)/eg/lib/passwdawk.in $(srcdir)/eg/lib/groupawk.in: stamp-eg; @:
-
-igawk: $(srcdir)/eg/prog/igawk.sh
-	cp $(srcdir)/eg/prog/igawk.sh $@ ; chmod 755 $@
 
 passwd.awk: $(srcdir)/eg/lib/passwdawk.in
 	sed 's;/usr/local/libexec/awk;$(pkglibexecdir);' < $(srcdir)/eg/lib/passwdawk.in > passwd.awk

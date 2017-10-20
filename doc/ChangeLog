@@ -1,3 +1,399 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-10-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (EDITION): Update to 4.2. Also, remove all visible
+	references to http://awk.info; that site no longer exists.  
+
+2017-10-17         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	Update docs to indicate that isarray is not deprected in this release.
+
+	* awkcard.in: Remove "Deprecated" notice under isarray.
+	* gawk.1: Remove deprecated warning under isarray documentation.
+	* gawkexti.in: Remove sentence indicating that isarray is deprecated
+	and recommending typeof instead.
+
+2017-10-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Readfile Function): Fix the code for the naive
+	function to be syntactically and semantically correct. Thanks to
+	Jaromir Obr <jaromir.obr@gmail.com> for the report.
+	(POSIX String Comparison): Add some URL references in @ignore.
+	
+2017-10-08         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Fix discussion of AWKPATH in section on @include.
+
+2017-10-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update the update month to October.
+
+2017-10-02         Antonio Giovanni Colombo   <azc100@gmail.com>
+
+	* gawktexi.in: Two typo fixes.
+
+2017-10-01         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Add pointer to mawk 2.0 GitHub page.
+
+2017-10-01         Antonio Giovanni Colombo   <azc100@gmail.com>
+
+	* gawktexi.in: Update many URLs to https. Some other small fixes.
+
+2017-10-01         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* awkcard.in: One more small change.
+	* gawk.1: Brought up to date and polished a bit.
+	* gawktexi.in: Some small additional fixes.
+
+2017-09-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* awkcard.in: Finish changes (we hope) for next release.
+
+2017-09-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* ad.block: Change FSF URL to https.
+	* awkcard.in: First round of changes for next release.
+
+2017-09-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Change GNU URLs to use `https://...'.
+	Revise UPDATE_MONTH.
+	* texinfo.tex: Updated.
+
+2017-09-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Change 'namespace' to 'name_space' where it matters
+	for C++ compatibility.
+
+2017-09-13         David Kaspar          <dkaspar@redhat.com>
+
+	* gawktexi.in: Fix the dir entry.
+	* gawkinet.texi: Allow calling as `info awktexi'.
+
+2017-09-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Installation summary): Note OS/2 exists for PCs
+	in a comment.
+
+2017-08-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Contributors): Update entry for Steven Davies.
+
+2017-08-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Updated. Fixes table of contents issue
+	with very long title.
+	* gawktexi.in: Slight rearranging of order of things that
+	happened in 4.2.  Minor cleanups related to Scott Deifik.
+
+2017-08-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Updated. Fixes table of contents issue
+	with Part header.
+
+2017-08-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document Marco Curreli's contribution of
+	the Italian translation, along with Antonio Colombo.
+
+2017-08-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update history of features appendix section.
+	* wordlist, worldlist2: Add more words.
+
+2017-08-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in, gawk.1, awkcard.in: Update versions and
+	copyright years, prepatory to starting a release spiral.
+
+2017-08-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update API chapter with info about additions
+	for accessing and/or creating MPZ and MPFR values.
+
+2017-08-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Updated.
+
+2017-08-01         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update with info about DJGPP port now
+	being supported.
+
+2017-07-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Type Functions): Improve the example
+	for untyped variables.
+
+2017-07-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Extension Sample Inplace): Apply GPL to
+	inplace.awk; should have done that when it was first
+	added. Oops.
+
+2017-07-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Fix a spelling error.
+	* wordlist: Update with more words.
+
+2017-07-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Pull in latest from Texinfo SVN.
+
+2017-06-19         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in (Memory Allocation Functions and Convenience Macros):
+	Document new ezalloc API macro.
+
+2017-06-18         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawkworkflow.texi: Fix typo.
+
+2017-06-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Expand tab characters.
+
+2017-06-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in (Checking for MPFR): Fix typo.
+
+2017-05-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document PROCINFO["argv"].
+
+2017-05-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Checking for MPFR): New node on checking if
+	gawk was invoked with -M.
+
+2017-05-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document FIELDWIDTHS much better, including how
+	it works in corner cases. Some general organizational improvements
+	in this chunk of text.
+
+2017-04-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Improve documentation of --source option.
+
+2017-04-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document --disable-mpfr configure option.
+
+2017-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* awkcard.in: Comment out description of intdiv().
+	* gawk.1: Ditto.
+	* gawktexi.in: References to intdiv changed to intdiv0 and
+	bracketed inside @ifset INTDIV. Not set by default.
+
+2017-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Improve documentation of the intdiv() function.
+
+2017-04-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* it: New directory with Italian translation of the manual.
+	* Makefile.am (EXTRA_DIST): Add `it' and wordlist2.
+
+2017-04-12         Manuel Collado        <m-collado@users.sourceforge.net>
+
+	* gawktexi.in, gawk.1: Small clarification of the patsplit behavior.
+
+2017-04-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Minor style edits.
+
+2017-04-10         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Document FIELDWIDTHS enhancement to support an optional
+	field skip prefix. Document new PROCINFO["FS"] value "API".
+	Document new get_record field_width argument that enables the API
+	parser to override the default field parsing mechanism.
+
+2017-04-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* using-git.texi: Removed.
+	* gawkworkflow.texi: Added. New file.
+	* wordlist2: New file.
+	* Makefile.am: Revised for new document. Copyright years updated.
+
+	* gawkworkflow.texi: Fix some spelling errors. :-(
+	* wordlist2: Updated.
+	* Makefile.am: Fix spell checking. :-(
+
+2017-03-22         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawk.1: Document new PROCINFO["FS"] value "API".
+
+2017-03-22         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* awkcard.in: Document FIELDWIDTHS enhancement to support an optional
+	field skip prefix.
+	* gawk.1: Ditto.
+
+2017-03-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Improve the discussion of quoting on
+	MS-Windows. Original text contributed by
+	Vincent Belaiche <vincent.belaiche@gmail.com>.
+
+2017-03-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Additional small writing tip in the notes
+	after the @bye.
+
+2017-03-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Edits preparatory to release.
+
+2017-02-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawk.1: "timezone" --> "time zone".
+	* awkcard.in: Update copyright year.
+
+2017-02-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawk.1: Document new mktime optional 2nd utc-flag argument.
+	* gawktex.in: Ditto.
+	* awkcard.in: Ditto.
+
+2017-02-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Fix two typos.
+	* wordlist.txt: Update.
+
+	Related:
+
+	* gawktexi.in: Fix more typos.
+	* wordlist.txt: Update again.
+
+2017-01-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update UPDATE-MONTH and copyright years.
+
+2017-01-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Comment out stuff about awk.info, since that
+	domain is now gone.
+
+2016-12-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Explain why an API extension function might want
+	to use the AWK_STRNUM type to return data.
+
+2016-12-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update API table of type requested / type returned.
+
+2016-12-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Minor edits after merging branches and some
+	additional work in the code.
+
+2016-12-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Further API clarifications and edits, add a
+	section on backwards compatibility.
+
+2016-12-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update description of awk_ext_func_t structure,
+	again.
+
+2016-12-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update description of awk_ext_func_t structure.
+
+2016-12-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Document strnum changes as relates to API.
+	Still stuff left to do -- tables for type conversions need
+	to be updated to show new strnum and regex rows and columns.
+
+2016-12-04         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Remove make_regex and replace it with make_const_regex
+	and make_malloced_regex.
+
+2016-12-04         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Document new flatten_array_typed API function, and
+	indicate that the old flatten_array function has been superseded.
+
+2016-11-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document typed regex changes as relates to API.
+	Still stuff left to do.
+
+2016-11-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Finish off discussion of strongly typed regexp
+	constants and put it in the right place in the manual. A few other
+	minor fixes.
+	* wordlist: Updated.
+
+2016-11-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Variable Typing): Rework and improve discussion
+	of strings, numbers, and strnums.  Update description of strnum
+	in other places.
+
+2016-11-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Fix example use of dcngettext.
+	Thanks to Sergey Tselikh <stselikh@gmail.com>
+	for the report.
+
+2016-11-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in, wordlist: Typo fix. ECBDIC --> EBCDIC.
+	Thanks to Sergey Tselikh <stselikh@gmail.com> for the report.
+	(bitwise-ops): Put table in @verbatim instead of @display.
+	Works better for Info, text, and HTML. Thanks to
+	Marco Curreli <marcocurreli@tiscali.it> for the report.
+
+2016-11-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Fix a spelling error.
+	* wordlist: Update.
+
+2016-10-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document that negative arguments are not allowed
+	for bitwise functions. Add a sidebar explaining it a bit and
+	also showing the difference with and without -M.
+	* gawk.1: Document that negative arguments are not allowed.
+
+2016-10-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Remove references to MS-DOS and OS/2,
+	simplify the whole section on PC operating systems.
+
+2016-10-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Bugs): Rework this section and break into
+	subsections, mainly to emphasize that I no longer
+	read comp.lang.awk.
+
+2016-09-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Group Functions): Typo fix. Reported
+	by Jaromir Obr <jaromir.obr@gmail.com>.
+	(Time Functions): Slightly enhance description of ISO 8601
+	definition of first and last weeks. Thanks to
+	Michel de Ruiter <mdruiter@gmail.com> for the note.
+
+2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (POSIX String Comparison): Update for new
+	spec where == and != use strcmp, rest use strcoll. Thanks to
+	Chet Ramey for pointing me at the new rules.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -5,6 +401,7 @@
 2016-08-24         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* wordlist: Add more words.
+	* gawktexi.in: Fix more typos.
 
 2016-08-23         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -14,6 +411,18 @@
 	* gawktexi.in: Fix typos, adjust update date.
 	* awkcard.in: Update copyright years.
 
+2016-08-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Restored doc on typed regexes.
+
+	* gawk.1, gawktexi.in: Updated.
+
+2016-08-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Remove typed regexes until they can be done properly.
+
+	* gawk.1, gawktexi.in: Updated.
+
 2016-08-01         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Mark DJGPP port as unsupported.
@@ -21,6 +430,12 @@
 2016-07-24         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Fix a typo. Thanks to Marco Curreli for reporting.
+
+2016-07-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document return value of close on a pipe now like
+	that of system: exit status, status + 256 for signal, or
+	status + 512 for signal with core dump.
 
 2016-07-18         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -35,6 +450,16 @@
 
 	* gawktexi.in (Auto-set): Add example use of multiply function.
 
+2016-06-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawk.1: Typo fix. Thanks to Antonio Giovanni Colombo
+	for noticing.
+
+2016-06-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawk.1: Document typeof(), update modified date.
+	* awkcard.in: Document typeof().
+
 2016-06-10         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Fix a typo, and replace hard-coded "section" with
@@ -42,6 +467,15 @@
 	Giovanni Colombo for the reports.
 	(UPDATE-MONTH, PATCHLEVEL): Update to current before release.
 	* awkcard.in: Update version.
+
+2016-05-30         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Replace num_expected_args with max_expected_args.
+	Explain what it's used for.
+
+2016-05-25         Manuel Collado        <mcollado2011@gmail.com>.
+
+	* gawktexi.in: Document new 'nonfatal' API function.
 
 2016-05-25         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -59,6 +493,12 @@
 	out since 2001, index RFCs, change function name convention to
 	match main gawktexi.in. Update the update month.
 
+2016-04-06         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Two-way I/O): Document that writing to the closed
+	write end of a two way pipe or reading from the closed read end
+	can be made nonfatal.
+
 2016-04-04         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in, gawkinet.texi: Enable use of braces in
@@ -68,6 +508,11 @@
 
 	* gawktexi.in (Two-way I/O): Document that closing the "from"
 	end waits for the process to exit, so it's not such a great idea.
+
+2016-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawkinet.texi: Small update about end of line vs full
+	comments when pretty printing.
 
 2016-03-21         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -101,6 +546,8 @@
 	dlward134@gmail.com.  Added an example of use of rewind(), also
 	per suggestion from David Ward.
 	* gawktexi.in: Update info about Texinfo versions.
+	* gawktexi.in (Limitations): Fix Heisenberg Physics example and
+	spelling of Heisenberg's name. Thanks to Hermann Peifer.
 
 2016-02-14         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -109,6 +556,14 @@
 	Remove special @DB*REF macros, not needed anymore.
 	Use @sup for superscripts where possible.
 	* texinfo.tex: Updated.
+
+2016-02-05         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawk.texi: Document that optimization in now the default,
+	there are new -s/--no-optimize options and that
+	pretty-printing and profiling disable optimization.
+	* gawk.1: Ditto.
+	* awkcard.in: Ditto.
 
 2016-02-03         Andrew J. Schorr     <aschorr@telemetry-investments.com>
 
@@ -142,16 +597,38 @@
 
 	* ChangeLog: Remove spurious whitespace.
 
+	Unrelated:
+
+	* gawk.1: Restore text on PROCINFO["RETRY"] and fix up the
+	formatting while we're at it. Thanks to Andrew Schorr for
+	pointing out the problem.
+
 2016-01-13         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in (Array Sorting Functions): Add an example of
 	using a function name with asort(). Response to bug report
 	Stephane Goujet <stephane.goujet@wanadoo.fr>.
 
+2016-01-06         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Finish documenting that --pretty-print
+	doesn't run the program. Thanks to Antonio
+	Giovanni Colombo for the report and patch.
+
+2016-01-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document that GNU/Linux on Alpha is no
+	longer supported.
+
 2015-12-27         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Fix some @c endfile. Thanks to Antonio
 	Giovanni Colombo for the report and patch.
+
+2015-12-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Add PROCINFO["NONFATAL"] to the list for PROCINFO.
+	* gawk.1: Ditto.
 
 2015-12-18         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -166,6 +643,11 @@
 2015-11-15         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Minor edits.
+	* gawk.1: Revise \x to maximum of two digits.
+
+2015-11-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (pdf-local): Remove igawk.1.pdf. Ooops.
 
 2015-10-30         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -177,6 +659,10 @@
 
 	* gawk.1: Put commas outside quoting in regexps to avoid
 	confusion. Thanks to Mike Frysinger <vapier@gentoo.org>.
+
+2015-10-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* awkcard.in: Fix tbl complaint.
 
 2015-10-07         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -209,10 +695,25 @@
 	* gawktexi.in: Typo fixes in Appendix A.
 	Thanks to Antonio Colombo.
 
+2015-07-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Small typo fix; thanks to Antonio Colombo
+	for noticing.
+
 2015-07-01         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Update info on Quiktrim awk; thanks to
 	Antonio Colombo for the pointer.
+
+2015-06-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Limitations): Document that sometimes the
+	debugger can affect the program being run.
+	Thanks to Hermann Peifer for the test case.
+
+2015-06-26         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update description of values returned by typeof.
 
 2015-06-19         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -239,6 +740,13 @@
 	* gawktexi.in: Add another pithy quote from Chet Ramey. Currently
 	commented out.
 
+2015-05-31         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Revised description of default field parsing
+	for POSIX. Newline is now a separator also.  Thanks to
+	Michael Klement <michael.klement@usa.net> for pointing this out.
+	* gawk.1: Updated too.
+
 2015-05-30         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in (Bitwise Functions): Update results of testbits.awk.
@@ -263,14 +771,32 @@
 
 	* gawktexi.in: Fix description of nextfile within a function. Sigh.
 
+2015-05-15         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in (Undocumented): Describe the new PROCINFO["argv"] array.
+
 2015-05-14         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in (Bugs): Add that email should be in plain
 	text and not in HTML.  Sigh.
 
+2015-05-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Add doc on conversions for strongly typed
+	regexp variables.
+
+2015-05-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Add initial documentation for strongly typed
+	regexps and for `typeof'.
+
 2015-04-29         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.2: Release tar ball made.
+
+2015-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Undocumented): More info added.
 
 2015-04-08         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -293,6 +819,11 @@
 
 	* gawktexi.in: Fix a figure caption. Thanks to Antonio Colombo
 	for pointing this out.
+	* gawktexi.in: Additional typo fix, also thanks to Antonio.
+
+2015-04-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in, gawk.1, awkcard.in: Name change: div() --> intdiv().
 
 2015-03-31         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -300,10 +831,17 @@
 	indirectly. Small additional fix relating to rand(). Thanks
 	to Antonio Colombo.
 
+2015-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Minor edits.
+
 2015-03-24         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Minor fixes from Antonio Colombo and new exercise
 	in chapter 16.
+	* gawk.1: Minor edits.
+	* gawktexi.in: Edits in material on errno and retryable and get_file
+	API.
 
 2015-03-17         Andrew J. Schorr     <aschorr@telemetry-investments.com>
 
@@ -316,6 +854,12 @@
 	* gawktexi.in: Turn "positive" into non-negative as appropriate.
 	Thanks to Nicholas Mills <nlmills@clemson.edu> for pointing out
 	the issue.
+
+2015-03-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Briefly describe that nonfatal I/O overrides
+	GAWK_SOCK_RETRIES, in the env var part and in the nonfatal I/O
+	part.
 
 2015-03-01         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -373,6 +917,7 @@
 2015-02-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: O'Reilly fixes.
+	Make non-fatal i/o use "NONFATAL".
 
 2015-02-06         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -381,6 +926,7 @@
 2015-02-04         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: O'Reilly fixes.
+	* gawktexi.in: Update various version-related bits of info.
 
 2015-02-02         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -410,7 +956,7 @@
 
 2015-01-25         Arnold D. Robbins     <arnold@skeeve.com>
 
-	* gawktexi.in: Fix a bad URL.
+	* gawktexi.in: Fix a bad URL. And another one.
 	More O'Reilly fixes.
 
 2015-01-23         Arnold D. Robbins     <arnold@skeeve.com>
@@ -432,9 +978,37 @@
 	* gawkinet.texi: Fix capitalization in document title.
 	* gawktexi.in: Here we go again: Starting on more O'Reilly fixes.
 
+2014-12-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Add info that nonfatal I/O works with stdout and
+	stderr.  Revise version info and what was added when.
+
+2015-01-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Improve get_file documentation.
+
+2015-01-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Replace "Retrying I/O" with "Retrying Input", since this
+	feature pertains to input, not output.
+
+2015-01-04         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Document the get_file API function.
+
+2015-01-04         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawk.1: Document new features PROCINFO["errno"] and
+	PROCINFO["input", "RETRY"], and new getline return value of -2.
+	* gawktexi.in: Ditto.
+
 2014-12-26         Antonio Giovanni Colombo   <azc100@gmail.com>
 
 	* gawktexi.in (Glossary): Really sort the items.
+
+2014-12-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Start documenting nonfatal output.
 
 2014-12-24         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -469,6 +1043,11 @@
 
 	* gawktexi.in: Various minor fixes and updates.
 
+2014-11-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update that TZ env. var can influence mktime
+	in running program.  Thanks to Hermann Peifer.
+
 2014-11-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Update that RFC 4180 documents CSV data.
@@ -481,6 +1060,11 @@
 
 	* gawktexi.in: Comment out that I need an owner for awk.info.
 	I may have found one or two people.
+
+2014-10-29         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in: Document new extras directory containing shell startup
+	files to manipulate AWKPATH and AWKLIBPATH environment variables.
 
 2014-10-28         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -495,6 +1079,7 @@
 2014-10-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Minor typo fixes.
+	Fix discussion of \x, per note from Antonio Colombo.
 
 2014-10-17         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -536,9 +1121,24 @@
 
 	* gawktexi.in: Pretty much done!
 
+	Unrelated:
+
+	* gawktexi.in: Fix braino in awk version of div function.
+	Thanks to Katie Wasserman for the catch.
+
 2014-10-01         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: More fixes after reading through the MS.
+
+	Unrelated:
+
+	* gawktexi.in: Add Katie Wasserman's program to compute
+	the digits of PI.
+
+	Unrelated:
+
+	* gawktexi.in: Document the differences between profiling
+	and pretty printing.
 
 2014-09-30         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -627,13 +1227,17 @@
 2014-08-29         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Continuing on reviewer comments, and other
-	bug fixes, miscellanious improvements.
+	bug fixes, miscellaneous improvements.
 
 2014-08-26         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Use a different mechanism to exclude
 	exercises. Remove use of LC_ALL in an example; doesn't seem
 	to be needed anymore.
+
+	Unrelated:
+
+	* gawktexi.in: Document that MirBSD is no longer supported.
 
 2014-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -668,6 +1272,10 @@
 	* gawktexi.in: Starting on reviewer comments.
 	Update acknowledgements.
 
+2014-08-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Cause div.awk to get into the example files.
+
 2014-08-06         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: Misc minor additions.
@@ -682,6 +1290,18 @@
 	* gawktexi.in: Fix doc for API get_record - errcode needs to
 	be greater than zero.
 
+2014-07-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Numeric Functions): For `div()', clarify
+	truncation is towards zero.  Thanks to Michal Jaegermann
+	for pointing out the need to clarify this.
+
+2014-07-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Numeric Functions): Document new `div()' function.
+	(Arbitrary Precision Integers): Document raison d'etre for div().
+	* gawk.1, awkcard.in: Document `div()'.
+
 2014-07-04         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in (Bracket Expressions): Add a note about how to
@@ -691,6 +1311,11 @@
 
 	* gawktexi.in: Update permissions on copyright page per
 	latest maintain.texi. Add GPL to print version of book.
+
+2014-06-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Document that --pretty-print no longer runs the
+	program. Remove mention of GAWK_NO_PP_RUN env var.
 
 2014-06-22         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -708,7 +1333,7 @@
 
 2014-06-17         Arnold D. Robbins     <arnold@skeeve.com>
 
-	* gawktexi.in: Finish adding exerices.
+	* gawktexi.in: Finish adding exercises.
 	Rework chapter 15 on floating point and MPFR.
 	Spell check. Fix menues.
 
@@ -988,7 +1613,7 @@
 2013-12-26         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in: More minor additions / fixes.
-	(Bugs): Add John Malmberg for VMS.
+	(Bugs): Add John Malmberg for VMS. Other minor edits.
 
 2013-12-25         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -1035,7 +1660,7 @@
 2013-10-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* gawktexi.in (Contributors): Update with more info.
-	(Distributtion contents): Ditto.
+	(Distribution contents): Ditto.
 	General: Remove all hyphens when used with "multi" prefix.
 
 2013-10-22         Arnold D. Robbins     <arnold@skeeve.com>
@@ -1062,9 +1687,14 @@
 	* gawktexi.in (FN, FFN, DF,DDF, PVERSION, CTL): Remove macros.
 	They have no alternate versions and are just in the way.
 
+2013-08-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawk.1: Document that ENVIRON updates affect the environment.
+	* gawktexi.in: Ditto.
+
 2013-06-27         Arnold D. Robbins     <arnold@skeeve.com>
 
-	* texinfo.tex: Update from Karl, fixes a formating problem.
+	* texinfo.tex: Update from Karl, fixes a formatting problem.
 	* gawktexi.in (Conversions): Undo @w{} around @option{--posix}.
 
 2013-06-22         Arnold D. Robbins     <arnold@skeeve.com>
@@ -1084,7 +1714,7 @@
 
 2013-05-27         Arnold D. Robbins     <arnold@skeeve.com>
 
-	* gawtexi.in: Sample filefuncs.c extension code: Change test from
+	* gawktexi.in: Sample filefuncs.c extension code: Change test from
 	ifdef HAVE_ST_BLKSIZE to HAVE_STRUCT_STAT_ST_BLKSIZE.
 
 2013-05-21         Arnold D. Robbins     <arnold@skeeve.com>
@@ -1302,7 +1932,7 @@
 	* gawk.texi: Fix all @tex ... @end tex tables to use a different
 	control character than @ so that the new makeinfo won't
 	complain about them. Thanks to Karl Berry for the guidance.
-	(Old Extension Mechansim): New node.
+	(Old Extension Mechanism): New node.
 
 2012-12-01         Arnold D. Robbins     <arnold@skeeve.com>
 

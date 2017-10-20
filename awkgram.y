@@ -2,8 +2,8 @@
  * awkgram.y --- yacc/bison parser
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -40,7 +40,7 @@ static void lintwarn_ln(int line, const char *m, ...) ATTRIBUTE_PRINTF_2;
 static void warning_ln(int line, const char *m, ...) ATTRIBUTE_PRINTF_2;
 static char *get_src_buf(void);
 static int yylex(void);
-int	yyparse(void); 
+int	yyparse(void);
 static INSTRUCTION *snode(INSTRUCTION *subn, INSTRUCTION *op);
 static char **check_params(char *fname, int pcount, INSTRUCTION *list);
 static int install_function(char *fname, INSTRUCTION *fi, INSTRUCTION *plist);
@@ -57,6 +57,7 @@ static int include_source(INSTRUCTION *file);
 static int load_library(INSTRUCTION *file);
 static void next_sourcefile(void);
 static char *tokexpand(void);
+static NODE *set_profile_text(NODE *n, const char *str, size_t len);
 
 #define instruction(t)	bcalloc(t, 1, 0)
 
@@ -83,10 +84,18 @@ static void check_funcs(void);
 
 static ssize_t read_one_line(int fd, void *buffer, size_t count);
 static int one_line_close(int fd);
+static void split_comment(void);
+static void check_comment(void);
+static void add_sign_to_num(NODE *n, char sign);
 
 static bool at_seen = false;
 static bool want_source = false;
 static bool want_regexp = false;	/* lexical scanning kludge */
+static enum {
+	FUNC_HEADER,
+	FUNC_BODY,
+	DONT_CHECK
+} want_param_names = DONT_CHECK;	/* ditto */
 static char *in_function;		/* parsing kludge */
 static int rule = 0;
 
@@ -106,7 +115,7 @@ static char *lexptr;		/* pointer to next char during parsing */
 static char *lexend;		/* end of buffer */
 static char *lexptr_begin;	/* keep track of where we were for error msgs */
 static char *lexeme;		/* beginning of lexeme for debugging */
-static bool lexeof;		/* seen EOF for current source? */  
+static bool lexeof;		/* seen EOF for current source? */
 static char *thisline = NULL;
 static int in_braces = 0;	/* count braces for firstline, lastline in an 'action' */
 static int lastline = 0;
@@ -141,11 +150,23 @@ static INSTRUCTION *ip_atexit = NULL;
 static INSTRUCTION *ip_end;
 static INSTRUCTION *ip_endfile;
 static INSTRUCTION *ip_beginfile;
+INSTRUCTION *main_beginfile;
+
+static INSTRUCTION *comment = NULL;
+static INSTRUCTION *prior_comment = NULL;
+static INSTRUCTION *comment_to_save = NULL;
+static INSTRUCTION *program_comment = NULL;
+static INSTRUCTION *function_comment = NULL;
+static INSTRUCTION *block_comment = NULL;
+
+static bool func_first = true;
+static bool first_rule = true;
 
 static inline INSTRUCTION *list_create(INSTRUCTION *x);
 static inline INSTRUCTION *list_append(INSTRUCTION *l, INSTRUCTION *x);
 static inline INSTRUCTION *list_prepend(INSTRUCTION *l, INSTRUCTION *x);
 static inline INSTRUCTION *list_merge(INSTRUCTION *l1, INSTRUCTION *l2);
+static inline INSTRUCTION *add_pending_comment(INSTRUCTION *stmt);
 
 extern double fmod(double x, double y);
 
@@ -153,14 +174,14 @@ extern double fmod(double x, double y);
 %}
 
 %token FUNC_CALL NAME REGEXP FILENAME
-%token YNUMBER YSTRING
+%token YNUMBER YSTRING TYPED_REGEXP
 %token RELOP IO_OUT IO_IN
 %token ASSIGNOP ASSIGN MATCHOP CONCAT_OP
 %token SUBSCRIPT
 %token LEX_BEGIN LEX_END LEX_IF LEX_ELSE LEX_RETURN LEX_DELETE
 %token LEX_SWITCH LEX_CASE LEX_DEFAULT LEX_WHILE LEX_DO LEX_FOR LEX_BREAK LEX_CONTINUE
 %token LEX_PRINT LEX_PRINTF LEX_NEXT LEX_EXIT LEX_FUNCTION
-%token LEX_BEGINFILE LEX_ENDFILE 
+%token LEX_BEGINFILE LEX_ENDFILE
 %token LEX_GETLINE LEX_NEXTFILE
 %token LEX_IN
 %token LEX_AND LEX_OR INCREMENT DECREMENT
@@ -181,7 +202,7 @@ extern double fmod(double x, double y);
 %left MATCHOP
 %nonassoc RELOP '<' '>' IO_IN IO_OUT
 %left CONCAT_OP
-%left YSTRING YNUMBER
+%left YSTRING YNUMBER TYPED_REGEXP
 %left '+' '-'
 %left '*' '/' '%'
 %right '!' UNARY
@@ -218,6 +239,7 @@ rule
 	: pattern action
 	  {
 		(void) append_rule($1, $2);
+		first_rule = false;
 	  }
 	| pattern statement_term
 	  {
@@ -234,6 +256,7 @@ rule
 	  {
 		in_function = NULL;
 		(void) mk_function($1, $2);
+		want_param_names = DONT_CHECK;
 		yyerrok;
 	  }
 	| '@' LEX_INCLUDE source statement_term
@@ -282,9 +305,24 @@ library
 
 pattern
 	: /* empty */
-	  {	$$ = NULL; rule = Rule; }
+	  {
+		rule = Rule;
+		if (comment != NULL) {
+			$$ = list_create(comment);
+			comment = NULL;
+		} else
+			$$ = NULL;
+	  }
 	| exp
-	  {	$$ = $1; rule = Rule; }
+	  {
+		rule = Rule;
+		if (comment != NULL) {
+			$$ = list_prepend($1, comment);
+			comment = NULL;
+		} else
+			$$ = $1;
+	  }
+
 	| exp ',' opt_nls exp
 	  {
 		INSTRUCTION *tp;
@@ -308,41 +346,55 @@ pattern
 			($1->nexti + 1)->condpair_left = $1->lasti;
 			($1->nexti + 1)->condpair_right = $4->lasti;
 		}
-		$$ = list_append(list_merge($1, $4), tp);
+		if (comment != NULL) {
+			$$ = list_append(list_merge(list_prepend($1, comment), $4), tp);
+			comment = NULL;
+		} else
+			$$ = list_append(list_merge($1, $4), tp);
 		rule = Rule;
 	  }
 	| LEX_BEGIN
 	  {
 		static int begin_seen = 0;
+
+		func_first = false;
 		if (do_lint_old && ++begin_seen == 2)
 			warning_ln($1->source_line,
 				_("old awk does not support multiple `BEGIN' or `END' rules"));
 
 		$1->in_rule = rule = BEGIN;
 		$1->source_file = source;
+		check_comment();
 		$$ = $1;
 	  }
 	| LEX_END
 	  {
 		static int end_seen = 0;
+
+		func_first = false;
 		if (do_lint_old && ++end_seen == 2)
 			warning_ln($1->source_line,
 				_("old awk does not support multiple `BEGIN' or `END' rules"));
 
 		$1->in_rule = rule = END;
 		$1->source_file = source;
+		check_comment();
 		$$ = $1;
 	  }
 	| LEX_BEGINFILE
 	  {
+		func_first = false;
 		$1->in_rule = rule = BEGINFILE;
 		$1->source_file = source;
+		check_comment();
 		$$ = $1;
 	  }
 	| LEX_ENDFILE
 	  {
+		func_first = false;
 		$1->in_rule = rule = ENDFILE;
 		$1->source_file = source;
+		check_comment();
 		$$ = $1;
 	  }
 	;
@@ -350,10 +402,12 @@ pattern
 action
 	: l_brace statements r_brace opt_semi opt_nls
 	  {
+		INSTRUCTION *ip;
 		if ($2 == NULL)
-			$$ = list_create(instruction(Op_no_op));
+			ip = list_create(instruction(Op_no_op));
 		else
-			$$ = $2;
+			ip = $2;
+		$$ = ip;
 	  }
 	;
 
@@ -379,18 +433,45 @@ lex_builtin
 	: LEX_BUILTIN
 	| LEX_LENGTH
 	;
-		
+
 function_prologue
-	: LEX_FUNCTION func_name '(' opt_param_list r_paren opt_nls
+	: LEX_FUNCTION func_name '(' { want_param_names = FUNC_HEADER; } opt_param_list r_paren opt_nls
 	  {
+		/*
+		 *  treat any comments between BOF and the first function
+		 *  definition (with no intervening BEGIN etc block) as
+		 *  program comments.  Special kludge: iff there are more
+		 *  than one such comments, treat the last as a function
+		 *  comment.
+		 */
+		if (prior_comment != NULL) {
+			comment_to_save = prior_comment;
+			prior_comment = NULL;
+		} else if (comment != NULL) {
+			comment_to_save = comment;
+			comment = NULL;
+		} else
+			comment_to_save = NULL;
+
+		if (comment_to_save != NULL && func_first
+		    && strstr(comment_to_save->memory->stptr, "\n\n") != NULL)
+			split_comment();
+
+		/* save any other pre-function comment as function comment  */
+		if (comment_to_save != NULL) {
+			function_comment = comment_to_save;
+			comment_to_save = NULL;
+		}
+		func_first = false;
 		$1->source_file = source;
-		if (install_function($2->lextok, $1, $4) < 0)
+		if (install_function($2->lextok, $1, $5) < 0)
 			YYABORT;
 		in_function = $2->lextok;
 		$2->lextok = NULL;
 		bcfree($2);
-		/* $4 already free'd in install_function */
+		/* $5 already free'd in install_function */
 		$$ = $1;
+		want_param_names = FUNC_BODY;
 	  }
 	;
 
@@ -432,6 +513,21 @@ regexp
 		}
 	;
 
+typed_regexp
+	: TYPED_REGEXP
+		{
+		  char *re;
+		  size_t len;
+
+		  re = $1->lextok;
+		  $1->lextok = NULL;
+		  len = strlen(re);
+
+		  $$ = $1;
+		  $$->opcode = Op_push_re;
+		  $$->memory = make_typed_regex(re, len);
+		}
+
 a_slash
 	: '/'
 	  { bcfree($1); }
@@ -440,19 +536,62 @@ a_slash
 
 statements
 	: /* empty */
-	  {	$$ = NULL; }
+	  {
+		if (prior_comment != NULL) {
+			$$ = list_create(prior_comment);
+			prior_comment = NULL;
+		} else if (comment != NULL) {
+			$$ = list_create(comment);
+			comment = NULL;
+		} else
+			$$ = NULL;
+	  }
 	| statements statement
 	  {
-		if ($2 == NULL)
-			$$ = $1;
-		else {
+		if ($2 == NULL) {
+			if (prior_comment != NULL) {
+				$$ = list_append($1, prior_comment);
+				prior_comment = NULL;
+				if (comment != NULL) {
+					$$ = list_append($$, comment);
+					comment = NULL;
+				}
+			} else if (comment != NULL) {
+				$$ = list_append($1, comment);
+				comment = NULL;
+			} else
+				$$ = $1;
+		} else {
 			add_lint($2, LINT_no_effect);
-			if ($1 == NULL)
-				$$ = $2;
-			else
+			if ($1 == NULL) {
+				if (prior_comment != NULL) {
+					$$ = list_append($2, prior_comment);
+					prior_comment = NULL;
+					if (comment != NULL) {
+						$$ = list_append($$, comment);
+						comment = NULL;
+					}
+				} else if (comment != NULL) {
+					$$ = list_append($2, comment);
+					comment = NULL;
+				} else
+					$$ = $2;
+			} else {
+				if (prior_comment != NULL) {
+					list_append($2, prior_comment);
+					prior_comment = NULL;
+					if (comment != NULL) {
+						list_append($2, comment);
+						comment = NULL;
+					}
+				} else if (comment != NULL) {
+					list_append($2, comment);
+					comment = NULL;
+				}
 				$$ = list_merge($1, $2);
+			}
 		}
-	    yyerrok;
+		yyerrok;
 	  }
 	| statements error
 	  {	$$ = NULL; }
@@ -484,7 +623,7 @@ statement
 		int case_count = 0;
 		int i;
 
-		tbreak = instruction(Op_no_op);	
+		tbreak = instruction(Op_no_op);
 		cstmt = list_create(tbreak);
 		cexp = list_create(instruction(Op_pop));
 		dflt = instruction(Op_jmp);
@@ -496,7 +635,7 @@ statement
 		} /*  else
 				curr = NULL; */
 
-		for(; curr != NULL; curr = nextc) {
+		for (; curr != NULL; curr = nextc) {
 			INSTRUCTION *caseexp = curr->case_exp;
 			INSTRUCTION *casestmt = curr->case_stmt;
 
@@ -511,7 +650,7 @@ statement
 							error_ln(curr->source_line,
 								_("duplicate case values in switch body: %s"), caseval);
 					}
- 
+
 					if (case_values == NULL)
 						emalloc(case_values, const char **, sizeof(char *) * maxcount, "statement");
 					else if (case_count >= maxcount) {
@@ -562,18 +701,18 @@ statement
 		(void) list_merge(ip, cexp);
 		$$ = list_merge(ip, cstmt);
 
-		break_allowed--;			
+		break_allowed--;
 		fix_break_continue(ip, tbreak, NULL);
 	  }
 	| LEX_WHILE '(' exp r_paren opt_nls statement
-	  { 
+	  {
 		/*
 		 *    -----------------
 		 * tc:
 		 *         cond
 		 *    -----------------
 		 *    [Op_jmp_false tb   ]
-		 *    -----------------   
+		 *    -----------------
 		 *         body
 		 *    -----------------
 		 *    [Op_jmp      tc    ]
@@ -614,7 +753,7 @@ statement
 		 * z:
 		 *         body
 		 *    -----------------
-		 * tc: 
+		 * tc:
 		 *         cond
 		 *    -----------------
 		 *    [Op_jmp_true | z  ]
@@ -661,7 +800,7 @@ statement
 				&& ($8->nexti->memory->type != Node_var || !($8->nexti->memory->var_update))
 				&& strcmp($8->nexti->memory->vname, var_name) == 0
 		) {
-		
+
 		/* Efficiency hack.  Recognize the special case of
 		 *
 		 * 	for (iggy in foo)
@@ -673,10 +812,10 @@ statement
 		 *
 		 * Check that the body is a `delete a[i]' statement,
 		 * and that both the loop var and array names match.
-		 */		 
+		 */
 			NODE *arr = NULL;
 
-			ip = $8->nexti->nexti; 
+			ip = $8->nexti->nexti;
 			if ($5->nexti->opcode == Op_push && $5->lasti == $5->nexti)
 				arr = $5->nexti->memory;
 			if (arr != NULL
@@ -702,7 +841,7 @@ statement
 
 			/*    [ Op_push_array a       ]
 			 *    [ Op_arrayfor_init | ib ]
-			 * ic:[ Op_arrayfor_incr | ib ] 
+			 * ic:[ Op_arrayfor_incr | ib ]
 			 *    [ Op_var_assign if any  ]
 			 *
 			 *              body
@@ -731,7 +870,7 @@ regular_loop:
 			} /* else
 					$1 is NULL */
 
-			/* add update_FOO instruction if necessary */ 
+			/* add update_FOO instruction if necessary */
 			if ($4->array_var->type == Node_var && $4->array_var->var_update) {
 				(void) list_append(ip, instruction(Op_var_update));
 				ip->lasti->update_var = $4->array_var->var_update;
@@ -747,7 +886,7 @@ regular_loop:
 			if (do_pretty_print) {
 				(void) list_append(ip, instruction(Op_exec_count));
 				($1 + 1)->forloop_cond = $4;
-				($1 + 1)->forloop_body = ip->lasti; 
+				($1 + 1)->forloop_body = ip->lasti;
 			}
 
 			if ($8 != NULL)
@@ -757,7 +896,7 @@ regular_loop:
 			ip->lasti->target_jmp = $4;
 			$$ = list_append(ip, tbreak);
 			fix_break_continue(ip, tbreak, tcont);
-		} 
+		}
 
 		break_allowed--;
 		continue_allowed--;
@@ -782,17 +921,19 @@ regular_loop:
 			$$ = list_prepend($1, instruction(Op_exec_count));
 		else
 			$$ = $1;
+		$$ = add_pending_comment($$);
 	  }
 	;
 
 non_compound_stmt
 	: LEX_BREAK statement_term
-	  { 
+	  {
 		if (! break_allowed)
 			error_ln($1->source_line,
 				_("`break' is not allowed outside a loop or switch"));
 		$1->target_jmp = NULL;
 		$$ = list_create($1);
+		$$ = add_pending_comment($$);
 
 	  }
 	| LEX_CONTINUE statement_term
@@ -802,6 +943,7 @@ non_compound_stmt
 				_("`continue' is not allowed outside a loop"));
 		$1->target_jmp = NULL;
 		$$ = list_create($1);
+		$$ = add_pending_comment($$);
 
 	  }
 	| LEX_NEXT statement_term
@@ -812,6 +954,7 @@ non_compound_stmt
 				_("`next' used in %s action"), ruletab[rule]);
 		$1->target_jmp = ip_rec;
 		$$ = list_create($1);
+		$$ = add_pending_comment($$);
 	  }
 	| LEX_NEXTFILE statement_term
 	  {
@@ -823,11 +966,12 @@ non_compound_stmt
 		$1->target_newfile = ip_newfile;
 		$1->target_endfile = ip_endfile;
 		$$ = list_create($1);
+		$$ = add_pending_comment($$);
 	  }
 	| LEX_EXIT opt_exp statement_term
 	  {
 		/* Initialize the two possible jump targets, the actual target
-		 * is resolved at run-time. 
+		 * is resolved at run-time.
 		 */
 		$1->target_end = ip_end;	/* first instruction in end_block */
 		$1->target_atexit = ip_atexit;	/* cleanup and go home */
@@ -838,6 +982,7 @@ non_compound_stmt
 			$$->nexti->memory = dupnode(Nnull_string);
 		} else
 			$$ = list_append($2, $1);
+		$$ = add_pending_comment($$);
 	  }
 	| LEX_RETURN
 	  {
@@ -862,6 +1007,7 @@ non_compound_stmt
 
 			$$ = list_append($3, $1);
 		}
+		$$ = add_pending_comment($$);
 	  }
 	| simple_stmt statement_term
 	;
@@ -943,7 +1089,7 @@ simple_stmt
 			 *    [$1 | NULL | redir_type | expr_count]
 			 *
 			 */
-regular_print:	 
+regular_print:
 			if ($4 == NULL) {		/* no redirection */
 				if ($3 == NULL)	{	/* printf without arg */
 					$1->expr_count = 0;
@@ -971,6 +1117,7 @@ regular_print:
 				}
 			}
 		}
+		$$ = add_pending_comment($$);
 	  }
 
 	| LEX_DELETE NAME { sub_counter = 0; } delete_subscript_list
@@ -1005,7 +1152,8 @@ regular_print:
 			$1->expr_count = sub_counter;
 			$$ = list_append(list_append($4, $2), $1);
 		}
-	  }	
+		$$ = add_pending_comment($$);
+	  }
 	| LEX_DELETE '(' NAME ')'
 		  /*
 		   * this is for tawk compatibility. maybe the warnings
@@ -1035,9 +1183,13 @@ regular_print:
 			else if ($3->memory == func_table)
 				fatal(_("`delete' is not allowed with FUNCTAB"));
 		}
+		$$ = add_pending_comment($$);
 	  }
 	| exp
-	  {	$$ = optimize_assignment($1); }
+	  {
+		$$ = optimize_assignment($1);
+		$$ = add_pending_comment($$);
+	  }
 	;
 
 opt_simple_stmt
@@ -1066,7 +1218,7 @@ case_statement
 	  {
 		INSTRUCTION *casestmt = $5;
 		if ($5 == NULL)
-			casestmt = list_create(instruction(Op_no_op));	
+			casestmt = list_create(instruction(Op_no_op));
 		if (do_pretty_print)
 			(void) list_prepend(casestmt, instruction(Op_exec_count));
 		$1->case_exp = $2;
@@ -1091,7 +1243,7 @@ case_value
 	: YNUMBER
 	  {	$$ = $1; }
 	| '-' YNUMBER    %prec UNARY
-	  { 
+	  {
 		NODE *n = $2->memory;
 		(void) force_number(n);
 		negate_num(n);
@@ -1100,13 +1252,24 @@ case_value
 	  }
 	| '+' YNUMBER    %prec UNARY
 	  {
+		NODE *n = $2->lasti->memory;
 		bcfree($1);
+		add_sign_to_num(n, '+');
 		$$ = $2;
 	  }
-	| YSTRING 
+	| YSTRING
 	  {	$$ = $1; }
-	| regexp  
+	| regexp
 	  {
+		if ($1->memory->type == Node_regex)
+			$1->opcode = Op_push_re;
+		else
+			$1->opcode = Op_push;
+		$$ = $1;
+	  }
+	| typed_regexp
+	  {
+		assert(($1->memory->flags & REGEX) == REGEX);
 		$1->opcode = Op_push_re;
 		$$ = $1;
 	  }
@@ -1184,7 +1347,7 @@ opt_param_list
 	: /* empty */
 	  { $$ = NULL; }
 	| param_list
-	  { $$ = $1 ; }
+	  { $$ = $1; }
 	;
 
 param_list
@@ -1255,6 +1418,48 @@ expression_list
 	  }
 	;
 
+opt_fcall_expression_list
+	: /* empty */
+	  { $$ = NULL; }
+	| fcall_expression_list
+	  { $$ = $1; }
+	;
+
+fcall_expression_list
+	: fcall_exp
+	  {	$$ = mk_expression_list(NULL, $1); }
+	| fcall_expression_list comma fcall_exp
+	  {
+		$$ = mk_expression_list($1, $3);
+		yyerrok;
+	  }
+	| error
+	  { $$ = NULL; }
+	| fcall_expression_list error
+	  {
+		/*
+		 * Returning the expression list instead of NULL lets
+		 * snode get a list of arguments that it can count.
+		 */
+		$$ = $1;
+	  }
+	| fcall_expression_list error fcall_exp
+	  {
+		/* Ditto */
+		$$ = mk_expression_list($1, $3);
+	  }
+	| fcall_expression_list comma error
+	  {
+		/* Ditto */
+		$$ = $1;
+	  }
+	;
+
+fcall_exp
+	: exp { $$ = $1; }
+	| typed_regexp { $$ = list_create($1); }
+	;
+
 /* Expressions, not including the comma operator.  */
 exp
 	: variable assign_operator exp %prec ASSIGNOP
@@ -1264,10 +1469,27 @@ exp
 				_("regular expression on right of assignment"));
 		$$ = mk_assignment($1, $3, $2);
 	  }
+	| variable ASSIGN typed_regexp %prec ASSIGNOP
+	  {
+		$$ = mk_assignment($1, list_create($3), $2);
+	  }
 	| exp LEX_AND exp
 	  {	$$ = mk_boolean($1, $3, $2); }
 	| exp LEX_OR exp
 	  {	$$ = mk_boolean($1, $3, $2); }
+	| exp MATCHOP typed_regexp
+	  {
+		if ($1->lasti->opcode == Op_match_rec)
+			warning_ln($2->source_line,
+				_("regular expression on left of `~' or `!~' operator"));
+
+		assert($3->opcode == Op_push_re
+			&& ($3->memory->flags & REGEX) != 0);
+		/* RHS is @/.../ */
+		$2->memory = $3->memory;
+		bcfree($3);
+		$$ = list_append($1, $2);
+	  }
 	| exp MATCHOP exp
 	  {
 		if ($1->lasti->opcode == Op_match_rec)
@@ -1275,6 +1497,7 @@ exp
 				_("regular expression on left of `~' or `!~' operator"));
 
 		if ($3->lasti == $3->nexti && $3->nexti->opcode == Op_match_rec) {
+			/* RHS is /.../ */
 			$2->memory = $3->nexti->memory;
 			bcfree($3->nexti);	/* Op_match_rec */
 			bcfree($3);			/* Op_list */
@@ -1313,7 +1536,7 @@ assign_operator
 	| ASSIGNOP
 	  { $$ = $1; }
 	| SLASH_BEFORE_EQUAL ASSIGN   /* `/=' */
-	  {	
+	  {
 		$2->opcode = Op_assign_quotient;
 		$$ = $2;
 	  }
@@ -1364,10 +1587,15 @@ common_exp
 			NODE *n2 = $2->nexti->memory;
 			size_t nlen;
 
+			// 1.5 ""   # can't fold this if program mucks with CONVFMT.
+			// See test #12 in test/posix.awk.
+			if ((n1->flags & (NUMBER|NUMINT)) != 0 || (n2->flags & (NUMBER|NUMINT)) != 0)
+				goto plain_concat;
+
 			n1 = force_string(n1);
 			n2 = force_string(n2);
 			nlen = n1->stlen + n2->stlen;
-			erealloc(n1->stptr, char *, nlen + 2, "constant fold");
+			erealloc(n1->stptr, char *, nlen + 1, "constant fold");
 			memcpy(n1->stptr + n1->stlen, n2->stptr, n2->stlen);
 			n1->stlen = nlen;
 			n1->stptr[nlen] = '\0';
@@ -1378,6 +1606,7 @@ common_exp
 			bcfree($2);
 			$$ = $1;
 		} else {
+	plain_concat:
 			$$ = list_append(list_merge($1, $2), instruction(Op_concat));
 			$$->lasti->concat_flag = (is_simple_var ? CSVAR : 0);
 			$$->lasti->expr_count = count;
@@ -1481,7 +1710,7 @@ non_post_simp_exp
 		if ($2->opcode == Op_match_rec) {
 			$2->opcode = Op_nomatch;
 			$1->opcode = Op_push_i;
-			$1->memory = make_number(0.0);	
+			$1->memory = set_profile_text(make_number(0.0), "0", 1);
 			$$ = list_append(list_append(list_create($1),
 						instruction(Op_field_spec)), $2);
 		} else {
@@ -1490,7 +1719,7 @@ non_post_simp_exp
 					&& ($2->nexti->memory->flags & (MPFN|MPZN)) == 0
 			) {
 				NODE *n = $2->nexti->memory;
-				if ((n->flags & (STRCUR|STRING)) != 0) {
+				if ((n->flags & STRING) != 0) {
 					n->numbr = (AWKNUM) (n->stlen == 0);
 					n->flags &= ~(STRCUR|STRING);
 					n->flags |= (NUMCUR|NUMBER);
@@ -1509,14 +1738,19 @@ non_post_simp_exp
 		}
 	   }
 	| '(' exp r_paren
-	  { $$ = $2; }
-	| LEX_BUILTIN '(' opt_expression_list r_paren
+	  {
+		if (do_pretty_print)
+			$$ = list_append($2, bcalloc(Op_parens, 1, sourceline));
+		else
+			$$ = $2;
+	  }
+	| LEX_BUILTIN '(' opt_fcall_expression_list r_paren
 	  {
 		$$ = snode($3, $1);
 		if ($$ == NULL)
 			YYABORT;
 	  }
-	| LEX_LENGTH '(' opt_expression_list r_paren
+	| LEX_LENGTH '(' opt_fcall_expression_list r_paren
 	  {
 		$$ = snode($3, $1);
 		if ($$ == NULL)
@@ -1558,11 +1792,11 @@ non_post_simp_exp
 	| '-' simp_exp    %prec UNARY
 	  {
 		if ($2->lasti->opcode == Op_push_i
-			&& ($2->lasti->memory->flags & (STRCUR|STRING)) == 0
+			&& ($2->lasti->memory->flags & STRING) == 0
 		) {
 			NODE *n = $2->lasti->memory;
 			(void) force_number(n);
-			negate_num(n);			
+			negate_num(n);
 			$$ = $2;
 			bcfree($1);
 		} else {
@@ -1572,13 +1806,21 @@ non_post_simp_exp
 	  }
 	| '+' simp_exp    %prec UNARY
 	  {
-	    /*
-	     * was: $$ = $2
-	     * POSIX semantics: force a conversion to numeric type
-	     */
-		$1->opcode = Op_plus_i;
-		$1->memory = make_number(0.0);
-		$$ = list_append($2, $1);
+		if ($2->lasti->opcode == Op_push_i
+			&& ($2->lasti->memory->flags & STRING) == 0
+			&& ($2->lasti->memory->flags & NUMCONSTSTR) != 0) {
+			NODE *n = $2->lasti->memory;
+			add_sign_to_num(n, '+');
+			$$ = $2;
+			bcfree($1);
+		} else {
+			/*
+			 * was: $$ = $2
+			 * POSIX semantics: force a conversion to numeric type
+			 */
+			$1->opcode = Op_unary_plus;
+			$$ = list_append($2, $1);
+		}
 	  }
 	;
 
@@ -1603,7 +1845,7 @@ func_call
 			warned = true;
 			lintwarn("%s", msg);
 		}
-		
+
 		f = $2->lasti;
 		f->opcode = Op_indirect_func_call;
 		name = estrdup(f->func_name, strlen(f->func_name));
@@ -1625,14 +1867,14 @@ func_call
 	;
 
 direct_func_call
-	: FUNC_CALL '(' opt_expression_list r_paren
+	: FUNC_CALL '(' opt_fcall_expression_list r_paren
 	  {
 		NODE *n;
 
 		if (! at_seen) {
 			n = lookup($1->func_name);
 			if (n != NULL && n->type != Node_func
-			    && n->type != Node_ext_func && n->type != Node_old_ext_func) {
+			    && n->type != Node_ext_func) {
 				error_ln($1->source_line,
 					_("attempt to use non-function `%s' in function call"),
 						$1->func_name);
@@ -1646,7 +1888,7 @@ direct_func_call
 			$$ = list_create($1);
 		} else {
 			INSTRUCTION *t = $3;
-			($1 + 1)->expr_count = count_expressions(&t, true); 
+			($1 + 1)->expr_count = count_expressions(&t, true);
 			$$ = list_append(t, $1);
 		}
 	  }
@@ -1678,7 +1920,7 @@ delete_subscript
 delete_exp_list
 	: bracketed_exp_list
 	  {
-		INSTRUCTION *ip = $1->lasti; 
+		INSTRUCTION *ip = $1->lasti;
 		int count = ip->sub_count;	/* # of SUBSEP-seperated expressions */
 		if (count > 1) {
 			/* change Op_subscript or Op_sub_array to Op_concat */
@@ -1702,7 +1944,7 @@ bracketed_exp_list
 			/* install Null string as subscript. */
 			t = list_create(instruction(Op_push_i));
 			t->nexti->memory = dupnode(Nnull_string);
-			$3->sub_count = 1;			
+			$3->sub_count = 1;
 		} else
 			$3->sub_count = count_expressions(&t, false);
 		$$ = list_append(t, $3);
@@ -1818,7 +2060,7 @@ struct token {
 #	define	BREAK		0x0800	/* break allowed inside */
 #	define	CONTINUE	0x1000	/* continue allowed inside */
 #	define	DEBUG_USE	0x2000	/* for use by developers */
-	
+
 	NODE *(*ptr)(int);	/* function that implements this keyword */
 	NODE *(*ptr2)(int);	/* alternate arbitrary-precision function */
 };
@@ -1878,9 +2120,6 @@ static const struct token tokentab[] = {
 {"eval",	Op_symbol,	 LEX_EVAL,	0,		0,	0},
 {"exit",	Op_K_exit,	 LEX_EXIT,	0,		0,	0},
 {"exp",		Op_builtin,	 LEX_BUILTIN,	A(1),		do_exp,	MPF(exp)},
-#ifdef DYNAMIC
-{"extension",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(1)|A(2)|A(3),	do_ext,	0},
-#endif
 {"fflush",	Op_builtin,	 LEX_BUILTIN,	A(0)|A(1), do_fflush,	0},
 {"for",		Op_K_for,	 LEX_FOR,	BREAK|CONTINUE,	0,	0},
 {"func",	Op_func, LEX_FUNCTION,	NOT_POSIX|NOT_OLD,	0,	0},
@@ -1893,13 +2132,16 @@ static const struct token tokentab[] = {
 {"include",	Op_symbol,	 LEX_INCLUDE,	GAWKX,	0,	0},
 {"index",	Op_builtin,	 LEX_BUILTIN,	A(2),		do_index,	0},
 {"int",		Op_builtin,	 LEX_BUILTIN,	A(1),		do_int,	MPF(int)},
+#ifdef SUPPLY_INTDIV
+{"intdiv0",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(3),	do_intdiv,	MPF(intdiv)},
+#endif
 {"isarray",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(1),	do_isarray,	0},
 {"length",	Op_builtin,	 LEX_LENGTH,	A(0)|A(1),	do_length,	0},
 {"load",  	Op_symbol,	 LEX_LOAD,	GAWKX,		0,	0},
 {"log",		Op_builtin,	 LEX_BUILTIN,	A(1),		do_log,	MPF(log)},
 {"lshift",	Op_builtin,    LEX_BUILTIN,	GAWKX|A(2),	do_lshift,	MPF(lshift)},
 {"match",	Op_builtin,	 LEX_BUILTIN,	NOT_OLD|A(2)|A(3), do_match,	0},
-{"mktime",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(1),	do_mktime,	0},
+{"mktime",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(1)|A(2), do_mktime, 0},
 {"next",	Op_K_next,	 LEX_NEXT,	0,		0,	0},
 {"nextfile",	Op_K_nextfile, LEX_NEXTFILE,	0,		0,	0},
 {"or",		Op_builtin,    LEX_BUILTIN,	GAWKX,		do_or,	MPF(or)},
@@ -1926,6 +2168,7 @@ static const struct token tokentab[] = {
 {"systime",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(0),	do_systime,	0},
 {"tolower",	Op_builtin,	 LEX_BUILTIN,	NOT_OLD|A(1),	do_tolower,	0},
 {"toupper",	Op_builtin,	 LEX_BUILTIN,	NOT_OLD|A(1),	do_toupper,	0},
+{"typeof",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(1),	do_typeof,	0},
 {"while",	Op_K_while,	 LEX_WHILE,	BREAK|CONTINUE,	0,	0},
 {"xor",		Op_builtin,    LEX_BUILTIN,	GAWKX,		do_xor,	MPF(xor)},
 };
@@ -1951,7 +2194,7 @@ getfname(NODE *(*fptr)(int))
 
 	j = sizeof(tokentab) / sizeof(tokentab[0]);
 	/* linear search, no other way to do it */
-	for (i = 0; i < j; i++) 
+	for (i = 0; i < j; i++)
 		if (tokentab[i].ptr == fptr || tokentab[i].ptr2 == fptr)
 			return tokentab[i].operator;
 
@@ -1966,6 +2209,8 @@ negate_num(NODE *n)
 #ifdef HAVE_MPFR
 	int tval = 0;
 #endif
+
+	add_sign_to_num(n, '-');
 
 	if (! is_mpg_number(n)) {
 		n->numbr = -n->numbr;
@@ -1999,6 +2244,21 @@ negate_num(NODE *n)
 #endif
 }
 
+/* add_sign_to_num --- make a constant unary plus or minus for profiling */
+
+static void
+add_sign_to_num(NODE *n, char sign)
+{
+	if ((n->flags & NUMCONSTSTR) != 0) {
+		char *s;
+
+		s = n->stptr;
+		memmove(& s[1], & s[0], n->stlen + 1);
+		s[0] = sign;
+		n->stlen++;
+	}
+}
+
 /* print_included_from --- print `Included from ..' file names and locations */
 
 static void
@@ -2007,7 +2267,7 @@ print_included_from()
 	int saveline, line;
 	SRCFILE *s;
 
-	/* suppress current file name, line # from `.. included from ..' msgs */ 
+	/* suppress current file name, line # from `.. included from ..' msgs */
 	saveline = sourceline;
 	sourceline = 0;
 
@@ -2101,7 +2361,6 @@ yyerror(const char *m, ...)
 	char *buf;
 	int count;
 	static char end_of_file_line[] = "(END OF FILE)";
-	char save;
 
 	print_included_from();
 
@@ -2132,25 +2391,16 @@ yyerror(const char *m, ...)
 		bp = thisline + strlen(thisline);
 	}
 
-	/*
-	 * Saving and restoring *bp keeps valgrind happy,
-	 * since the guts of glibc uses strlen, even though
-	 * we're passing an explict precision. Sigh.
-	 *
-	 * 8/2003: We may not need this anymore.
-	 */
-	save = *bp;
-	*bp = '\0';
-
 	msg("%.*s", (int) (bp - thisline), thisline);
 
-	*bp = save;
 	va_start(args, m);
 	if (mesg == NULL)
 		mesg = m;
 
-	count = (bp - thisline) + strlen(mesg) + 2 + 1;
-	emalloc(buf, char *, count, "yyerror");
+	count = strlen(mesg) + 1;
+	if (lexptr != NULL)
+		count += (lexeme - thisline) + 2;
+	ezalloc(buf, char *, count+1, "yyerror");
 
 	bp = buf;
 
@@ -2217,7 +2467,7 @@ mk_program()
 
 	if (prog_block == NULL) {
 		if (end_block->nexti == end_block->lasti
-				&& beginfile_block->nexti == beginfile_block->lasti 
+				&& beginfile_block->nexti == beginfile_block->lasti
 				&& endfile_block->nexti == endfile_block->lasti
 		) {
 			/* no pattern-action and (real) end, beginfile or endfile blocks */
@@ -2232,6 +2482,11 @@ mk_program()
 				cp = end_block;
 			else
 				cp = list_merge(begin_block, end_block);
+			if (program_comment != NULL) {
+				(void) list_prepend(cp, program_comment);
+			}
+			if (comment != NULL)
+				(void) list_append(cp, comment);
 			(void) list_append(cp, ip_atexit);
 			(void) list_append(cp, instruction(Op_stop));
 
@@ -2254,7 +2509,7 @@ mk_program()
 	(void) list_prepend(prog_block, ip_rec);
 	(void) list_append(prog_block, instruction(Op_jmp));
 	prog_block->lasti->target_jmp = ip_rec;
-		
+
 	list_append(beginfile_block, instruction(Op_after_beginfile));
 
 	cp = list_merge(beginfile_block, prog_block);
@@ -2264,6 +2519,12 @@ mk_program()
 	if (begin_block != NULL)
 		cp = list_merge(begin_block, cp);
 
+	if (program_comment != NULL) {
+		(void) list_prepend(cp, program_comment);
+	}
+	if (comment != NULL) {
+		(void) list_append(cp, comment);
+	}
 	(void) list_append(cp, ip_atexit);
 	(void) list_append(cp, instruction(Op_stop));
 
@@ -2271,13 +2532,17 @@ out:
 	/* delete the Op_list, not needed */
 	tmp = cp->nexti;
 	bcfree(cp);
+	/* these variables are not used again but zap them anyway.  */
+	comment = NULL;
+	function_comment = NULL;
+	program_comment = NULL;
 	return tmp;
 
 #undef begin_block
 #undef end_block
 #undef prog_block
 #undef beginfile_block
-#undef endfile_block 
+#undef endfile_block
 }
 
 /* parse_program --- read in the program and convert into a list of instructions */
@@ -2297,7 +2562,7 @@ parse_program(INSTRUCTION **pcode)
 		ip_newfile = ip_rec = ip_atexit = ip_beginfile = ip_endfile = NULL;
 	else {
 		ip_endfile = instruction(Op_no_op);
-		ip_beginfile = instruction(Op_no_op);
+		main_beginfile = ip_beginfile = instruction(Op_no_op);
 		ip_rec = instruction(Op_get_record); /* target for `next', also ip_newfile */
 		ip_newfile = bcalloc(Op_newfile, 2, 0); /* target for `nextfile' */
 		ip_newfile->target_jmp = ip_end;
@@ -2354,8 +2619,7 @@ do_add_srcfile(enum srctype stype, char *src, char *path, SRCFILE *thisfile)
 {
 	SRCFILE *s;
 
-	emalloc(s, SRCFILE *, sizeof(SRCFILE), "do_add_srcfile");
-	memset(s, 0, sizeof(SRCFILE));
+	ezalloc(s, SRCFILE *, sizeof(SRCFILE), "do_add_srcfile");
 	s->src = estrdup(src, strlen(src));
 	s->fullpath = path;
 	s->stype = stype;
@@ -2428,7 +2692,7 @@ add_srcfile(enum srctype stype, char *src, SRCFILE *thisfile, bool *already_incl
 					*already_included = true;
 				return NULL;
 			} else {
-				/* duplicates are allowed for -f */ 
+				/* duplicates are allowed for -f */
 				if (s->stype == SRC_INC)
 					fatal(_("can't include `%s' and use it as a program file"), src);
 				/* no need to scan for further matches, since
@@ -2479,11 +2743,11 @@ include_source(INSTRUCTION *file)
 	sourcefile->srclines = sourceline;
 	sourcefile->lexptr = lexptr;
 	sourcefile->lexend = lexend;
-	sourcefile->lexptr_begin = lexptr_begin;        
+	sourcefile->lexptr_begin = lexptr_begin;
 	sourcefile->lexeme = lexeme;
 	sourcefile->lasttok = lasttok;
 
-	/* included file becomes the current source */ 
+	/* included file becomes the current source */
 	sourcefile = s;
 	lexptr = NULL;
 	sourceline = 0;
@@ -2768,7 +3032,7 @@ get_src_buf()
 		lexend = lexptr + n;
 		if (n == 0) {
 			static bool warned = false;
-			if (do_lint && newfile && ! warned){
+			if (do_lint && newfile && ! warned) {
 				warned = true;
 				sourceline = 0;
 				lintwarn(_("source file `%s' is empty"), source);
@@ -2790,7 +3054,7 @@ tokexpand()
 {
 	static int toksize;
 	int tokoffset;
-			
+
 	if (tokstart != NULL) {
 		tokoffset = tok - tokstart;
 		toksize *= 2;
@@ -2840,8 +3104,17 @@ nextc(bool check_for_bad)
 {
 	if (gawk_mb_cur_max > 1) {
 again:
+#ifdef NO_CONTINUE_SOURCE_STRINGS
 		if (lexeof)
 			return END_FILE;
+#else
+		if (lexeof) {
+			if (sourcefile->next == srcfiles)
+				return END_FILE;
+			else
+				next_sourcefile();
+		}
+#endif
 		if (lexptr == NULL || lexptr >= lexend) {
 			if (get_src_buf())
 				goto again;
@@ -2858,8 +3131,8 @@ again:
 			int idx, work_ring_idx = cur_ring_idx;
 			mbstate_t tmp_state;
 			size_t mbclen;
-	
-			for (idx = 0 ; lexptr + idx < lexend ; idx++) {
+
+			for (idx = 0; lexptr + idx < lexend; idx++) {
 				tmp_state = cur_mbstate;
 				mbclen = mbrlen(lexptr, idx + 1, &tmp_state);
 
@@ -2893,8 +3166,17 @@ again:
 		return (int) (unsigned char) *lexptr++;
 	} else {
 		do {
+#ifdef NO_CONTINUE_SOURCE_STRINGS
 			if (lexeof)
 				return END_FILE;
+#else
+			if (lexeof) {
+				if (sourcefile->next == srcfiles)
+					return END_FILE;
+				else
+					next_sourcefile();
+			}
+#endif
 			if (lexptr && lexptr < lexend) {
 				if (check_for_bad || *lexptr == '\0')
 					check_bad_char(*lexptr);
@@ -2916,6 +3198,122 @@ pushback(void)
 	(! lexeof && lexptr && lexptr > lexptr_begin ? lexptr-- : lexptr);
 }
 
+/* check_comment --- check for block comment */
+
+void
+check_comment(void)
+{
+	if (comment != NULL) {
+		if (first_rule) {
+			program_comment = comment;
+		} else
+			block_comment = comment;
+		comment = NULL;
+	}
+	first_rule = false;
+}
+
+/*
+ * get_comment --- collect comment text.
+ * 	Flag = EOL_COMMENT for end-of-line comments.
+ * 	Flag = FULL_COMMENT for self-contained comments.
+ */
+
+int
+get_comment(int flag)
+{
+	int c;
+	int sl;
+	tok = tokstart;
+	tokadd('#');
+	sl = sourceline;
+	char *p1;
+	char *p2;
+
+	while (true) {
+		while ((c = nextc(false)) != '\n' && c != END_FILE) {
+			/* ignore \r characters */
+			if (c != '\r')
+				tokadd(c);
+		}
+		if (flag == EOL_COMMENT) {
+			/* comment at end of line.  */
+			if (c == '\n')
+				tokadd(c);
+			break;
+		}
+		if (c == '\n') {
+			tokadd(c);
+			sourceline++;
+			do {
+				c = nextc(false);
+				if (c == '\n') {
+					sourceline++;
+					tokadd(c);
+				}
+			} while (isspace(c) && c != END_FILE);
+			if (c == END_FILE)
+				break;
+			else if (c != '#') {
+				pushback();
+				sourceline--;
+				break;
+			} else
+				tokadd(c);
+		} else
+			break;
+	}
+
+	if (comment != NULL)
+		prior_comment = comment;
+
+	/* remove any trailing blank lines (consecutive \n) from comment */
+	p1 = tok - 1;
+	p2 = tok - 2;
+	while (*p1 == '\n' && *p2 == '\n') {
+		p1--;
+		p2--;
+		tok--;
+	}
+
+	comment = bcalloc(Op_comment, 1, sl);
+	comment->source_file = source;
+	comment->memory = make_str_node(tokstart, tok - tokstart, 0);
+	comment->memory->comment_type = flag;
+
+	return c;
+}
+
+/* split_comment --- split initial comment text into program and function parts */
+
+static void
+split_comment(void)
+{
+	char *p;
+	int l;
+	NODE *n;
+
+	p = comment_to_save->memory->stptr;
+	l = comment_to_save->memory->stlen - 3;
+	/* have at least two comments so split at last blank line (\n\n)  */
+	while (l >= 0) {
+		if (p[l] == '\n' && p[l+1] == '\n') {
+			function_comment = comment_to_save;
+			n = function_comment->memory;
+			function_comment->memory = make_string(p + l + 2, n->stlen - l - 2);
+			/* create program comment  */
+			program_comment = bcalloc(Op_comment, 1, sourceline);
+			program_comment->source_file = comment_to_save->source_file;
+			p[l + 2] = 0;
+			program_comment->memory = make_str_node(p, l + 2, 0);
+			comment_to_save = NULL;
+			freenode(n);
+			break;
+		}
+		else
+			l--;
+	}
+}
 
 /* allow_newline --- allow newline after &&, ||, ? and : */
 
@@ -2931,8 +3329,13 @@ allow_newline(void)
 			break;
 		}
 		if (c == '#') {
-			while ((c = nextc(false)) != '\n' && c != END_FILE)
-				continue;
+			if (do_pretty_print && ! do_profile) {
+			/* collect comment byte code iff doing pretty print but not profiling.  */
+				c = get_comment(EOL_COMMENT);
+			} else {
+				while ((c = nextc(false)) != '\n' && c != END_FILE)
+					continue;
+			}
 			if (c == END_FILE) {
 				pushback();
 				break;
@@ -2955,7 +3358,8 @@ allow_newline(void)
  * removes the warnings.
  */
 
-static int newline_eof()
+static int
+newline_eof()
 {
 	/* NB: a newline at end does not start a source line. */
 	if (lasttok != NEWLINE) {
@@ -2993,6 +3397,7 @@ yylex(void)
 	bool inhex = false;
 	bool intlstr = false;
 	AWKNUM d;
+	bool collecting_typed_regexp = false;
 
 #define GET_INSTRUCTION(op) bcalloc(op, 1, sourceline)
 
@@ -3003,7 +3408,7 @@ yylex(void)
 		lasttok = 0;
 		return SUBSCRIPT;
 	}
- 
+
 	if (lasttok == LEX_EOF)		/* error earlier in current source, must give up !! */
 		return 0;
 
@@ -3027,6 +3432,8 @@ yylex(void)
 
 	lexeme = lexptr;
 	thisline = NULL;
+
+collect_regexp:
 	if (want_regexp) {
 		int in_brack = 0;	/* count brackets, [[:alnum:]] allowed */
 		int b_index = -1;
@@ -3037,7 +3444,7 @@ yylex(void)
 		 *
 		 * [..[..] []] [^]] [.../...]
 		 * [...\[...] [...\]...] [...\/...]
-		 * 
+		 *
 		 * (Remember that all of the above are inside /.../)
 		 *
 		 * The code for \ handles \[, \] and \/.
@@ -3066,7 +3473,7 @@ yylex(void)
 				break;
 			case ']':
 				if (in_brack > 0
-				    && (cur_index == b_index + 1 
+				    && (cur_index == b_index + 1
 					|| (cur_index == b_index + 2 && tok[-1] == '^')))
 					; /* do nothing */
 				else {
@@ -3113,7 +3520,13 @@ end_regexp:
 								peek);
 					}
 				}
-				return lasttok = REGEXP;
+				if (collecting_typed_regexp) {
+					collecting_typed_regexp = false;
+					lasttok = TYPED_REGEXP;
+				} else
+					lasttok = REGEXP;
+
+				return lasttok;
 			case '\n':
 				pushback();
 				yyerror(_("unterminated regexp"));
@@ -3149,21 +3562,42 @@ retry:
 		return lasttok = NEWLINE;
 
 	case '#':		/* it's a comment */
-		while ((c = nextc(false)) != '\n') {
+		if (do_pretty_print && ! do_profile) {
+			/*
+			 * Collect comment byte code iff doing pretty print
+			 * but not profiling.
+			 */
+			if (lasttok == NEWLINE || lasttok == 0)
+				c = get_comment(FULL_COMMENT);
+			else
+				c = get_comment(EOL_COMMENT);
+
 			if (c == END_FILE)
 				return lasttok = NEWLINE_EOF;
+		} else {
+			while ((c = nextc(false)) != '\n') {
+				if (c == END_FILE)
+					return lasttok = NEWLINE_EOF;
+			}
 		}
 		sourceline++;
 		return lasttok = NEWLINE;
 
 	case '@':
+		c = nextc(true);
+		if (c == '/') {
+			want_regexp = true;
+			collecting_typed_regexp = true;
+			goto collect_regexp;
+		}
+		pushback();
 		at_seen = true;
 		return lasttok = '@';
 
 	case '\\':
 #ifdef RELAXED_CONTINUATION
 		/*
-		 * This code puports to allow comments and/or whitespace
+		 * This code purports to allow comments and/or whitespace
 		 * after the `\' at the end of a line used for continuation.
 		 * Use it at your own risk. We think it's a bad idea, which
 		 * is why it's not on by default.
@@ -3180,9 +3614,13 @@ retry:
 					lintwarn(
 		_("use of `\\ #...' line continuation is not portable"));
 				}
-				while ((c = nextc(false)) != '\n')
-					if (c == END_FILE)
-						break;
+				if (do_pretty_print && ! do_profile)
+					c = get_comment(EOL_COMMENT);
+				else {
+					while ((c = nextc(false)) != '\n')
+						if (c == END_FILE)
+							break;
+				}
 			}
 			pushback();
 		}
@@ -3214,7 +3652,7 @@ retry:
 		in_parens--;
 		return lasttok = c;
 
-	case '(':	
+	case '(':
 		in_parens++;
 		return lasttok = c;
 	case '$':
@@ -3317,7 +3755,7 @@ retry:
 			did_warn_op = true;
 			warning(_("operator `^' is not supported in old awk"));
 		}
-		yylval = GET_INSTRUCTION(Op_exp);	
+		yylval = GET_INSTRUCTION(Op_exp);
 		return lasttok = '^';
 	}
 
@@ -3398,7 +3836,7 @@ retry:
 				lastline = sourceline;
 			return lasttok = c;
 		}
-		did_newline++;
+		did_newline = true;
 		--lexptr;	/* pick up } next time */
 		return lasttok = NEWLINE;
 
@@ -3440,7 +3878,7 @@ retry:
 			yylval->lextok = estrdup(tokstart, tok - tokstart);
 			return lasttok = FILENAME;
 		}
-		
+
 		yylval->opcode = Op_push_i;
 		yylval->memory = make_str_node(tokstart,
 					tok - tokstart, esc_seen ? SCAN : 0);
@@ -3579,7 +4017,7 @@ retry:
 
 		base = 10;
 		if (! do_traditional) {
-			base = get_numbase(tokstart, false);
+			base = get_numbase(tokstart, strlen(tokstart)-1, false);
 			if (do_lint) {
 				if (base == 8)
 					lintwarn("numeric constant `%.*s' treated as octal",
@@ -3605,15 +4043,15 @@ retry:
 				errno = 0;
 				IEEE_FMT(r->mpg_numbr, tval);
 			}
-			yylval->memory = r;
+			yylval->memory = set_profile_text(r, tokstart, strlen(tokstart)-1);
 			return lasttok = YNUMBER;
 		}
 #endif
 		if (base != 10)
-			d = nondec2awknum(tokstart, strlen(tokstart));
+			d = nondec2awknum(tokstart, strlen(tokstart)-1, NULL);
 		else
 			d = atof(tokstart);
-		yylval->memory = make_number(d);
+		yylval->memory = set_profile_text(make_number(d), tokstart, strlen(tokstart) - 1);
 		if (d <= INT32_MAX && d >= INT32_MIN && d == (int32_t) d)
 			yylval->memory->flags |= NUMINT;
 		return lasttok = YNUMBER;
@@ -3650,7 +4088,7 @@ retry:
 		}
 	}
 
-	if (c != '_' && ! is_alpha(c)) {
+	if (! is_letter(c)) {
 		yyerror(_("invalid char '%c' in expression"), c);
 		return lasttok = LEX_EOF;
 	}
@@ -3696,6 +4134,33 @@ retry:
 				&& lasttok != '@')
 			goto out;
 
+		/* allow parameter names to shadow the names of gawk extension built-ins */
+		if ((tokentab[mid].flags & GAWKX) != 0) {
+			NODE *f;
+
+			switch (want_param_names) {
+			case FUNC_HEADER:
+				/* in header, defining parameter names */
+				goto out;
+			case FUNC_BODY:
+				/* in body, name must be in symbol table for it to be a parameter */
+				if ((f = lookup(tokstart)) != NULL) {
+					if (f->type == Node_builtin_func)
+						break;
+					else
+						goto out;
+				}
+				/* else
+					fall through */
+			case DONT_CHECK:
+				/* regular code */
+				break;
+			default:
+				cant_happen();
+				break;
+			}
+		}
+
 		if (do_lint) {
 			if ((tokentab[mid].flags & GAWKX) != 0 && (warntab[mid] & GAWKX) == 0) {
 				lintwarn(_("`%s' is a gawk extension"),
@@ -3740,7 +4205,7 @@ retry:
 		case LEX_BEGIN:
 		case LEX_END:
 		case LEX_BEGINFILE:
-		case LEX_ENDFILE:		
+		case LEX_ENDFILE:
 			yylval = bcalloc(tokentab[mid].value, 3, sourceline);
 			break;
 
@@ -3789,7 +4254,7 @@ out:
 	tokkey = estrdup(tokstart, tok - tokstart);
 	if (*lexptr == '(') {
 		yylval = bcalloc(Op_token, 2, sourceline);
-		yylval->lextok = tokkey;	
+		yylval->lextok = tokkey;
 		return lasttok = FUNC_CALL;
 	} else {
 		static bool goto_warned = false;
@@ -3865,7 +4330,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 			nexp++;
 		}
 		assert(nexp > 0);
-	}		
+	}
 
 	/* check against how many args. are allowed for this builtin */
 	args_allowed = tokentab[idx].flags & ARGS;
@@ -3896,7 +4361,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 				INSTRUCTION *expr;
 
 				expr = list_create(instruction(Op_push_i));
-				expr->nexti->memory = make_number(0.0);
+				expr->nexti->memory = set_profile_text(make_number(0.0), "0", 1);
 				(void) mk_expression_list(subn,
 						list_append(expr, instruction(Op_field_spec)));
 			}
@@ -3936,7 +4401,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 				subn->lasti->assign_ctxt = Op_sub_builtin;
 			}
 
-			return subn;	
+			return subn;
 
 		} else {
 			/* gensub */
@@ -3944,7 +4409,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 			r->sub_flags |= GENSUB;
 			if (nexp == 3) {
 				ip = instruction(Op_push_i);
-				ip->memory = make_number(0.0);
+				ip->memory = set_profile_text(make_number(0.0), "0", 1);
 				(void) mk_expression_list(subn,
 						list_append(list_create(ip), instruction(Op_field_spec)));
 			}
@@ -3955,7 +4420,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 	}
 
 #ifdef HAVE_MPFR
-	/* N.B.: There isn't any special processing for an alternate function below */
+	/* N.B.: If necessary, add special processing for alternate builtin, below */
 	if (do_mpfr && tokentab[idx].ptr2)
 		r->builtin =  tokentab[idx].ptr2;
 	else
@@ -3965,25 +4430,36 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 	/* special case processing for a few builtins */
 
 	if (r->builtin == do_length) {
-		if (nexp == 0) {		
+		if (nexp == 0) {
 		    /* no args. Use $0 */
 
 			INSTRUCTION *list;
-			r->expr_count = 1;			
+			r->expr_count = 1;
 			list = list_create(r);
 			(void) list_prepend(list, instruction(Op_field_spec));
 			(void) list_prepend(list, instruction(Op_push_i));
-			list->nexti->memory = make_number(0.0);
-			return list; 
+			list->nexti->memory = set_profile_text(make_number(0.0), "0", 1);
+			return list;
 		} else {
 			arg = subn->nexti;
 			if (arg->nexti == arg->lasti && arg->nexti->opcode == Op_push)
 				arg->nexti->opcode = Op_push_arg;	/* argument may be array */
  		}
-	} else if (r->builtin == do_isarray) {
+	} else if (r->builtin == do_isarray || r->builtin == do_typeof) {
 		arg = subn->nexti;
 		if (arg->nexti == arg->lasti && arg->nexti->opcode == Op_push)
-			arg->nexti->opcode = Op_push_arg;	/* argument may be array */
+			arg->nexti->opcode = Op_push_arg_untyped;	/* argument may be untyped */
+#ifdef SUPPLY_INTDIV
+	} else if (r->builtin == do_intdiv
+#ifdef HAVE_MPFR
+		   || r->builtin == MPF(intdiv)
+#endif
+			) {
+		arg = subn->nexti->lasti->nexti->lasti->nexti;	/* 3rd arg list */
+		ip = arg->lasti;
+		if (ip->opcode == Op_push)
+			ip->opcode = Op_push_array;
+#endif /* SUPPLY_INTDIV */
 	} else if (r->builtin == do_match) {
 		static bool warned = false;
 
@@ -4060,7 +4536,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 	} else if (do_intl					/* --gen-po */
 			&& r->builtin == do_dcgettext		/* dcgettext(...) */
 			&& subn->nexti->lasti->opcode == Op_push_i	/* 1st arg is constant */
-			&& (subn->nexti->lasti->memory->flags & STRCUR) != 0) {	/* it's a string constant */
+			&& (subn->nexti->lasti->memory->flags & STRING) != 0) {	/* it's a string constant */
 		/* ala xgettext, dcgettext("some string" ...) dumps the string */
 		NODE *str = subn->nexti->lasti->memory;
 
@@ -4072,9 +4548,9 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 	} else if (do_intl					/* --gen-po */
 			&& r->builtin == do_dcngettext		/* dcngettext(...) */
 			&& subn->nexti->lasti->opcode == Op_push_i	/* 1st arg is constant */
-			&& (subn->nexti->lasti->memory->flags & STRCUR) != 0	/* it's a string constant */
+			&& (subn->nexti->lasti->memory->flags & STRING) != 0	/* it's a string constant */
 			&& subn->nexti->lasti->nexti->lasti->opcode == Op_push_i	/* 2nd arg is constant too */
-			&& (subn->nexti->lasti->nexti->lasti->memory->flags & STRCUR) != 0) {	/* it's a string constant */
+			&& (subn->nexti->lasti->nexti->lasti->memory->flags & STRING) != 0) {	/* it's a string constant */
 		/* ala xgettext, dcngettext("some string", "some plural" ...) dumps the string */
 		NODE *str1 = subn->nexti->lasti->memory;
 		NODE *str2 = subn->nexti->lasti->nexti->lasti->memory;
@@ -4169,22 +4645,12 @@ valinfo(NODE *n, Func_print print_func, FILE *fp)
 {
 	if (n == Nnull_string)
 		print_func(fp, "uninitialized scalar\n");
+	else if ((n->flags & REGEX) != 0)
+		print_func(fp, "@/%.*s/\n", n->stlen, n->stptr);
 	else if ((n->flags & STRING) != 0) {
 		pp_string_fp(print_func, fp, n->stptr, n->stlen, '"', false);
 		print_func(fp, "\n");
 	} else if ((n->flags & NUMBER) != 0) {
-#ifdef HAVE_MPFR
-		if (is_mpg_float(n))
-			print_func(fp, "%s\n", mpg_fmt("%.17R*g", ROUND_MODE, n->mpg_numbr));
-		else if (is_mpg_integer(n))
-			print_func(fp, "%s\n", mpg_fmt("%Zd", n->mpg_i));
-		else
-#endif
-		print_func(fp, "%.17g\n", n->numbr);
-	} else if ((n->flags & STRCUR) != 0) {
-		pp_string_fp(print_func, fp, n->stptr, n->stlen, '"', false);
-		print_func(fp, "\n");
-	} else if ((n->flags & NUMCUR) != 0) {
 #ifdef HAVE_MPFR
 		if (is_mpg_float(n))
 			print_func(fp, "%s\n", mpg_fmt("%.17R*g", ROUND_MODE, n->mpg_numbr));
@@ -4281,6 +4747,14 @@ mk_function(INSTRUCTION *fi, INSTRUCTION *def)
 			(t + 1)->tail_call = true;
 	}
 
+	/* add any pre-function comment to start of action for profile.c  */
+
+	if (function_comment != NULL) {
+		function_comment->source_line = 0;
+		(void) list_prepend(def, function_comment);
+		function_comment = NULL;
+	}
+
 	/* add an implicit return at end;
 	 * also used by 'return' command in debugger
 	 */
@@ -4310,7 +4784,7 @@ mk_function(INSTRUCTION *fi, INSTRUCTION *def)
 	return fi;
 }
 
-/* 
+/*
  * install_function:
  * install function name in the symbol table.
  * Extra work, build up and install a list of the parameter names.
@@ -4334,7 +4808,7 @@ install_function(char *fname, INSTRUCTION *fi, INSTRUCTION *plist)
 	fi->func_body = f;
 	f->param_cnt = pcount;
 	f->code_ptr = fi;
-	f->fparms = NULL; 
+	f->fparms = NULL;
 	if (pcount > 0) {
 		char **pnames;
 		pnames = check_params(fname, pcount, plist);	/* frees plist */
@@ -4391,7 +4865,7 @@ check_params(char *fname, int pcount, INSTRUCTION *list)
 	}
 	bcfree(list);
 
-	return pnames; 
+	return pnames;
 }
 
 
@@ -4399,7 +4873,7 @@ check_params(char *fname, int pcount, INSTRUCTION *list)
 undef HASHSIZE
 #endif
 #define HASHSIZE 1021
- 
+
 static struct fdesc {
 	char *name;
 	short used;
@@ -4426,8 +4900,7 @@ func_use(const char *name, enum defref how)
 
 	/* not in the table, fall through to allocate a new one */
 
-	emalloc(fp, struct fdesc *, sizeof(struct fdesc), "func_use");
-	memset(fp, '\0', sizeof(struct fdesc));
+	ezalloc(fp, struct fdesc *, sizeof(struct fdesc), "func_use");
 	emalloc(fp->name, char *, len + 1, "func_use");
 	strcpy(fp->name, name);
 	fp->next = ftable[ind];
@@ -4461,7 +4934,7 @@ check_funcs()
 
 	if (! in_main_context())
 		goto free_mem;
- 
+
 	for (i = 0; i < HASHSIZE; i++) {
 		for (fp = ftable[i]; fp != NULL; fp = fp->next) {
 #ifdef REALLYMEAN
@@ -4542,14 +5015,21 @@ make_regnode(int type, NODE *exp)
 {
 	NODE *n;
 
+	assert(type == Node_regex || type == Node_dynregex);
 	getnode(n);
 	memset(n, 0, sizeof(NODE));
 	n->type = type;
 	n->re_cnt = 1;
 
 	if (type == Node_regex) {
-		n->re_reg = make_regexp(exp->stptr, exp->stlen, false, true, false);
-		if (n->re_reg == NULL) {
+		n->re_reg[0] = make_regexp(exp->stptr, exp->stlen, false, true, false);
+		if (n->re_reg[0] == NULL) {
+			freenode(n);
+			return NULL;
+		}
+		n->re_reg[1] = make_regexp(exp->stptr, exp->stlen, true, true, false);
+		if (n->re_reg[1] == NULL) {
+			refree(n->re_reg[0]);
 			freenode(n);
 			return NULL;
 		}
@@ -4570,6 +5050,8 @@ mk_rexp(INSTRUCTION *list)
 	ip = list->nexti;
 	if (ip == list->lasti && ip->opcode == Op_match_rec)
 		ip->opcode = Op_push_re;
+	else if (ip == list->lasti && ip->opcode == Op_push_re)
+		; /* do nothing --- @/.../ */
 	else {
 		ip = instruction(Op_push_re);
 		ip->memory = make_regnode(Node_dynregex, NULL);
@@ -4764,6 +5246,8 @@ mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 			}
 
 			op->opcode = Op_push_i;
+			// We don't need to call set_profile_text() here since
+			// optimizing is disabled when doing pretty printing.
 			op->memory = make_number(res);
 			unref(n1);
 			unref(n2);
@@ -4796,7 +5280,7 @@ mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 				break;
 			default:
 				goto regular;
-			}	
+			}
 
 			op->memory = ip2->memory;
 			bcfree(ip2);
@@ -4812,7 +5296,7 @@ regular:
 }
 
 /* mk_boolean --- instructions for boolean and, or */
- 
+
 static INSTRUCTION *
 mk_boolean(INSTRUCTION *left, INSTRUCTION *right, INSTRUCTION *op)
 {
@@ -4840,7 +5324,7 @@ mk_boolean(INSTRUCTION *left, INSTRUCTION *right, INSTRUCTION *op)
 		right->lasti->target_stmt = left->lasti;
 	} else {		/* optimization for x || y || z || ... */
 		INSTRUCTION *ip;
-		
+
 		op->opcode = final_opc;
 		(void) list_append(right, op);
 		op->target_stmt = tp;
@@ -4877,7 +5361,7 @@ mk_condition(INSTRUCTION *cond, INSTRUCTION *ifp, INSTRUCTION *true_branch,
 	 *
 	 *    ----------------
 	 *    [Op_jmp y]
-	 *    ---------------- 
+	 *    ----------------
 	 * f:
 	 *      false_branch
 	 *    ----------------
@@ -4985,7 +5469,11 @@ append_rule(INSTRUCTION *pattern, INSTRUCTION *action)
 		(rp + 1)->lasti = action->lasti;
 		(rp + 2)->first_line = pattern->source_line;
 		(rp + 2)->last_line = lastline;
-		ip = list_prepend(action, rp);
+		if (block_comment != NULL) {
+			ip = list_prepend(list_prepend(action, block_comment), rp);
+			block_comment = NULL;
+		} else
+			ip = list_prepend(action, rp);
 
 	} else {
 		rp = bcalloc(Op_rule, 3, 0);
@@ -5027,7 +5515,6 @@ append_rule(INSTRUCTION *pattern, INSTRUCTION *action)
 						action),
 					tp);
 		}
-
 	}
 
 	list_append(rule_list, rp + 1);
@@ -5036,7 +5523,7 @@ append_rule(INSTRUCTION *pattern, INSTRUCTION *action)
 		rule_block[rule] = ip;
 	else
 		(void) list_merge(rule_block[rule], ip);
-	
+
 	return rule_block[rule];
 }
 
@@ -5058,7 +5545,7 @@ mk_assignment(INSTRUCTION *lhs, INSTRUCTION *rhs, INSTRUCTION *op)
 		break;
 	case Op_push:
 	case Op_push_array:
-		tp->opcode = Op_push_lhs; 
+		tp->opcode = Op_push_lhs;
 		break;
 	case Op_field_assign:
 		yyerror(_("cannot assign a value to the result of a field post-increment expression"));
@@ -5113,7 +5600,7 @@ optimize_assignment(INSTRUCTION *exp)
 	 *   Replaces Op_push_array + Op_subscript_lhs + Op_assign + Op_pop
 	 *   with single instruction Op_store_sub.
 	 *	 Limitation: 1 dimension and sub is simple var/value.
-	 * 
+	 *
 	 * 2) Simple variable assignment var = x:
 	 *   Replaces Op_push_lhs + Op_assign + Op_pop with Op_store_var.
 	 *
@@ -5137,7 +5624,7 @@ optimize_assignment(INSTRUCTION *exp)
 	i1 = exp->lasti;
 
 	if (   i1->opcode != Op_assign
-	    && i1->opcode != Op_field_assign) 
+	    && i1->opcode != Op_field_assign)
 		return list_append(exp, instruction(Op_pop));
 
 	for (i2 = exp->nexti; i2 != i1; i2 = i2->nexti) {
@@ -5212,7 +5699,7 @@ optimize_assignment(INSTRUCTION *exp)
                                           * so use expr_count instead.
 				                          */
 					i3->nexti = NULL;
-					i2->opcode = Op_no_op;					
+					i2->opcode = Op_no_op;
 					bcfree(i1);          /* Op_assign */
 					exp->lasti = i3;     /* update Op_list */
 					return exp;
@@ -5235,7 +5722,7 @@ optimize_assignment(INSTRUCTION *exp)
 					&& (i3->memory->flags & INTLSTR) == 0
 					&& i3->nexti == i2
 				) {
-					/* constant initializer */ 
+					/* constant initializer */
 					i2->initval = i3->memory;
 					bcfree(i3);
 					exp->nexti = i2;
@@ -5271,7 +5758,7 @@ mk_getline(INSTRUCTION *op, INSTRUCTION *var, INSTRUCTION *redir, int redirtype)
 	 *  [ file (simp_exp)]
 	 *  [ [ var ] ]
 	 *  [ Op_K_getline_redir|NULL|redir_type|into_var]
-	 *  [ [var_assign] ] 
+	 *  [ [var_assign] ]
 	 *
 	 */
 
@@ -5280,7 +5767,7 @@ mk_getline(INSTRUCTION *op, INSTRUCTION *var, INSTRUCTION *redir, int redirtype)
 		bcfree(op);
 		op = bcalloc(Op_K_getline, 2, sline);
 		(op + 1)->target_endfile = ip_endfile;
-		(op + 1)->target_beginfile = ip_beginfile;	
+		(op + 1)->target_beginfile = ip_beginfile;
 	}
 
 	if (var != NULL) {
@@ -5338,11 +5825,11 @@ mk_for_loop(INSTRUCTION *forp, INSTRUCTION *init, INSTRUCTION *cond,
 	 *   ------------------------
 	 *        body                 (may be NULL)
 	 *   ------------------------
-	 * tc: 
+	 * tc:
 	 *    incr                      (may be NULL)
-	 *    [ Op_jmp x             ] 
+	 *    [ Op_jmp x             ]
 	 *   ------------------------
-	 * tb:[ Op_no_op             ] 
+	 * tb:[ Op_no_op             ]
 	 */
 
 	INSTRUCTION *ip, *tbreak, *tcont;
@@ -5423,12 +5910,22 @@ add_lint(INSTRUCTION *list, LINTTYPE linttype)
 
 	case LINT_no_effect:
 		if (list->lasti->opcode == Op_pop && list->nexti != list->lasti) {
-			for (ip = list->nexti; ip->nexti != list->lasti; ip = ip->nexti)
-				;
+			int line = 0;
+
+			// Get down to the last instruction (FIXME: why?)
+			for (ip = list->nexti; ip->nexti != list->lasti; ip = ip->nexti) {
+				// along the way track line numbers, we will use the line
+				// closest to the opcode if that opcode doesn't have one
+				if (ip->source_line != 0)
+					line = ip->source_line;
+			}
 
 			if (do_lint) {		/* compile-time warning */
-				if (isnoeffect(ip->opcode))
-					lintwarn_ln(ip->source_line, ("statement may have no effect"));
+				if (isnoeffect(ip->opcode)) {
+					if (ip->source_line != 0)
+						line = ip->source_line;
+					lintwarn_ln(line, ("statement may have no effect"));
+				}
 			}
 
 			if (ip->opcode == Op_push) {		/* run-time warning */
@@ -5454,7 +5951,7 @@ mk_expression_list(INSTRUCTION *list, INSTRUCTION *s1)
 	/* we can't just combine all bytecodes, since we need to
 	 * process individual expressions for a few builtins in snode() (-:
 	 */
-	
+
 	/* -- list of lists     */
 	/* [Op_list| ... ]------
 	 *                       |
@@ -5510,7 +6007,7 @@ count_expressions(INSTRUCTION **list, bool isarg)
 			(void) list_merge(r, expr);
 		expr = t2->nexti;
 	}
- 
+
 	assert(count > 0);
 	if (! isarg && count > max_args)
 		max_args = count;
@@ -5595,6 +6092,26 @@ list_merge(INSTRUCTION *l1, INSTRUCTION *l2)
 	l1->lasti = l2->lasti;
 	bcfree(l2);
 	return l1;
+}
+
+/* add_pending_comment --- add a pending comment to a statement */
+
+static inline INSTRUCTION *
+add_pending_comment(INSTRUCTION *stmt)
+{
+	INSTRUCTION *ret = stmt;
+
+	if (prior_comment != NULL) {
+		if (function_comment != prior_comment)
+			ret = list_append(stmt, prior_comment);
+		prior_comment = NULL;
+	} else if (comment != NULL && comment->memory->comment_type == EOL_COMMENT) {
+		if (function_comment != comment)
+			ret = list_append(stmt, comment);
+		comment = NULL;
+	}
+
+	return ret;
 }
 
 /* See if name is a special token. */
@@ -5707,14 +6224,14 @@ lookup_builtin(const char *name)
 		return NULL;
 	}
 
+	/* And another special case... */
+	if (tokentab[mid].value == Op_sub_builtin)
+		return (builtin_func_t) do_sub;
+
 #ifdef HAVE_MPFR
 	if (do_mpfr)
 		return tokentab[mid].ptr2;
 #endif
-
-	/* And another special case... */
-	if (tokentab[mid].value == Op_sub_builtin)
-		return (builtin_func_t) do_sub;
 
 	return tokentab[mid].ptr;
 }
@@ -5756,7 +6273,7 @@ install_builtins(void)
  * The scene of the murder was grisly to look upon.  When the inspector
  * arrived, the sergeant turned to him and said, "Another programmer stabbed
  * in the back. He never knew what happened."
- * 
+ *
  * The inspector replied, "Looks like the MO of isalpha, and his even meaner
  * big brother, isalnum. The Locale brothers."  The sergeant merely
  * shuddered in horror.
@@ -5795,10 +6312,45 @@ is_alnum(int c)
 }
 
 
+/*
+ * is_letter --- function to check letters
+ *	isalpha() isn't good enough since it can look at the locale.
+ * Underscore counts as a letter in awk identifiers
+ */
+
+bool
+is_letter(int c)
+{
+	return (is_alpha(c) || c == '_');
+}
+
 /* is_identchar --- return true if c can be in an identifier */
 
 bool
 is_identchar(int c)
 {
 	return (is_alnum(c) || c == '_');
+}
+
+/* set_profile_text --- make a number that can be printed when profiling */
+
+static NODE *
+set_profile_text(NODE *n, const char *str, size_t len)
+{
+	if (do_pretty_print) {
+		// two extra bytes: one for NUL termination, and another in
+		// case we need to add a leading minus sign in add_sign_to_num
+		emalloc(n->stptr, char *, len + 2, "set_profile_text");
+		memcpy(n->stptr, str, len);
+		n->stptr[len] = '\0';
+		n->stlen = len;
+		// Set STRCUR and n->stfmt for use when profiling
+		// (i.e., actually running the program) so that
+		// force_string() on this item will work ok.
+		// Thanks and a tip of the hatlo to valgrind.
+		n->flags |= (NUMCONSTSTR|STRCUR);
+		n->stfmt = STFMT_UNUSED;
+	}
+
+	return n;
 }

@@ -40,7 +40,6 @@ cos -> builtin
 dcgettext -> builtin
 dcngettext -> builtin
 exp -> builtin
-extension -> builtin
 fflush -> builtin
 function1 -> user
 gensub -> builtin
@@ -71,4 +70,5 @@ system -> builtin
 systime -> builtin
 tolower -> builtin
 toupper -> builtin
+typeof -> builtin
 xor -> builtin

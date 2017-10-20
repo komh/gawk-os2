@@ -1,23 +1,23 @@
 /*
- * awk.h -- Definitions for gawk. 
+ * awk.h -- Definitions for gawk.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -178,9 +178,13 @@ extern void *memset_ulong(void *dest, int val, unsigned long l);
 #define memset memset_ulong
 #endif
 
-#if defined(__EMX__) || defined(__MINGW32__)
+#ifdef HAVE_FWRITE_UNLOCKED
+#define fwrite	fwrite_unlocked
+#endif /* HAVE_FWRITE_UNLOCKED */
+
+#if defined(__DJGPP__) || defined(__EMX__) || defined(__MINGW32__)
 #include "nonposix.h"
-#endif /* defined(__EMX__) || defined(__MINGW32__) */
+#endif /* defined(__DJGPP__) || defined(__EMX__) || defined(__MINGW32__) */
 
 /* use this as lintwarn("...")
    this is a hack but it gives us the right semantics */
@@ -206,11 +210,8 @@ typedef struct Regexp {
 	struct re_pattern_buffer pat;
 	struct re_registers regs;
 	struct dfa *dfareg;
-	short dfa;
-	short has_anchor;	/* speed up of avoid_dfa kludge, temporary */
-	short non_empty;	/* for use in fpat_parse_field */
-	short has_meta;		/* re has meta chars so (probably) isn't simple string */
-	short maybe_long;	/* re has meta chars that can match long text */
+	bool has_meta;		/* re has meta chars so (probably) isn't simple string */
+	bool maybe_long;	/* re has meta chars that can match long text */
 } Regexp;
 #define	RESTART(rp,s)	(rp)->regs.start[0]
 #define	REEND(rp,s)	(rp)->regs.end[0]
@@ -219,6 +220,7 @@ typedef struct Regexp {
 #define	NUMSUBPATS(rp,s)	(rp)->regs.num_regs
 
 /* regexp matching flags: */
+#define RE_NO_FLAGS	0	/* empty flags */
 #define RE_NEED_START	1	/* need to know start/end of match */
 #define RE_NO_BOL	2	/* not allowed to match ^ in regexp */
 
@@ -272,7 +274,6 @@ typedef enum nodevals {
 	Node_param_list,	/* lnode is a variable, rnode is more list */
 	Node_func,		/* lnode is param. list, rnode is body */
 	Node_ext_func,		/* extension function, code_ptr is builtin code */
-	Node_old_ext_func,	/* extension function, code_ptr is builtin code */
 	Node_builtin_func,	/* built-in function, main use is for FUNCTAB */
 
 	Node_array_ref,		/* array passed by ref as parameter */
@@ -341,10 +342,9 @@ typedef struct exp_node {
 			} l;
 			union {
 				struct exp_node *rptr;
-				Regexp *preg;
+				Regexp *preg[2];
 				struct exp_node **av;
 				BUCKET **bv;
-				void *aq;
 				void (*uptr)(void);
 				struct exp_instruction *iptr;
 			} r;
@@ -352,16 +352,14 @@ typedef struct exp_node {
 				struct exp_node *extra;
 				void (*aptr)(void);
 				long xl;
-				char **param_list;
 			} x;
 			char *name;
 			size_t reserved;
 			struct exp_node *rn;
 			unsigned long cnt;
 			unsigned long reflags;
-#				define	CASE		1
-#				define	CONSTANT	2
-#				define	FS_DFLT		4
+#				define	CONSTANT	1
+#				define	FS_DFLT		2
 		} nodep;
 
 		struct {
@@ -372,9 +370,7 @@ typedef struct exp_node {
 				mpz_t mpi;
 			} nm;
 #else
-			AWKNUM fltnum;	/* this is here for optimal packing of
-			             	 * the structure on many machines
-			              	 */
+			AWKNUM fltnum;
 #endif
 			char *sp;
 			size_t slen;
@@ -382,18 +378,19 @@ typedef struct exp_node {
 			int idx;
 			wchar_t *wsp;
 			size_t wslen;
+			struct exp_node *typre;
 		} val;
 	} sub;
 	NODETYPE type;
 	unsigned int flags;
 
-/* any type */
-#		define	MALLOC	0x0001       /* can be free'd */
-
 /* type = Node_val */
 	/*
-	 * STRING and NUMBER are mutually exclusive. They represent the
-	 * type of a value as assigned.
+	 * STRING and NUMBER are mutually exclusive, except for the special
+	 * case of an uninitialized value, represented internally by
+	 * Nnull_string. They represent the type of a value as assigned.
+	 * Nnull_string has both STRING and NUMBER attributes, but all other
+	 * scalar values should have precisely one of these bits set.
 	 *
 	 * STRCUR and NUMCUR are not mutually exclusive. They represent that
 	 * the particular type of value is up to date.  For example,
@@ -406,13 +403,16 @@ typedef struct exp_node {
 	 * 	b = a + 0	# Adds NUMCUR to a, since numeric value
 	 * 			# is now available. But the type hasn't changed!
 	 *
-	 * MAYBE_NUM is the joker.  It means "this is string data, but
-	 * the user may have really wanted it to be a number. If we have
-	 * to guess, like in a comparison, turn it into a number."
+	 * USER_INPUT is the joker.  When STRING|USER_INPUT is set, it means
+	 * "this is string data, but the user may have really wanted it to be a
+	 * number. If we have to guess, like in a comparison, turn it into a
+	 * number if the string is indeed numeric."
 	 * For example,    gawk -v a=42 ....
-	 * Here, `a' gets STRING|STRCUR|MAYBE_NUM and then when used where
+	 * Here, `a' gets STRING|STRCUR|USER_INPUT and then when used where
 	 * a number is needed, it gets turned into a NUMBER and STRING
-	 * is cleared.
+	 * is cleared. In that case, we leave the USER_INPUT in place, so
+	 * the combination NUMBER|USER_INPUT means it is a strnum a.k.a. a
+	 * "numeric string".
 	 *
 	 * WSTRCUR is for efficiency. If in a multibyte locale, and we
 	 * need to do something character based (substr, length, etc.)
@@ -430,35 +430,36 @@ typedef struct exp_node {
 	 *
 	 * We hope that the rest of the flags are self-explanatory. :-)
 	 */
+#		define	MALLOC	0x0001       /* stptr can be free'd, i.e. not a field node pointing into a shared buffer */
 #		define	STRING	0x0002       /* assigned as string */
 #		define	STRCUR	0x0004       /* string value is current */
 #		define	NUMCUR	0x0008       /* numeric value is current */
 #		define	NUMBER	0x0010       /* assigned as number */
-#		define	MAYBE_NUM 0x0020     /* user input: if NUMERIC then
+#		define	USER_INPUT 0x0020    /* user input: if NUMERIC then
 		                              * a NUMBER */
-#		define	FIELD	0x0040       /* this is a field */
-#		define	INTLSTR	0x0080       /* use localized version */
-#		define	NUMINT	0x0100       /* numeric value is an integer */
-#		define	INTIND	0x0200	     /* integral value is array index;
+#		define	INTLSTR	0x0040       /* use localized version */
+#		define	NUMINT	0x0080       /* numeric value is an integer */
+#		define	INTIND	0x0100	     /* integral value is array index;
 		                              * lazy conversion to string.
 		                              */
-#		define	WSTRCUR	0x0400       /* wide str value is current */
-#		define	MPFN	0x0800       /* arbitrary-precision floating-point number */
-#		define	MPZN	0x1000       /* arbitrary-precision integer */
-#		define	NO_EXT_SET 0x2000    /* extension cannot set a value for this variable */
-#		define	NULL_FIELD 0x4000    /* this is the null field */
+#		define	WSTRCUR	0x0200       /* wide str value is current */
+#		define	MPFN	0x0400       /* arbitrary-precision floating-point number */
+#		define	MPZN	0x0800       /* arbitrary-precision integer */
+#		define	NO_EXT_SET 0x1000    /* extension cannot set a value for this variable */
+#		define	NULL_FIELD 0x2000    /* this is the null field */
 
 /* type = Node_var_array */
-#		define	ARRAYMAXED	0x8000       /* array is at max size */
-#		define	HALFHAT		0x10000       /* half-capacity Hashed Array Tree;
+#		define	ARRAYMAXED	0x4000       /* array is at max size */
+#		define	HALFHAT		0x8000       /* half-capacity Hashed Array Tree;
 		                                      * See cint_array.c */
-#		define	XARRAY		0x20000
+#		define	XARRAY		0x10000
+#		define	NUMCONSTSTR	0x20000	/* have string value for numeric constant */
+#		define  REGEX           0x40000 /* this is a typed regex */
 } NODE;
 
 #define vname sub.nodep.name
 
 #define lnode	sub.nodep.l.lptr
-#define nextp	sub.nodep.l.lptr
 #define rnode	sub.nodep.r.rptr
 
 /* Node_param_list */
@@ -480,6 +481,14 @@ typedef struct exp_node {
 #define re_cnt	flags
 
 /* Node_val */
+/*
+ * Note that the string in stptr may not be NUL-terminated, but it is
+ * guaranteed to have at least one extra byte that may be temporarily set
+ * to '\0'. This is helpful when calling functions such as strtod that require
+ * a NUL-terminated argument. In particular, field values $n for n > 0 and
+ * n < NF will not have a NUL terminator, since they point into the $0 buffer.
+ * All other strings are NUL-terminated.
+ */
 #define stptr	sub.val.sp
 #define stlen	sub.val.slen
 #define valref	sub.val.sref
@@ -493,6 +502,17 @@ typedef struct exp_node {
 #else
 #define numbr		sub.val.fltnum
 #endif
+#define typed_re	sub.val.typre
+
+/*
+ * If stfmt is set to STFMT_UNUSED, it means that the string representation
+ * stored in stptr is not a function of the value of CONVFMT or OFMT. That
+ * indicates that either the string value was explicitly assigned, or it
+ * was converted from a NUMBER that has an integer value. When stfmt is not
+ * set to STFMT_UNUSED, it is an offset into the fmt_list array of distinct
+ * CONVFMT and OFMT node pointers.
+ */
+#define STFMT_UNUSED	-1
 
 /* Node_arrayfor */
 #define for_list	sub.nodep.r.av
@@ -515,14 +535,13 @@ typedef struct exp_node {
 /* Node_var_array: */
 #define buckets		sub.nodep.r.bv
 #define nodes		sub.nodep.r.av
-#define a_opaque	sub.nodep.r.aq
 #define array_funcs	sub.nodep.l.lp
 #define array_base	sub.nodep.l.ll
 #define table_size	sub.nodep.reflags
 #define array_size	sub.nodep.cnt
 #define array_capacity	sub.nodep.reserved
 #define xarray		sub.nodep.rn
-#define parent_array	sub.nodep.x.extra 
+#define parent_array	sub.nodep.x.extra
 
 #define ainit		array_funcs[0]
 #define ainit_ind	0
@@ -556,6 +575,11 @@ typedef struct exp_node {
 #define adepth     sub.nodep.l.ll
 #define alevel     sub.nodep.x.xl
 
+/* Op_comment	*/
+#define comment_type	sub.val.idx
+#define EOL_COMMENT 1
+#define FULL_COMMENT 2
+
 /* --------------------------------lint warning types----------------------------*/
 typedef enum lintvals {
 	LINT_illegal,
@@ -566,8 +590,7 @@ typedef enum lintvals {
 /* --------------------------------Instruction ---------------------------------- */
 
 typedef enum opcodeval {
-	/* illegal entry == 0 */
-	Op_illegal,
+	Op_illegal = 0,		/* illegal entry */
 
 	/* binary operators */
 	Op_times,
@@ -597,6 +620,7 @@ typedef enum opcodeval {
 	Op_postincrement,
 	Op_postdecrement,
 	Op_unary_minus,
+	Op_unary_plus,
 	Op_field_spec,
 
 	/* unary relationals */
@@ -633,7 +657,7 @@ typedef enum opcodeval {
 	Op_nomatch,
 
 	Op_rule,
-	
+
 	/* keywords */
 	Op_K_case,
 	Op_K_default,
@@ -654,7 +678,6 @@ typedef enum opcodeval {
 	Op_builtin,
 	Op_sub_builtin,		/* sub, gsub and gensub */
 	Op_ext_builtin,
-	Op_old_ext_builtin,	/* temporary */
 	Op_in_array,		/* boolean test of membership in array */
 
 	/* function call instruction */
@@ -663,6 +686,7 @@ typedef enum opcodeval {
 
 	Op_push,		/* scalar variable */
 	Op_push_arg,		/* variable type (scalar or array) argument to built-in */
+	Op_push_arg_untyped,	/* like Op_push_arg, but for typeof */
 	Op_push_i,		/* number, string */
 	Op_push_re,		/* regex */
 	Op_push_array,
@@ -690,6 +714,7 @@ typedef enum opcodeval {
 
 	Op_func,
 
+	Op_comment,		/* for pretty printing */
 	Op_exec_count,
 	Op_breakpoint,
 	Op_lint,
@@ -697,13 +722,13 @@ typedef enum opcodeval {
 	Op_stop,
 
 	/* parsing (yylex and yyparse), should never appear in valid compiled code */
-	Op_token, 	
+	Op_token,
 	Op_symbol,
 	Op_list,
 
 	/* program structures -- for use in the profiler/pretty printer */
 	Op_K_do,
-	Op_K_for,			
+	Op_K_for,
 	Op_K_arrayfor,
 	Op_K_while,
 	Op_K_switch,
@@ -711,6 +736,7 @@ typedef enum opcodeval {
 	Op_K_else,
 	Op_K_function,
 	Op_cond_exp,
+	Op_parens,
 	Op_final			/* sentry value, not legal */
 } OPCODE;
 
@@ -733,7 +759,9 @@ typedef struct exp_instruction {
 		NODE *dn;
 		struct exp_instruction *di;
 		NODE *(*fptr)(int);
-		awk_value_t *(*efptr)(int, awk_value_t *);
+		awk_value_t *(*efptr)(int num_actual_args,
+					awk_value_t *result,
+					struct awk_ext_func *finfo);
 		long dl;
 		char *name;
 	} d;
@@ -744,9 +772,11 @@ typedef struct exp_instruction {
 		void (*aptr)(void);
 		struct exp_instruction *xi;
 		struct break_point *bpt;
+		awk_ext_func_t *exf;
 	} x;
 
 	short source_line;
+	short pool_size;	// memory management in symbol.c
 	OPCODE opcode;
 } INSTRUCTION;
 
@@ -758,6 +788,8 @@ typedef struct exp_instruction {
 #define builtin_idx     d.dl
 
 #define expr_count      x.xl
+
+#define c_function	x.exf
 
 #define target_continue d.di
 #define target_jmp      d.di
@@ -772,7 +804,7 @@ typedef struct exp_instruction {
 
 /* Op_K_exit */
 #define target_end      d.di
-#define target_atexit   x.xi	
+#define target_atexit   x.xi
 
 /* Op_newfile, Op_K_getline, Op_nextfile */
 #define target_endfile	x.xi
@@ -861,7 +893,7 @@ typedef struct exp_instruction {
 #define field_assign    x.aptr
 
 /* Op_field_assign, Op_var_assign */
-#define assign_ctxt	d.dl	
+#define assign_ctxt	d.dl
 
 /* Op_concat */
 #define concat_flag     d.dl
@@ -894,7 +926,7 @@ typedef struct exp_instruction {
 
 /* Op_line_range */
 #define condpair_left   d.di
-#define condpair_right  x.xi 
+#define condpair_right  x.xi
 
 /* Op_store_var */
 #define initval         x.xn
@@ -984,7 +1016,7 @@ typedef struct srcfile {
 	int fd;
 	int maxlen;	/* size of the longest line */
 
-	void (*fini_func)();	/* dynamic extension of type SRC_EXTLIB */ 
+	void (*fini_func)();	/* dynamic extension of type SRC_EXTLIB */
 
 	char *lexptr;
 	char *lexend;
@@ -993,9 +1025,19 @@ typedef struct srcfile {
 	int lasttok;
 } SRCFILE;
 
+// structure for INSTRUCTION pool, needed mainly for debugger
+typedef struct instruction_pool {
+#define MAX_INSTRUCTION_ALLOC	3	// we don't call bcalloc with more than this
+	struct instruction_mem_pool {
+		struct instruction_block *block_list;
+		INSTRUCTION *free_space;	// free location in active block
+		INSTRUCTION *free_list;
+	} pool[MAX_INSTRUCTION_ALLOC];
+} INSTRUCTION_POOL;
+
 /* structure for execution context */
 typedef struct context {
-	INSTRUCTION pools;
+	INSTRUCTION_POOL pools;
 	NODE symbols;
 	INSTRUCTION rule_list;
 	SRCFILE srcfiles;
@@ -1012,17 +1054,22 @@ struct flagtab {
 };
 
 
-typedef struct block_item {
-	size_t size;
+struct block_item {
 	struct block_item *freep;
-} BLOCK;
+};
+
+struct block_header {
+	struct block_item *freep;
+	size_t size;
+};
 
 enum block_id {
-	BLOCK_INVALID = 0,	/* not legal */
-	BLOCK_NODE,
+	BLOCK_NODE = 0,
 	BLOCK_BUCKET,
+	BLOCK_MPFR,
+	BLOCK_MPZ,
 	BLOCK_MAX	/* count */
-};	
+};
 
 typedef int (*Func_pre_exec)(INSTRUCTION **);
 typedef void (*Func_post_exec)(INSTRUCTION *);
@@ -1036,7 +1083,7 @@ typedef void (*Func_post_exec)(INSTRUCTION *);
 #ifndef LONG_MIN
 #define LONG_MIN ((long)(-LONG_MAX - 1L))
 #endif
-#define UNLIMITED    LONG_MAX 
+#define UNLIMITED    LONG_MAX
 
 /* -------------------------- External variables -------------------------- */
 /* gawk builtin variables */
@@ -1044,7 +1091,7 @@ extern long NF;
 extern long NR;
 extern long FNR;
 extern int BINMODE;
-extern int IGNORECASE;
+extern bool IGNORECASE;
 extern bool RS_is_null;
 extern char *OFS;
 extern int OFSlen;
@@ -1080,7 +1127,7 @@ extern afunc_t int_array_func[];
 /* special node used to indicate success in array routines (not NULL) */
 extern NODE *success_node;
 
-extern BLOCK nextfree[];
+extern struct block_header nextfree[];
 extern bool field0_valid;
 
 extern int do_flags;
@@ -1181,7 +1228,7 @@ extern STACK_ITEM *stack_top;
 #define POP_ADDRESS()		(decr_sp()->lptr)
 #define PEEK(n)			((stack_ptr - (n))->rptr)
 #define TOP()			(stack_ptr->rptr)		/* same as PEEK(0) */
-#define TOP_ADDRESS()		(stack_ptr->lptr) 
+#define TOP_ADDRESS()		(stack_ptr->lptr)
 #define PUSH(r)			(void) (incr_sp()->rptr = (r))
 #define PUSH_ADDRESS(l)		(void) (incr_sp()->lptr = (l))
 #define REPLACE(r)		(void) (stack_ptr->rptr = (r))
@@ -1203,6 +1250,7 @@ extern void r_unref(NODE *tmp);
 static inline void
 DEREF(NODE *r)
 {
+	assert(r->valref > 0);
 	if (--r->valref == 0)
 		r_unref(r);
 }
@@ -1212,23 +1260,34 @@ DEREF(NODE *r)
 
 /* ------------------------- Pseudo-functions ------------------------- */
 #ifdef HAVE_MPFR
-/* conversion to C types */
-#define get_number_ui(n)	(((n)->flags & MPFN) ? mpfr_get_ui((n)->mpg_numbr, ROUND_MODE) \
-				: ((n)->flags & MPZN) ? mpz_get_ui((n)->mpg_i) \
-				: (unsigned long) (n)->numbr)
-#define get_number_si(n)	(((n)->flags & MPFN) ? mpfr_get_si((n)->mpg_numbr, ROUND_MODE) \
-				: ((n)->flags & MPZN) ? mpz_get_si((n)->mpg_i) \
-				: (long) (n)->numbr)
-#define get_number_d(n)		(((n)->flags & MPFN) ? mpfr_get_d((n)->mpg_numbr, ROUND_MODE) \
-				: ((n)->flags & MPZN) ? mpz_get_d((n)->mpg_i) \
-				: (double) (n)->numbr)
-#define get_number_uj(n)	(((n)->flags & MPFN) ? mpfr_get_uj((n)->mpg_numbr, ROUND_MODE) \
-				: ((n)->flags & MPZN) ? (uintmax_t) mpz_get_d((n)->mpg_i) \
-				: (uintmax_t) (n)->numbr)
 
-#define iszero(n)		(((n)->flags & MPFN) ? mpfr_zero_p((n)->mpg_numbr) \
-				: ((n)->flags & MPZN) ? (mpz_sgn((n)->mpg_i) == 0) \
-				: ((n)->numbr == 0.0))
+#if 0
+
+/*
+ * In principle, there is no need to have both the MPFN and MPZN flags,
+ * since we are using 2 bits to encode 1 bit of information. But
+ * there may be some minor performance advantages from testing only the
+ * node flag bits without needing also to access the global do_mpfr flag bit.
+ */
+#define numtype_choose(n, mpfrval, mpzval, dblval)	\
+ (!do_mpfr ? (dblval) : (((n)->flags & MPFN) ? (mpfrval) : (mpzval)))
+
+#endif
+
+/* N.B. This implementation seems to give the fastest results. */
+#define numtype_choose(n, mpfrval, mpzval, dblval)	\
+ (!((n)->flags & (MPFN|MPZN)) ? (dblval) : (((n)->flags & MPFN) ? (mpfrval) : (mpzval)))
+
+/* conversion to C types */
+#define get_number_ui(n)	numtype_choose((n), mpfr_get_ui((n)->mpg_numbr, ROUND_MODE), mpz_get_ui((n)->mpg_i), (unsigned long) (n)->numbr)
+
+#define get_number_si(n)	numtype_choose((n), mpfr_get_si((n)->mpg_numbr, ROUND_MODE), mpz_get_si((n)->mpg_i), (long) (n)->numbr)
+
+#define get_number_d(n)		numtype_choose((n), mpfr_get_d((n)->mpg_numbr, ROUND_MODE), mpz_get_d((n)->mpg_i), (double) (n)->numbr)
+
+#define get_number_uj(n)	numtype_choose((n), mpfr_get_uj((n)->mpg_numbr, ROUND_MODE), (uintmax_t) mpz_get_d((n)->mpg_i), (uintmax_t) (n)->numbr)
+
+#define iszero(n)		numtype_choose((n), mpfr_zero_p((n)->mpg_numbr), (mpz_sgn((n)->mpg_i) == 0), ((n)->numbr == 0.0))
 
 #define IEEE_FMT(r, t)		(void) (do_ieee_fmt && format_ieee(r, t))
 
@@ -1255,10 +1314,10 @@ DEREF(NODE *r)
 				&((n)->var_value) : r_get_lhs((n), (r))
 
 #define getblock(p, id, ty)  (void) ((p = (ty) nextfree[id].freep) ? \
-			(ty) (nextfree[id].freep = ((BLOCK *) p)->freep) \
+			(ty) (nextfree[id].freep = ((struct block_item *) p)->freep) \
 			: (p = (ty) more_blocks(id)))
-#define freeblock(p, id)	 (void) (((BLOCK *) p)->freep = nextfree[id].freep, \
-					nextfree[id].freep = (BLOCK *) p)
+#define freeblock(p, id)	 (void) (((struct block_item *) p)->freep = nextfree[id].freep, \
+					nextfree[id].freep = (struct block_item *) p)
 
 #define getnode(n)	getblock(n, BLOCK_NODE, NODE *)
 #define freenode(n)	freeblock(n, BLOCK_NODE)
@@ -1275,6 +1334,7 @@ DEREF(NODE *r)
 				__LINE__, __FILE__)
 
 #define	emalloc(var,ty,x,str)	(void) (var = (ty) emalloc_real((size_t)(x), str, #var, __FILE__, __LINE__))
+#define	ezalloc(var,ty,x,str)	(void) (var = (ty) ezalloc_real((size_t)(x), str, #var, __FILE__, __LINE__))
 #define	erealloc(var,ty,x,str)	(void) (var = (ty) erealloc_real((void *) var, (size_t)(x), str, #var, __FILE__, __LINE__))
 
 #define efree(p)	free(p)
@@ -1282,7 +1342,7 @@ DEREF(NODE *r)
 #define fatal		(*(set_loc(__FILE__, __LINE__), r_fatal))
 
 extern jmp_buf fatal_tag;
-extern bool fatal_tag_valid;
+extern int fatal_tag_valid;
 
 #define PUSH_BINDING(stack, tag, val)	\
 if (val++) \
@@ -1306,7 +1366,7 @@ if (--val) \
 typedef enum { SORTED_IN = 1, ASORT, ASORTI } sort_context_t;
 typedef enum {
 	ANONE   = 0x00,		/* "unused" value */
-	AINDEX	= 0x001,	/* list of indices */ 
+	AINDEX	= 0x001,	/* list of indices */
 	AVALUE	= 0x002,	/* list of values */
 	AINUM	= 0x004,	/* numeric index */
 	AISTR	= 0x008,	/* string index */
@@ -1339,6 +1399,7 @@ extern NODE *do_aoption(int nargs);
 extern NODE *do_asort(int nargs);
 extern NODE *do_asorti(int nargs);
 extern unsigned long (*hash)(const char *s, size_t len, unsigned long hsize, size_t *code);
+extern void init_env_array(NODE *env_node);
 /* awkgram.c */
 extern NODE *variable(int location, char *name, NODETYPE type);
 extern int parse_program(INSTRUCTION **pcode);
@@ -1359,6 +1420,7 @@ extern builtin_func_t lookup_builtin(const char *name);
 extern void install_builtins(void);
 extern bool is_alpha(int c);
 extern bool is_alnum(int c);
+extern bool is_letter(int c);
 extern bool is_identchar(int c);
 extern NODE *make_regnode(int type, NODE *exp);
 /* builtin.c */
@@ -1401,17 +1463,20 @@ extern NODE *do_or(int nargs);
 extern NODE *do_xor(int nargs);
 extern NODE *do_compl(int nargs);
 extern NODE *do_strtonum(int nargs);
-extern AWKNUM nondec2awknum(char *str, size_t len);
+extern AWKNUM nondec2awknum(char *str, size_t len, char **endptr);
 extern NODE *do_dcgettext(int nargs);
 extern NODE *do_dcngettext(int nargs);
 extern NODE *do_bindtextdomain(int nargs);
+extern NODE *do_intdiv(int nargs);
+extern NODE *do_typeof(int nargs);
 extern int strncasecmpmbs(const unsigned char *,
 			  const unsigned char *, size_t);
+extern int sanitize_exit_status(int status);
 /* eval.c */
 extern void PUSH_CODE(INSTRUCTION *cp);
 extern INSTRUCTION *POP_CODE(void);
 extern void init_interpret(void);
-extern int cmp_nodes(NODE *t1, NODE *t2);
+extern int cmp_nodes(NODE *t1, NODE *t2, bool use_strcmp);
 extern int cmp_awknums(const NODE *t1, const NODE *t2);
 extern void set_IGNORECASE(void);
 extern void set_OFS(void);
@@ -1443,10 +1508,8 @@ extern NODE **r_get_field(NODE *n, Func_ptr *assign, bool reference);
 /* ext.c */
 extern NODE *do_ext(int nargs);
 void load_ext(const char *lib_name);	/* temporary */
-extern NODE *load_old_ext(SRCFILE *s, const char *init_func, const char *fini_func, NODE *obj);
 extern void close_extensions(void);
 #ifdef DYNAMIC
-extern void make_old_builtin(const char *, NODE *(*)(int), int);
 extern awk_bool_t make_builtin(const awk_ext_func_t *);
 extern NODE *get_argument(int);
 extern NODE *get_actual_argument(NODE *, int, bool);
@@ -1455,7 +1518,7 @@ extern NODE *get_actual_argument(NODE *, int, bool);
 #endif
 /* field.c */
 extern void init_fields(void);
-extern void set_record(const char *buf, int cnt);
+extern void set_record(const char *buf, int cnt, const awk_fieldwidth_info_t *);
 extern void reset_record(void);
 extern void rebuild_record(void);
 extern void set_NF(void);
@@ -1472,9 +1535,11 @@ extern void update_PROCINFO_num(const char *subscript, AWKNUM val);
 typedef enum {
 	Using_FS,
 	Using_FIELDWIDTHS,
-	Using_FPAT
+	Using_FPAT,
+	Using_API
 } field_sep_type;
 extern field_sep_type current_field_sep(void);
+extern const char *current_field_sep_str(void);
 
 /* gawkapi.c: */
 extern gawk_api_t api_impl;
@@ -1483,6 +1548,7 @@ extern void update_ext_api(void);
 extern NODE *awk_value_to_node(const awk_value_t *);
 extern void run_ext_exit_handlers(int exitval);
 extern void print_ext_versions(void);
+extern void free_api_string_copies(void);
 
 /* gawkmisc.c */
 extern char *gawk_name(const char *filespec);
@@ -1508,7 +1574,10 @@ extern void register_two_way_processor(awk_two_way_processor_t *processor);
 extern void set_FNR(void);
 extern void set_NR(void);
 
-extern struct redirect *redirect(NODE *redir_exp, int redirtype, int *errflg);
+extern struct redirect *redirect(NODE *redir_exp, int redirtype, int *errflg, bool failure_fatal);
+extern struct redirect *redirect_string(const char *redir_exp_str,
+		size_t redir_exp_len, bool not_string_flag, int redirtype,
+		int *errflg, int extfd, bool failure_fatal);
 extern NODE *do_close(int nargs);
 extern int flush_io(void);
 extern int close_io(bool *stdio_problem);
@@ -1523,6 +1592,12 @@ extern NODE *do_getline(int intovar, IOBUF *iop);
 extern struct redirect *getredirect(const char *str, int len);
 extern bool inrec(IOBUF *iop, int *errcode);
 extern int nextfile(IOBUF **curfile, bool skipping);
+extern bool is_non_fatal_std(FILE *fp);
+extern bool is_non_fatal_redirect(const char *str, size_t len);
+extern void ignore_sigpipe(void);
+extern void set_sigpipe_to_default(void);
+extern bool non_fatal_flush_std_file(FILE *fp);
+
 /* main.c */
 extern int arg_assign(char *arg, bool initing);
 extern int is_std_var(const char *var);
@@ -1530,6 +1605,7 @@ extern int is_off_limits_var(const char *var);
 extern char *estrdup(const char *str, size_t len);
 extern void update_global_values();
 extern long getenv_long(const char *name);
+extern void after_beginfile(IOBUF **curfile);
 
 /* mpfr.c */
 extern void set_PREC(void);
@@ -1546,6 +1622,7 @@ extern NODE *do_mpfr_compl(int);
 extern NODE *do_mpfr_cos(int);
 extern NODE *do_mpfr_exp(int);
 extern NODE *do_mpfr_int(int);
+extern NODE *do_mpfr_intdiv(int);
 extern NODE *do_mpfr_log(int);
 extern NODE *do_mpfr_lshift(int);
 extern NODE *do_mpfr_or(int);
@@ -1591,6 +1668,7 @@ extern NODE *r_force_number(NODE *n);
 extern NODE *r_format_val(const char *format, int index, NODE *s);
 extern NODE *r_dupnode(NODE *n);
 extern NODE *make_str_node(const char *s, size_t len, int flags);
+extern NODE *make_typed_regex(const char *re, size_t len);
 extern void *more_blocks(int id);
 extern int parse_escape(const char **string_ptr);
 extern NODE *str2wstr(NODE *n, size_t **ptr);
@@ -1614,9 +1692,9 @@ extern void reg_error(const char *s);
 extern Regexp *re_update(NODE *t);
 extern void resyntax(int syntax);
 extern void resetup(void);
-extern int avoid_dfa(NODE *re, char *str, size_t len);
 extern int reisstring(const char *text, size_t len, Regexp *re, const char *buf);
-extern int get_numbase(const char *str, bool use_locale);
+extern int get_numbase(const char *str, size_t len, bool use_locale);
+extern bool using_utf8(void);
 
 /* symbol.c */
 extern void load_symbols();
@@ -1720,7 +1798,7 @@ POP_SCALAR()
 
 	if (t->type == Node_var_array)
 		fatal(_("attempt to use array `%s' in a scalar context"), array_vname(t));
-	
+
 	return t;
 }
 
@@ -1733,7 +1811,7 @@ TOP_SCALAR()
 
 	if (t->type == Node_var_array)
 		fatal(_("attempt to use array `%s' in a scalar context"), array_vname(t));
-	
+
 	return t;
 }
 
@@ -1751,7 +1829,7 @@ in_array(NODE *a, NODE *s)
 	NODE **ret;
 
 	ret = a->aexists(a, s);
-	
+
 	return ret ? *ret : NULL;
 }
 
@@ -1771,17 +1849,29 @@ dupnode(NODE *n)
 }
 #endif
 
-/* force_string --- force a node to have a string value */
+/*
+ * force_string_fmt --- force a node to have a string value in a given format.
+ * The string representation of a number may change due to whether it was most
+ * recently rendered with CONVFMT or OFMT, or due to changes in the CONVFMT
+ * and OFMT values. But if the value entered gawk as a string or strnum, then
+ * stfmt should be set to STFMT_UNUSED, and the string representation should
+ * not change.
+ */
 
 static inline NODE *
-force_string(NODE *s)
+force_string_fmt(NODE *s, const char *fmtstr, int fmtidx)
 {
 	if ((s->flags & STRCUR) != 0
-		    && (s->stfmt == -1 || s->stfmt == CONVFMTidx)
+		    && (s->stfmt == STFMT_UNUSED || s->stfmt == fmtidx)
 	)
 		return s;
-	return format_val(CONVFMT, CONVFMTidx, s);
+	return format_val(fmtstr, fmtidx, s);
 }
+
+/* conceptually should be force_string_convfmt, but this is the typical case */
+#define force_string(s)		force_string_fmt((s), CONVFMT, CONVFMTidx)
+
+#define force_string_ofmt(s)	force_string_fmt((s), OFMT, OFMTidx)
 
 #ifdef GAWKDEBUG
 #define unref	r_unref
@@ -1807,6 +1897,46 @@ force_number(NODE *n)
 
 #endif /* GAWKDEBUG */
 
+
+/* fixtype --- make a node decide if it's a number or a string */
+
+/*
+ * In certain contexts, the true type of a scalar value matters, and we
+ * must ascertain whether it is a NUMBER or a STRING. In such situations,
+ * please use this function to resolve the type.
+ *
+ * It is safe to assume that the return value will be the same NODE,
+ * since force_number on a USER_INPUT should always return the same NODE,
+ * and force_string on an INTIND should as well.
+ */
+
+static inline NODE *
+fixtype(NODE *n)
+{
+	assert(n->type == Node_val);
+	if ((n->flags & (NUMCUR|USER_INPUT)) == USER_INPUT)
+		return force_number(n);
+	if ((n->flags & INTIND) != 0)
+		return force_string(n);
+	return n;
+}
+
+/* boolval --- return true/false based on awk's criteria */
+
+/*
+ * In awk, a value is considered to be true if it is nonzero _or_
+ * non-null. Otherwise, the value is false.
+ */
+
+static inline bool
+boolval(NODE *t)
+{
+	(void) fixtype(t);
+	if ((t->flags & NUMBER) != 0)
+		return ! iszero(t);
+	return (t->stlen > 0);
+}
+
 /* emalloc_real --- malloc with error checking */
 
 static inline void *
@@ -1818,6 +1948,24 @@ emalloc_real(size_t count, const char *where, const char *var, const char *file,
 		fatal("%s:%d: emalloc called with zero bytes", file, line);
 
 	ret = (void *) malloc(count);
+	if (ret == NULL)
+		fatal(_("%s:%d:%s: %s: can't allocate %ld bytes of memory (%s)"),
+			file, line, where, var, (long) count, strerror(errno));
+
+	return ret;
+}
+
+/* ezalloc_real --- malloc zero-filled bytes with error checking */
+
+static inline void *
+ezalloc_real(size_t count, const char *where, const char *var, const char *file, int line)
+{
+	void *ret;
+
+	if (count == 0)
+		fatal("%s:%d: ezalloc called with zero bytes", file, line);
+
+	ret = (void *) calloc(1, count);
 	if (ret == NULL)
 		fatal(_("%s:%d:%s: %s: can't allocate %ld bytes of memory (%s)"),
 			file, line, where, var, (long) count, strerror(errno));
@@ -1842,3 +1990,48 @@ erealloc_real(void *ptr, size_t count, const char *where, const char *var, const
 
 	return ret;
 }
+
+/* make_number_node --- make node with the given flags */
+
+static inline NODE *
+make_number_node(unsigned int flags)
+{
+	NODE *r;
+	getnode(r);
+	memset(r, 0, sizeof(*r));
+	r->type = Node_val;
+	r->valref = 1;
+	r->flags = (flags|MALLOC|NUMBER|NUMCUR);
+	return r;
+}
+
+/*
+ * str_terminate_f, str_terminate, str_restore: function and macros to
+ * reduce chances of typos when terminating and restoring strings.
+ * This also helps to enforce that the NODE must be in scope when we restore.
+ */
+
+static inline void
+str_terminate_f(NODE *n, char *savep)
+{
+	*savep = n->stptr[n->stlen];
+	n->stptr[n->stlen] = '\0';
+}
+
+#define str_terminate(n, save) str_terminate_f((n), &save)
+#define str_restore(n, save) (n)->stptr[(n)->stlen] = save
+
+#ifdef SIGPIPE
+#define ignore_sigpipe() signal(SIGPIPE, SIG_IGN)
+#define set_sigpipe_to_default() signal(SIGPIPE, SIG_DFL)
+#define die_via_sigpipe() (signal(SIGPIPE, SIG_DFL), kill(getpid(), SIGPIPE))
+#else
+#define ignore_sigpipe()
+#define set_sigpipe_to_default()
+#ifdef __MINGW32__
+/* 0xC0000008 is EXCEPTION_INVALID_HANDLE, somewhat appropriate for EPIPE */
+#define die_via_sigpipe() exit(0xC0000008)
+#else  /* !__MINGW32__ */
+#define die_via_sigpipe() exit(EXIT_FATAL)
+#endif	/* !__MINGW32__ */
+#endif

@@ -40,7 +40,6 @@ EXTRA_DIST = \
 	NEWS.0 \
 	POSIX.STD \
 	README_d \
-	bisonfix.awk \
 	config.guess \
 	config.rpath  \
 	config.sub \
@@ -51,31 +50,27 @@ EXTRA_DIST = \
 	po/README \
 	pc \
 	posix \
-	regcomp.c \
-	regex_internal.c \
-	regex_internal.h \
-	regexec.c \
 	vms \
 	ylwrap
 
 # The order to do things in.
 #
+# Build in support first, since we need the support library.
+#
 # Build explicitly in "." in order to build gawk first, so
 # that `make check' without a prior `make' works.
-#
+SUBDIRS = support .
+
 # Build in extension before test so that
 # 	./configure && make check
 # works properly too.
-#
-# Build in awklib after in doc, since we want to extract
-# sample files if doc/gawk.texi changed.
-SUBDIRS = .
-
 if ENABLE_EXTENSIONS
 SUBDIRS += extension
 endif
 
-SUBDIRS += doc awklib po test
+# Build in awklib after in doc, since we want to extract
+# sample files if doc/gawk.texi changed.
+SUBDIRS += extras doc awklib po test
 
 # what to make and install
 bin_PROGRAMS = gawk
@@ -92,8 +87,6 @@ base_sources = \
 	command.y \
 	custom.h \
 	debug.c \
-	dfa.c \
-	dfa.h \
 	eval.c \
 	ext.c \
 	field.c \
@@ -102,10 +95,6 @@ base_sources = \
 	gawkapi.c \
 	gawkapi.h \
 	gawkmisc.c \
-	getopt.c \
-	getopt.h \
-	getopt1.c \
-	getopt_int.h \
 	gettext.h \
 	int_array.c \
 	interpret.h \
@@ -118,21 +107,17 @@ base_sources = \
 	nonposix.h \
 	profile.c \
 	protos.h \
-	random.c \
-	random.h \
 	re.c \
-	regex.c \
-	regex.h \
 	replace.c \
 	str_array.c \
 	symbol.c \
-	version.c \
-	xalloc.h
+	version.c
 
 gawk_SOURCES = $(base_sources)
 
 # Get extra libs as needed, Automake will supply LIBINTL and SOCKET_LIBS.
-LDADD = $(LIBSIGSEGV) $(LIBINTL) $(SOCKET_LIBS) $(LIBREADLINE) $(LIBMPFR)
+LDADD = support/libsupport.a \
+	$(LIBSIGSEGV) $(LIBINTL) $(SOCKET_LIBS) $(LIBREADLINE) $(LIBMPFR)
 
 # Directory for gawk's data files. Automake supplies datadir.
 pkgdatadir = $(datadir)/awk
@@ -144,7 +129,7 @@ DEFPATH='".$(PATH_SEPARATOR)$(pkgdatadir)"'
 SHLIBEXT = "\"$(GAWKLIBEXT)"\"
 DEFLIBPATH="\"$(pkgextensiondir)\""
 
-DEFS= -DDEFPATH=$(DEFPATH) -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DHAVE_CONFIG_H -DGAWK -DLOCALEDIR='"$(datadir)/locale"'
+DEFS= -DDEFPATH=$(DEFPATH) -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DHAVE_CONFIG_H -DGAWK -DLOCALEDIR='"$(datadir)/locale"' -I"$(srcdir)/support"
 
 # Get rid of core files when cleaning
 CLEANFILES = core core.*
@@ -197,19 +182,14 @@ dist-hook:
 	cp "$(srcdir)"/pc/config.h "$(distdir)"/pc/config.h
 
 # Special rules for individual files
-# Use of awk instead of $(AWK) is deliberate, in case gawk doesn't build
-# or work correctly.
 
 awkgram.c: awkgram.y
-	$(YACC) $(AM_YFLAGS) $(YFLAGS) $<
-	sed 's/parse error/syntax error/g' < y.tab.c | awk -f "$(srcdir)"/bisonfix.awk awkgram > $*.c && rm y.tab.c
-	if test -f y.tab.h; then \
-	if cmp -s y.tab.h $*.h; then rm -f y.tab.h; else mv y.tab.h $*.h; fi; \
-	else :; fi
+	$(YACC) -o $@ $(AM_YFLAGS) $(YFLAGS) $<
+	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
 command.c: command.y
-	$(YACC) -p zz $<
-	sed 's/parse error/syntax error/g' < y.tab.c | awk -f "$(srcdir)"/bisonfix.awk command > $*.c && rm y.tab.c
+	$(YACC) -o $@ -p zz $<
+	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
 # This is for my development & testing.
 efence: gawk

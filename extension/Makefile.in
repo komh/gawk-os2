@@ -17,7 +17,7 @@
 #
 # extension/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 1995-2006, 2012-2015 the Free Software Foundation, Inc.
+# Copyright (C) 1995-2006, 2012-2015, 2017 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -114,10 +114,10 @@ host_triplet = @host@
 subdir = .
 ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/../m4/arch.m4 \
-	$(top_srcdir)/m4/dirfd.m4 $(top_srcdir)/m4/libtool.m4 \
-	$(top_srcdir)/m4/ltoptions.m4 $(top_srcdir)/m4/ltsugar.m4 \
-	$(top_srcdir)/m4/ltversion.m4 $(top_srcdir)/m4/lt~obsolete.m4 \
-	$(top_srcdir)/configure.ac
+	$(top_srcdir)/../m4/mpfr.m4 $(top_srcdir)/m4/dirfd.m4 \
+	$(top_srcdir)/m4/libtool.m4 $(top_srcdir)/m4/ltoptions.m4 \
+	$(top_srcdir)/m4/ltsugar.m4 $(top_srcdir)/m4/ltversion.m4 \
+	$(top_srcdir)/m4/lt~obsolete.m4 $(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
@@ -157,7 +157,7 @@ am__uninstall_files_from_dir = { \
   }
 am__installdirs = "$(DESTDIR)$(pkgextensiondir)" \
 	"$(DESTDIR)$(man3dir)"
-LTLIBRARIES = $(pkgextension_LTLIBRARIES)
+LTLIBRARIES = $(noinst_LTLIBRARIES) $(pkgextension_LTLIBRARIES)
 am__DEPENDENCIES_1 =
 filefuncs_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_filefuncs_la_OBJECTS = filefuncs.lo stack.lo gawkfts.lo
@@ -187,6 +187,12 @@ inplace_la_OBJECTS = $(am_inplace_la_OBJECTS)
 inplace_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(inplace_la_LDFLAGS) $(LDFLAGS) -o $@
+intdiv_la_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
+am_intdiv_la_OBJECTS = intdiv.lo
+intdiv_la_OBJECTS = $(am_intdiv_la_OBJECTS)
+intdiv_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
+	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
+	$(intdiv_la_LDFLAGS) $(LDFLAGS) -o $@
 ordchr_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_ordchr_la_OBJECTS = ordchr.lo
 ordchr_la_OBJECTS = $(am_ordchr_la_OBJECTS)
@@ -199,6 +205,13 @@ readdir_la_OBJECTS = $(am_readdir_la_OBJECTS)
 readdir_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC $(AM_LIBTOOLFLAGS) \
 	$(LIBTOOLFLAGS) --mode=link $(CCLD) $(AM_CFLAGS) $(CFLAGS) \
 	$(readdir_la_LDFLAGS) $(LDFLAGS) -o $@
+readdir_test_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
+am_readdir_test_la_OBJECTS = readdir_test.lo
+readdir_test_la_OBJECTS = $(am_readdir_test_la_OBJECTS)
+readdir_test_la_LINK = $(LIBTOOL) $(AM_V_lt) --tag=CC \
+	$(AM_LIBTOOLFLAGS) $(LIBTOOLFLAGS) --mode=link $(CCLD) \
+	$(AM_CFLAGS) $(CFLAGS) $(readdir_test_la_LDFLAGS) $(LDFLAGS) \
+	-o $@
 readfile_la_DEPENDENCIES = $(am__DEPENDENCIES_1)
 am_readfile_la_OBJECTS = readfile.lo
 readfile_la_OBJECTS = $(am_readfile_la_OBJECTS)
@@ -270,13 +283,15 @@ am__v_CCLD_ = $(am__v_CCLD_@AM_DEFAULT_V@)
 am__v_CCLD_0 = @echo "  CCLD    " $@;
 am__v_CCLD_1 = 
 SOURCES = $(filefuncs_la_SOURCES) $(fnmatch_la_SOURCES) \
-	$(fork_la_SOURCES) $(inplace_la_SOURCES) $(ordchr_la_SOURCES) \
-	$(readdir_la_SOURCES) $(readfile_la_SOURCES) \
+	$(fork_la_SOURCES) $(inplace_la_SOURCES) $(intdiv_la_SOURCES) \
+	$(ordchr_la_SOURCES) $(readdir_la_SOURCES) \
+	$(readdir_test_la_SOURCES) $(readfile_la_SOURCES) \
 	$(revoutput_la_SOURCES) $(revtwoway_la_SOURCES) \
 	$(rwarray_la_SOURCES) $(testext_la_SOURCES) $(time_la_SOURCES)
 DIST_SOURCES = $(filefuncs_la_SOURCES) $(fnmatch_la_SOURCES) \
-	$(fork_la_SOURCES) $(inplace_la_SOURCES) $(ordchr_la_SOURCES) \
-	$(readdir_la_SOURCES) $(readfile_la_SOURCES) \
+	$(fork_la_SOURCES) $(inplace_la_SOURCES) $(intdiv_la_SOURCES) \
+	$(ordchr_la_SOURCES) $(readdir_la_SOURCES) \
+	$(readdir_test_la_SOURCES) $(readfile_la_SOURCES) \
 	$(revoutput_la_SOURCES) $(revtwoway_la_SOURCES) \
 	$(rwarray_la_SOURCES) $(testext_la_SOURCES) $(time_la_SOURCES)
 RECURSIVE_TARGETS = all-recursive check-recursive cscopelist-recursive \
@@ -413,6 +428,7 @@ INSTALL_SCRIPT = @INSTALL_SCRIPT@
 INSTALL_STRIP_PROGRAM = @INSTALL_STRIP_PROGRAM@
 LD = @LD@
 LDFLAGS = @LDFLAGS@
+LIBMPFR = @LIBMPFR@
 LIBOBJS = @LIBOBJS@
 LIBS = @LIBS@
 LIBTOOL = @LIBTOOL@
@@ -511,17 +527,21 @@ pkgextension_LTLIBRARIES = \
 	fnmatch.la	\
 	fork.la		\
 	inplace.la	\
+	intdiv.la	\
 	ordchr.la	\
 	readdir.la	\
 	readfile.la	\
 	revoutput.la	\
 	revtwoway.la	\
 	rwarray.la	\
-	testext.la	\
 	time.la
 
+noinst_LTLIBRARIES = \
+	readdir_test.la	\
+	testext.la
+
 MY_MODULE_FLAGS = -module -avoid-version -no-undefined
-# on Cygwin, gettext requires that we link with -lintl 
+# On Cygwin, gettext requires that we link with -lintl 
 MY_LIBS = $(LTLIBINTL)
 filefuncs_la_SOURCES = filefuncs.c stack.h stack.c gawkfts.h \
 			gawkfts.c gawkdirfd.h
@@ -537,6 +557,12 @@ fork_la_LIBADD = $(MY_LIBS)
 inplace_la_SOURCES = inplace.c
 inplace_la_LDFLAGS = $(MY_MODULE_FLAGS)
 inplace_la_LIBADD = $(MY_LIBS)
+
+# On Cygwin, intdiv has to be linked with the MPFR and GMP libraries.
+# Solaris in addition wants the math library.
+intdiv_la_SOURCES = intdiv.c
+intdiv_la_LDFLAGS = $(MY_MODULE_FLAGS)
+intdiv_la_LIBADD = $(MY_LIBS) $(LIBMPFR) -lm
 ordchr_la_SOURCES = ordchr.c
 ordchr_la_LDFLAGS = $(MY_MODULE_FLAGS)
 ordchr_la_LIBADD = $(MY_LIBS)
@@ -558,9 +584,20 @@ rwarray_la_LIBADD = $(MY_LIBS)
 time_la_SOURCES = time.c
 time_la_LDFLAGS = $(MY_MODULE_FLAGS)
 time_la_LIBADD = $(MY_LIBS)
+
+# N.B. Becaues we are not installing testext, we must specify -rpath in
+# LDFLAGS to get automake to build a shared library, since it needs
+# an installation path.
 testext_la_SOURCES = testext.c
-testext_la_LDFLAGS = $(MY_MODULE_FLAGS)
+testext_la_LDFLAGS = $(MY_MODULE_FLAGS) -rpath /foo
 testext_la_LIBADD = $(MY_LIBS)
+
+# N.B. Because we are not installing readdir_test, we must specify -rpath in
+# LDFLAGS to get automake to build a shared library, since it needs
+# an installation path.
+readdir_test_la_SOURCES = readdir_test.c
+readdir_test_la_LDFLAGS = $(MY_MODULE_FLAGS) -rpath /foo
+readdir_test_la_LIBADD = $(MY_LIBS)
 EXTRA_DIST = build-aux/config.rpath  \
 	ChangeLog \
 	ChangeLog.0 \
@@ -632,6 +669,17 @@ $(srcdir)/configh.in:  $(am__configure_deps)
 distclean-hdr:
 	-rm -f config.h stamp-h1
 
+clean-noinstLTLIBRARIES:
+	-test -z "$(noinst_LTLIBRARIES)" || rm -f $(noinst_LTLIBRARIES)
+	@list='$(noinst_LTLIBRARIES)'; \
+	locs=`for p in $$list; do echo $$p; done | \
+	      sed 's|^[^/]*$$|.|; s|/[^/]*$$||; s|$$|/so_locations|' | \
+	      sort -u`; \
+	test -z "$$locs" || { \
+	  echo rm -f $${locs}; \
+	  rm -f $${locs}; \
+	}
+
 install-pkgextensionLTLIBRARIES: $(pkgextension_LTLIBRARIES)
 	@$(NORMAL_INSTALL)
 	@list='$(pkgextension_LTLIBRARIES)'; test -n "$(pkgextensiondir)" || list=; \
@@ -679,11 +727,17 @@ fork.la: $(fork_la_OBJECTS) $(fork_la_DEPENDENCIES) $(EXTRA_fork_la_DEPENDENCIES
 inplace.la: $(inplace_la_OBJECTS) $(inplace_la_DEPENDENCIES) $(EXTRA_inplace_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(inplace_la_LINK) -rpath $(pkgextensiondir) $(inplace_la_OBJECTS) $(inplace_la_LIBADD) $(LIBS)
 
+intdiv.la: $(intdiv_la_OBJECTS) $(intdiv_la_DEPENDENCIES) $(EXTRA_intdiv_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(intdiv_la_LINK) -rpath $(pkgextensiondir) $(intdiv_la_OBJECTS) $(intdiv_la_LIBADD) $(LIBS)
+
 ordchr.la: $(ordchr_la_OBJECTS) $(ordchr_la_DEPENDENCIES) $(EXTRA_ordchr_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(ordchr_la_LINK) -rpath $(pkgextensiondir) $(ordchr_la_OBJECTS) $(ordchr_la_LIBADD) $(LIBS)
 
 readdir.la: $(readdir_la_OBJECTS) $(readdir_la_DEPENDENCIES) $(EXTRA_readdir_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(readdir_la_LINK) -rpath $(pkgextensiondir) $(readdir_la_OBJECTS) $(readdir_la_LIBADD) $(LIBS)
+
+readdir_test.la: $(readdir_test_la_OBJECTS) $(readdir_test_la_DEPENDENCIES) $(EXTRA_readdir_test_la_DEPENDENCIES) 
+	$(AM_V_CCLD)$(readdir_test_la_LINK)  $(readdir_test_la_OBJECTS) $(readdir_test_la_LIBADD) $(LIBS)
 
 readfile.la: $(readfile_la_OBJECTS) $(readfile_la_DEPENDENCIES) $(EXTRA_readfile_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(readfile_la_LINK) -rpath $(pkgextensiondir) $(readfile_la_OBJECTS) $(readfile_la_LIBADD) $(LIBS)
@@ -698,7 +752,7 @@ rwarray.la: $(rwarray_la_OBJECTS) $(rwarray_la_DEPENDENCIES) $(EXTRA_rwarray_la_
 	$(AM_V_CCLD)$(rwarray_la_LINK) -rpath $(pkgextensiondir) $(rwarray_la_OBJECTS) $(rwarray_la_LIBADD) $(LIBS)
 
 testext.la: $(testext_la_OBJECTS) $(testext_la_DEPENDENCIES) $(EXTRA_testext_la_DEPENDENCIES) 
-	$(AM_V_CCLD)$(testext_la_LINK) -rpath $(pkgextensiondir) $(testext_la_OBJECTS) $(testext_la_LIBADD) $(LIBS)
+	$(AM_V_CCLD)$(testext_la_LINK)  $(testext_la_OBJECTS) $(testext_la_LIBADD) $(LIBS)
 
 time.la: $(time_la_OBJECTS) $(time_la_DEPENDENCIES) $(EXTRA_time_la_DEPENDENCIES) 
 	$(AM_V_CCLD)$(time_la_LINK) -rpath $(pkgextensiondir) $(time_la_OBJECTS) $(time_la_LIBADD) $(LIBS)
@@ -714,8 +768,10 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/fork.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gawkfts.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/inplace.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/intdiv.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ordchr.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/readdir.Plo@am__quote@
+@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/readdir_test.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/readfile.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/revoutput.Plo@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/revtwoway.Plo@am__quote@
@@ -1131,8 +1187,8 @@ maintainer-clean-generic:
 	@echo "it deletes files that may require special tools to rebuild."
 clean: clean-recursive
 
-clean-am: clean-generic clean-libtool clean-pkgextensionLTLIBRARIES \
-	mostlyclean-am
+clean-am: clean-generic clean-libtool clean-noinstLTLIBRARIES \
+	clean-pkgextensionLTLIBRARIES mostlyclean-am
 
 distclean: distclean-recursive
 	-rm -f $(am__CONFIG_DISTCLEAN_FILES)
@@ -1211,13 +1267,14 @@ uninstall-man: uninstall-man3
 
 .PHONY: $(am__recursive_targets) CTAGS GTAGS TAGS all all-am \
 	am--refresh check check-am clean clean-cscope clean-generic \
-	clean-libtool clean-pkgextensionLTLIBRARIES cscope \
-	cscopelist-am ctags ctags-am dist dist-all dist-bzip2 \
-	dist-gzip dist-lzip dist-shar dist-tarZ dist-xz dist-zip \
-	distcheck distclean distclean-compile distclean-generic \
-	distclean-hdr distclean-libtool distclean-tags distcleancheck \
-	distdir distuninstallcheck dvi dvi-am html html-am info \
-	info-am install install-am install-data install-data-am \
+	clean-libtool clean-noinstLTLIBRARIES \
+	clean-pkgextensionLTLIBRARIES cscope cscopelist-am ctags \
+	ctags-am dist dist-all dist-bzip2 dist-gzip dist-lzip \
+	dist-shar dist-tarZ dist-xz dist-zip distcheck distclean \
+	distclean-compile distclean-generic distclean-hdr \
+	distclean-libtool distclean-tags distcleancheck distdir \
+	distuninstallcheck dvi dvi-am html html-am info info-am \
+	install install-am install-data install-data-am \
 	install-data-hook install-dvi install-dvi-am install-exec \
 	install-exec-am install-html install-html-am install-info \
 	install-info-am install-man install-man3 install-pdf \

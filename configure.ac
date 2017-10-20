@@ -1,7 +1,7 @@
 dnl
 dnl configure.ac --- autoconf input file for gawk
 dnl
-dnl Copyright (C) 1995-2016 the Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2017 the Free Software Foundation, Inc.
 dnl
 dnl This file is part of GAWK, the GNU implementation of the
 dnl AWK Programming Language.
@@ -23,7 +23,7 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk], 4.1.4, bug-gawk@gnu.org, gawk)
+AC_INIT([GNU Awk],[4.2.0],[bug-gawk@gnu.org],[gawk])
 
 # This is a hack. Different versions of install on different systems
 # are just too different. Chuck it and use install-sh.
@@ -39,29 +39,52 @@ then
 	export INSTALL
 fi
 
-AC_PREREQ(2.69)
+AC_PREREQ([2.69])
 AM_INIT_AUTOMAKE([1.15 dist-xz dist-lzip])
 
 AC_CONFIG_MACRO_DIR([m4])
 
 dnl Additional argument stuff
-AC_ARG_WITH(whiny-user-strftime, [  --with-whiny-user-strftime	Force use of included version of strftime for deficient systems],
+AC_ARG_WITH(whiny-user-strftime,
+	[AS_HELP_STRING([--with-whiny-user-strftime], [force use of included version of strftime for deficient systems])],
 	if test "$withval" = yes
 	then
 		AC_DEFINE(USE_INCLUDED_STRFTIME, 1,
 			  [force use of our version of strftime])
 	fi
 )
-AC_ARG_ENABLE([lint], [  --disable-lint	Disable gawk lint checking],
+AC_ARG_ENABLE([lint],
+	[AS_HELP_STRING([--disable-lint],[do not compile in gawk lint checking])],
 	if test "$enableval" = no
 	then
 		AC_DEFINE(NO_LINT, 1, [disable lint checks])
 	fi
 )
-AC_ARG_ENABLE([severe-portability-problems], [  --enable-severe-portability-problems	Enable really nasty portability problems],
+AC_ARG_ENABLE([severe-portability-problems],
+	[AS_HELP_STRING([--enable-severe-portability-problems],[allow really nasty portability problems])],
 	if test "$enableval" = yes
 	then
 		AC_DEFINE(I_DONT_KNOW_WHAT_IM_DOING, 1, [enable severe portability problems])
+	fi
+)
+AC_ARG_ENABLE([builtin-intdiv0],
+	[AS_HELP_STRING([--enable-builtin-intdiv0],[enable built-in intdiv0 function])],
+	if test "$enableval" = yes
+	then
+		AC_DEFINE(SUPPLY_INTDIV, 1, [enable built-in intdiv0 function])
+		sed '/^@set PATCHLEVEL/a\
+@set INTDIV' < "$srcdir"/doc/gawktexi.in > foo
+		cp foo "$srcdir"/doc/gawktexi.in
+		rm foo
+	fi
+)
+
+SKIP_MPFR=no
+AC_ARG_ENABLE([mpfr],
+	[AS_HELP_STRING([--disable-mpfr],[do not check for MPFR])],
+	if test "$enableval" = no
+	then
+		SKIP_MPFR=yes
 	fi
 )
 
@@ -72,8 +95,9 @@ dnl checks for programs
 AC_PROG_EGREP
 AC_PROG_YACC
 AC_PROG_LN_S
-AC_PROG_CC
+AC_PROG_CC_C99
 AC_PROG_CPP
+AC_PROG_RANLIB
 
 AC_OBJEXT
 AC_EXEEXT
@@ -110,10 +134,8 @@ AC_SUBST([pkgextensiondir], ['${pkglibdir}'])
 
 dnl checks for systems
 AC_ZOS_USS
-AC_ISC_POSIX
+AC_SEARCH_LIBS([strerror],[cposix])
 AC_SYS_LARGEFILE
-GAWK_AC_AIX_TWEAK
-GAWK_AC_LINUX_ALPHA
 
 AC_MSG_CHECKING([if we are using EBCDIC])
 AC_EGREP_CPP([gnu_gawk_in_ebcdic],
@@ -124,19 +146,6 @@ gnu_gawk_in_ebcdic
  use_ebcdic=yes],
 [use_ebcdic=no])
 AC_MSG_RESULT([$use_ebcdic])
-
-if test "$ISC" = 1	# will be set by test for ISC
-then
-dnl	need -D_SYSV3 for ISC
-	CFLAGS="$CFLAGS -D_SYSV3"
-fi
-
-dnl check for systems where libc is borked for regex handling
-case $host_os in
-mirbsd*)
-	AC_DEFINE([LIBC_IS_BORKED], 1, [libc is broken for regex handling])
-	;;
-esac
 
 dnl Set the programming language for checks. Fortunately,
 dnl this only needs to be set once, since everything is in C.
@@ -170,8 +179,7 @@ AM_CONDITIONAL([TEST_CROSS_COMPILE], [test "x$build_alias" != "x$host_alias"])
 
 dnl checks for typedefs
 AC_TYPE_PID_T
-AC_TYPE_SIGNAL
-AC_SIZE_T
+AC_TYPE_SIZE_T
 AC_TYPE_GETGROUPS
 AC_TYPE_LONG_LONG_INT
 AC_TYPE_UNSIGNED_LONG_LONG_INT
@@ -181,30 +189,26 @@ AC_CHECK_TYPE(ssize_t, int)
 AC_CHECK_SIZEOF(unsigned int)
 AC_CHECK_SIZEOF(unsigned long)
 dnl see if time_t is defined in <sys/types.h>
-AC_TRY_COMPILE([#include <sys/types.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/types.h>]], [[
 	time_t foo;
 	foo = 0;
-],
-	AC_DEFINE(TIME_T_IN_SYS_TYPES_H, 1,
-		  [some systems define this type here]))
+]])],[AC_DEFINE(TIME_T_IN_SYS_TYPES_H, 1,
+		  some systems define this type here)],[])
 dnl check for wctype_t in <wctype.h>
-AC_TRY_COMPILE([#include <wctype.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wctype.h>]], [[
 	wctype_t foo;
 	foo = 0;
-],
-	AC_DEFINE(HAVE_WCTYPE_T, 1, [systems should define this type here]))
+]])],[AC_DEFINE(HAVE_WCTYPE_T, 1, systems should define this type here)],[])
 dnl check for wint_t in <wctype.h>
-AC_TRY_COMPILE([#include <wctype.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <wctype.h>]], [[
 	wint_t foo;
 	foo = 0;
-],
-	AC_DEFINE(HAVE_WINT_T, 1, [systems should define this type here]))
+]])],[AC_DEFINE(HAVE_WINT_T, 1, systems should define this type here)],[])
 dnl check for sockaddr_storage
-AC_TRY_COMPILE([#include <sys/types.h>
-#include <sys/socket.h>],[
+AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[#include <sys/types.h>
+#include <sys/socket.h>]], [[
 	struct sockaddr_storage foo;
-],
-	AC_DEFINE(HAVE_SOCKADDR_STORAGE, 1, [newer systems define this type here]))
+]])],[AC_DEFINE(HAVE_SOCKADDR_STORAGE, 1, newer systems define this type here)],[])
 
 dnl Borrwed from rsync, thanks to to Jim Meyering.
 
@@ -225,24 +229,27 @@ AC_DEFUN([TYPE_SOCKLEN_T],
          # Systems have either "struct sockaddr *" or
          # "void *" as the second argument to getpeername
          rsync_cv_socklen_t_equiv=
-         for arg2 in "struct sockaddr" void; do
-            for t in int size_t unsigned long "unsigned long"; do
-               AC_TRY_COMPILE([
+         for arg2 in "struct sockaddr" void
+	 do
+            for t in int size_t unsigned long "unsigned long"
+	    do
+               AC_COMPILE_IFELSE([AC_LANG_PROGRAM([[
 #include <sys/types.h>
 #include <sys/socket.h>
 
                   int getpeername (int, $arg2 *, $t *);
-               ],[
+               ]], [[
                   $t len;
                   getpeername(0,0,&len);
-               ],[
+               ]])],[
                   rsync_cv_socklen_t_equiv="$t"
                   break
-               ])
+               ],[])
             done
          done
 
-         if test "x$rsync_cv_socklen_t_equiv" = x; then
+         if test "x$rsync_cv_socklen_t_equiv" = x
+	 then
 dnl		Some systems get this. Default to int.  -- ADR
 dnl            AC_MSG_ERROR([Cannot find a type to use in place of socklen_t])
 		rsync_cv_socklen_t_equiv=int
@@ -283,12 +290,15 @@ osf1)	: ;;
 esac
 
 # Need the check for mkstemp and tmpfile for missing_d/snprintf.c.
-AC_CHECK_FUNCS(__etoa_l atexit btowc fmod getgrent getgroups grantpt \
+AC_CHECK_FUNCS(__etoa_l atexit btowc fmod gai_strerror \
+	getgrent getgroups grantpt \
+	fwrite_unlocked \
 	isascii iswctype iswlower iswupper mbrlen \
 	memcmp memcpy memcpy_ulong memmove memset \
-	memset_ulong mkstemp posix_openpt setenv setlocale setsid snprintf strchr \
+	memset_ulong mkstemp posix_openpt setenv setlocale setsid sigprocmask \
+	snprintf strchr \
 	strerror strftime strcasecmp strncasecmp strcoll strtod strtoul \
-	system tmpfile towlower towupper tzset usleep wcrtomb \
+	system tmpfile towlower towupper tzset usleep waitpid wcrtomb \
 	wcscoll wctype)
 dnl this check is for both mbrtowc and the mbstate_t type, which is good
 AC_FUNC_MBRTOWC
@@ -297,7 +307,8 @@ dnl check for dynamic linking
 dnl This is known to be very primitive
 AC_ARG_ENABLE([extensions],
 	[AS_HELP_STRING([--disable-extensions], [disable dynamic extensions (default is detect)])])
-if test "x$enable_extensions" != "xno"; then
+if test "x$enable_extensions" != "xno"
+then
 	extensions_supported=no
 
 	dnl On MirBSD (and probably other systems), don't even try.
@@ -318,7 +329,8 @@ if test "x$enable_extensions" != "xno"; then
 			extensions_supported=yes
 			AC_DEFINE([DYNAMIC], 1, [dynamic loading is possible])
 			# Add -export-dynamic for old extensions. Only works for GCC
-			if test "$GCC" = yes; then
+			if test "$GCC" = yes
+			then
 				case $host_os in
 				linux*|freebsd*)
 					LDFLAGS="$LDFLAGS -Wl,-export-dynamic"
@@ -330,7 +342,8 @@ if test "x$enable_extensions" != "xno"; then
 		;;
 	esac
 
-	if test "x$enable_extensions$extensions_supported" = "xyesno"; then
+	if test "x$enable_extensions$extensions_supported" = "xyesno"
+	then
 		AC_MSG_ERROR([extension support requested, but unavailable])
 	fi
 	enable_extensions=$extensions_supported
@@ -371,7 +384,8 @@ int main()
 	has_f_format=no,
 	has_f_format=no  dnl Cross-compiling, assuming the worst.
 )
-if test "$has_f_format" = yes; then
+if test "$has_f_format" = yes
+then
 	AC_DEFINE(PRINTF_HAS_F_FORMAT, 1, [Define to 1 if *printf supports %F format])
 fi
 AC_MSG_RESULT($has_f_format)
@@ -383,7 +397,16 @@ dnl check for readline support
 GAWK_CHECK_READLINE
 
 dnl check for mpfr support
-GNUPG_CHECK_MPFR
+case `uname -m` in
+*'Power Macintosh'*)
+	: ;;
+*)
+	case $SKIP_MPFR in
+	no)	GNUPG_CHECK_MPFR
+		;;
+	esac
+	;;
+esac
 
 dnl checks for structure members
 AC_CHECK_MEMBERS([struct stat.st_blksize])
@@ -418,11 +441,14 @@ esac
 AC_SUBST(GAWKLIBEXT)
 
 AC_CONFIG_FILES(Makefile
+	support/Makefile
 	awklib/Makefile
 	doc/Makefile
+	extras/Makefile
 	po/Makefile.in
 	test/Makefile)
-if test "x$enable_extensions" = "xyes"; then
+if test "x$enable_extensions" = "xyes"
+then
 	AC_CONFIG_SUBDIRS(extension)
 fi
 AC_OUTPUT

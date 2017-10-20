@@ -1,7 +1,7 @@
 #
 # extension/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 1995-2006, 2012-2015 the Free Software Foundation, Inc.
+# Copyright (C) 1995-2006, 2012-2015, 2017 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -39,17 +39,21 @@ pkgextension_LTLIBRARIES =	\
 	fnmatch.la	\
 	fork.la		\
 	inplace.la	\
+	intdiv.la	\
 	ordchr.la	\
 	readdir.la	\
 	readfile.la	\
 	revoutput.la	\
 	revtwoway.la	\
 	rwarray.la	\
-	testext.la	\
 	time.la
 
+noinst_LTLIBRARIES =	\
+	readdir_test.la	\
+	testext.la
+
 MY_MODULE_FLAGS = -module -avoid-version -no-undefined
-# on Cygwin, gettext requires that we link with -lintl 
+# On Cygwin, gettext requires that we link with -lintl 
 MY_LIBS = $(LTLIBINTL)
 
 filefuncs_la_SOURCES  = filefuncs.c stack.h stack.c gawkfts.h \
@@ -68,6 +72,12 @@ fork_la_LIBADD        = $(MY_LIBS)
 inplace_la_SOURCES    = inplace.c
 inplace_la_LDFLAGS    = $(MY_MODULE_FLAGS)
 inplace_la_LIBADD     = $(MY_LIBS)
+
+# On Cygwin, intdiv has to be linked with the MPFR and GMP libraries.
+# Solaris in addition wants the math library.
+intdiv_la_SOURCES     = intdiv.c
+intdiv_la_LDFLAGS     = $(MY_MODULE_FLAGS)
+intdiv_la_LIBADD      = $(MY_LIBS) $(LIBMPFR) -lm
 
 ordchr_la_SOURCES     = ordchr.c
 ordchr_la_LDFLAGS     = $(MY_MODULE_FLAGS)
@@ -97,9 +107,19 @@ time_la_SOURCES       = time.c
 time_la_LDFLAGS       = $(MY_MODULE_FLAGS)
 time_la_LIBADD        = $(MY_LIBS)
 
+# N.B. Becaues we are not installing testext, we must specify -rpath in
+# LDFLAGS to get automake to build a shared library, since it needs
+# an installation path.
 testext_la_SOURCES    = testext.c
-testext_la_LDFLAGS    = $(MY_MODULE_FLAGS)
+testext_la_LDFLAGS    = $(MY_MODULE_FLAGS) -rpath /foo
 testext_la_LIBADD     = $(MY_LIBS)
+
+# N.B. Because we are not installing readdir_test, we must specify -rpath in
+# LDFLAGS to get automake to build a shared library, since it needs
+# an installation path.
+readdir_test_la_SOURCES = readdir_test.c
+readdir_test_la_LDFLAGS = $(MY_MODULE_FLAGS) -rpath /foo
+readdir_test_la_LIBADD  = $(MY_LIBS)
 
 install-data-hook:
 	for i in $(pkgextension_LTLIBRARIES) ; do \

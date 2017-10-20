@@ -2,22 +2,22 @@
  * builtin.c - Builtin functions and various utility procedures.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -42,10 +42,13 @@
 
 /* The extra casts work around common compiler bugs.  */
 #define TYPE_SIGNED(t) (! ((t) 0 < (t) -1))
-/* The outer cast is needed to work around a bug in Cray C 5.0.3.0.
-   It is necessary at least when t == time_t.  */
+/* Note:  these assume that negative integers are represented internally
+   via 2's complement, which is not mandated by C.  They also ignore the
+   fact that signed integer arithmetic overflow can trigger exceptions,
+   unlike unsigned which is guaranteed not to do so. */
 #define TYPE_MINIMUM(t) ((t) (TYPE_SIGNED (t) \
-			      ? ~ (t) 0 << (sizeof (t) * CHAR_BIT - 1) : (t) 0))
+			      ? ~ (uintmax_t) 0 << (sizeof (t) * CHAR_BIT - 1) \
+			      : 0))
 #define TYPE_MAXIMUM(t) ((t) (~ (t) 0 - TYPE_MINIMUM (t)))
 
 #ifndef INTMAX_MIN
@@ -125,14 +128,25 @@ efwrite(const void *ptr,
 	return;
 
 wrerror:
-	/* die silently on EPIPE to stdout */
+#ifdef __MINGW32__
+	if (errno == 0 || errno == EINVAL)
+		w32_maybe_set_errno();
+#endif
+	/* for stdout, die with a real SIGPIPE, like other awks */
 	if (fp == stdout && errno == EPIPE)
-		gawk_exit(EXIT_FATAL);
+		die_via_sigpipe();
 
 	/* otherwise die verbosely */
-	fatal(_("%s to \"%s\" failed (%s)"), from,
-		rp ? rp->value : _("standard output"),
-		errno ? strerror(errno) : _("reason unknown"));
+	if ((rp != NULL) ? is_non_fatal_redirect(rp->value, strlen(rp->value)) : is_non_fatal_std(fp))
+		update_ERRNO_int(errno);
+	else
+		fatal(_("%s to \"%s\" failed (%s)"), from,
+			rp != NULL
+				? rp->value
+				: fp == stdout
+					? _("standard output")
+					: _("standard error"),
+			errno ? strerror(errno) : _("reason unknown"));
 }
 
 /* do_exp --- exponential function */
@@ -144,7 +158,7 @@ do_exp(int nargs)
 	double d, res;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("exp: received non-numeric argument"));
 	d = force_number(tmp)->numbr;
 	DEREF(tmp);
@@ -186,12 +200,13 @@ do_fflush(int nargs)
 	FILE *fp;
 	int status = 0;
 	const char *file;
+	int len;
 
 	/*
 	 * November, 2012.
-	 * It turns out that circa 2002, when BWK 
+	 * It turns out that circa 2002, when BWK
 	 * added fflush() and fflush("") to his awk, he made both of
-	 * them flush everything.  
+	 * them flush everything.
 	 *
 	 * Now, with our inside agent getting ready to try to get fflush()
 	 * standardized in POSIX, we are going to make our awk consistent
@@ -206,16 +221,17 @@ do_fflush(int nargs)
 
 	/* fflush() */
 	if (nargs == 0) {
-		status = flush_io();
+		status = flush_io();	// ERRNO updated
 		return make_number((AWKNUM) status);
 	}
 
 	tmp = POP_STRING();
 	file = tmp->stptr;
+	len = tmp->stlen;
 
 	/* fflush("") */
 	if (tmp->stlen == 0) {
-		status = flush_io();
+		status = flush_io();	// ERRNO updated
 		DEREF(tmp);
 		return make_number((AWKNUM) status);
 	}
@@ -226,25 +242,32 @@ do_fflush(int nargs)
 	if (rp != NULL) {
 		if ((rp->flag & (RED_WRITE|RED_APPEND)) == 0) {
 			if ((rp->flag & RED_PIPE) != 0)
-				warning(_("fflush: cannot flush: pipe `%s' opened for reading, not writing"),
-					file);
+				warning(_("fflush: cannot flush: pipe `%.*s' opened for reading, not writing"),
+					len, file);
 			else
-				warning(_("fflush: cannot flush: file `%s' opened for reading, not writing"),
-					file);
+				warning(_("fflush: cannot flush: file `%.*s' opened for reading, not writing"),
+					len, file);
 			DEREF(tmp);
 			return make_number((AWKNUM) status);
 		}
 		fp = rp->output.fp;
-		if (fp != NULL)
+		if (fp != NULL) {
 			status = rp->output.gawk_fflush(fp, rp->output.opaque);
-		else if ((rp->flag & RED_TWOWAY) != 0)
-				warning(_("fflush: cannot flush: two-way pipe `%s' has closed write end"),
-					file);
+
+			if (status != 0) {
+				if (! is_non_fatal_redirect(tmp->stptr, tmp->stlen))
+					fatal(_("fflush: cannot flush file `%.*s': %s"),
+						len, file, strerror(errno));
+				update_ERRNO_int(errno);
+			}
+		} else if ((rp->flag & RED_TWOWAY) != 0)
+				warning(_("fflush: cannot flush: two-way pipe `%.*s' has closed write end"),
+					len, file);
 	} else if ((fp = stdfile(tmp->stptr, tmp->stlen)) != NULL) {
-		status = fflush(fp);
+		status = (non_fatal_flush_std_file(fp) == false);
 	} else {
 		status = -1;
-		warning(_("fflush: `%s' is not an open file, pipe or co-process"), file);
+		warning(_("fflush: `%.*s' is not an open file, pipe or co-process"), len, file);
 	}
 	DEREF(tmp);
 	return make_number((AWKNUM) status);
@@ -350,9 +373,9 @@ do_index(int nargs)
 	POP_TWO_SCALARS(s1, s2);
 
 	if (do_lint) {
-		if ((s1->flags & (STRING|STRCUR)) == 0)
+		if ((fixtype(s1)->flags & STRING) == 0)
 			lintwarn(_("index: received non-string first argument"));
-		if ((s2->flags & (STRING|STRCUR)) == 0)
+		if ((fixtype(s2)->flags & STRING) == 0)
 			lintwarn(_("index: received non-string second argument"));
 	}
 
@@ -382,7 +405,7 @@ do_index(int nargs)
 		 * If we don't have valid wide character strings, use
 		 * the real bytes.
 		 */
-		do_single_byte = ((s1->wstlen == 0 && s1->stlen > 0) 
+		do_single_byte = ((s1->wstlen == 0 && s1->stlen > 0)
 					|| (s2->wstlen == 0 && s2->stlen > 0));
 	}
 
@@ -465,7 +488,7 @@ do_int(int nargs)
 	double d;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("int: received non-numeric argument"));
 	d = force_number(tmp)->numbr;
 	d = double_to_int(d);
@@ -511,7 +534,7 @@ do_length(int nargs)
 
 		/*
 		 * Support for deferred loading of array elements requires that
-		 * we use the array length interface even though it isn't 
+		 * we use the array length interface even though it isn't
 		 * necessary for the built-in array types.
 		 *
 		 * 1/2015: The deferred arrays are gone, but this is probably
@@ -524,7 +547,7 @@ do_length(int nargs)
 
 	assert(tmp->type == Node_val);
 
-	if (do_lint && (tmp->flags & (STRING|STRCUR)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & STRING) == 0)
 		lintwarn(_("length: received non-string argument"));
 	tmp = force_string(tmp);
 
@@ -553,7 +576,7 @@ do_log(int nargs)
 	double d, arg;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("log: received non-numeric argument"));
 	arg = force_number(tmp)->numbr;
 	if (arg < 0.0)
@@ -712,7 +735,7 @@ format_tree(
 	emalloc(obuf, char *, INITIAL_OUT_SIZE, "format_tree");
 	obufout = obuf;
 	osiz = INITIAL_OUT_SIZE;
-	ofre = osiz - 2;
+	ofre = osiz - 1;
 
 	cur_arg = 1;
 
@@ -939,7 +962,7 @@ check_pos:
 			*cur = get_number_si(arg);
 			if (*cur < 0 && cur == &fw) {
 				*cur = -*cur;
-				lj++;
+				lj = true;
 			}
 			if (cur == &prec) {
 				if (*cur >= 0)
@@ -952,7 +975,7 @@ check_pos:
 		case ' ':		/* print ' ' or '-' */
 					/* 'space' flag is ignored */
 					/* if '+' already present  */
-			if (signchar != false) 
+			if (signchar != false)
 				goto check_pos;
 			/* FALL THROUGH */
 		case '+':		/* print '+' or '-' */
@@ -966,7 +989,7 @@ check_pos:
 				goto retry;
 			}
 			fill = sp;      /* if left justified then other */
-			lj++; 		/* filling is ignored */
+			lj = true;	/* filling is ignored */
 			goto check_pos;
 		case '.':
 			if (cur != &fw)
@@ -978,18 +1001,18 @@ check_pos:
 			alt = true;
 			goto check_pos;
 		case '\'':
-#if defined(HAVE_LOCALE_H)       
+#if defined(HAVE_LOCALE_H)
 			quote_flag = true;
 			goto check_pos;
 #else
-			goto retry;  
+			goto retry;
 #endif
 		case 'l':
 			if (big_flag)
 				break;
 			else {
 				static bool warned = false;
-				
+
 				if (do_lint && ! warned) {
 					lintwarn(_("`l' is meaningless in awk formats; ignored"));
 					warned = true;
@@ -1006,7 +1029,7 @@ check_pos:
 				break;
 			else {
 				static bool warned = false;
-				
+
 				if (do_lint && ! warned) {
 					lintwarn(_("`L' is meaningless in awk formats; ignored"));
 					warned = true;
@@ -1023,7 +1046,7 @@ check_pos:
 				break;
 			else {
 				static bool warned = false;
-				
+
 				if (do_lint && ! warned) {
 					lintwarn(_("`h' is meaningless in awk formats; ignored"));
 					warned = true;
@@ -1039,8 +1062,7 @@ check_pos:
 			need_format = false;
 			parse_next_arg();
 			/* user input that looks numeric is numeric */
-			if ((arg->flags & (MAYBE_NUM|NUMBER)) == MAYBE_NUM)
-				(void) force_number(arg);
+			fixtype(arg);
 			if ((arg->flags & NUMBER) != 0) {
 				uval = get_number_uj(arg);
 				if (gawk_mb_cur_max > 1) {
@@ -1210,7 +1232,7 @@ out0:
 						jj = 0;		/* keep using current val in loc.grouping[ii] */
 					else if (loc.grouping[ii+1] == CHAR_MAX)
 						quote_flag = false;
-					else {                 
+					else {
 						ii++;
 						jj = 0;
 					}
@@ -1325,7 +1347,7 @@ mpf1:
 				zero_flag = (! lj
 						    && ((zero_flag && ! have_prec)
 							 || (fw == 0 && have_prec)));
-				
+
 				(void) mpfr_get_z(mpzval, mf, MPFR_RNDZ);	/* convert to GMP integer */
  				fmt_type = have_prec ? MP_INT_WITH_PREC : MP_INT_WITHOUT_PREC;
 				zi = mpzval;
@@ -1390,11 +1412,11 @@ mpf1:
 							PREPEND(ts[k]);
 						}
 					}
-					if (loc.grouping[ii+1] == 0)                                          
+					if (loc.grouping[ii+1] == 0)
 						jj = 0;     /* keep using current val in loc.grouping[ii] */
-					else if (loc.grouping[ii+1] == CHAR_MAX)                        
+					else if (loc.grouping[ii+1] == CHAR_MAX)
 						quote_flag = false;
-					else {                 
+					else {
 						ii++;
 						jj = 0;
 					}
@@ -1574,7 +1596,7 @@ mpf1:
 	bchunk(s0, s1 - s0);
 	olen_final = obufout - obuf;
 	if (ofre > 0)
-		erealloc(obuf, char *, olen_final + 2, "format_tree");
+		erealloc(obuf, char *, olen_final + 1, "format_tree");
 	r = make_str_node(obuf, olen_final, ALREADY_MALLOCED);
 	obuf = NULL;
 out:
@@ -1645,7 +1667,7 @@ do_printf(int nargs, int redirtype)
 	FILE *fp = NULL;
 	NODE *tmp;
 	struct redirect *rp = NULL;
-	int errflg;	/* not used, sigh */
+	int errflg = 0;
 	NODE *redir_exp = NULL;
 
 	if (nargs == 0) {
@@ -1656,7 +1678,7 @@ do_printf(int nargs, int redirtype)
 				redir_exp = TOP();
 				if (redir_exp->type != Node_val)
 					fatal(_("attempt to use array `%s' in a scalar context"), array_vname(redir_exp));
-				rp = redirect(redir_exp, redirtype, & errflg);
+				rp = redirect(redir_exp, redirtype, & errflg, true);
 				DEREF(redir_exp);
 				decr_sp();
 			}
@@ -1669,13 +1691,21 @@ do_printf(int nargs, int redirtype)
 		redir_exp = PEEK(nargs);
 		if (redir_exp->type != Node_val)
 			fatal(_("attempt to use array `%s' in a scalar context"), array_vname(redir_exp));
-		rp = redirect(redir_exp, redirtype, & errflg);
+		rp = redirect(redir_exp, redirtype, & errflg, true);
 		if (rp != NULL) {
 			if ((rp->flag & RED_TWOWAY) != 0 && rp->output.fp == NULL) {
+				if (is_non_fatal_redirect(redir_exp->stptr, redir_exp->stlen)) {
+					update_ERRNO_int(EBADF);
+					return;
+				}
 				(void) close_rp(rp, CLOSE_ALL);
 				fatal(_("printf: attempt to write to closed write end of two-way pipe"));
 			}
 			fp = rp->output.fp;
+		}
+		else if (errflg) {
+			update_ERRNO_int(errflg);
+			return;
 		}
 	} else if (do_debug)	/* only the debugger can change the default output */
 		fp = output_fp;
@@ -1709,7 +1739,7 @@ do_sqrt(int nargs)
 	double arg;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("sqrt: received non-numeric argument"));
 	arg = (double) force_number(tmp)->numbr;
 	DEREF(tmp);
@@ -1850,7 +1880,7 @@ do_substr(int nargs)
 		 * way to do things.
 		 */
 		memset(& mbs, 0, sizeof(mbs));
-		emalloc(substr, char *, (length * gawk_mb_cur_max) + 2, "do_substr");
+		emalloc(substr, char *, (length * gawk_mb_cur_max) + 1, "do_substr");
 		wp = t1->wstptr + indx;
 		for (cp = substr; length > 0; length--) {
 			result = wcrtomb(cp, *wp, & mbs);
@@ -1881,9 +1911,10 @@ do_strftime(int nargs)
 	char buf[BUFSIZ];
 	const char *format;
 	int formatlen;
-	int do_gmt;
+	bool do_gmt;
 	NODE *val = NULL;
 	NODE *sub = NULL;
+	char save;
 	static const time_t time_t_min = TYPE_MINIMUM(time_t);
 	static const time_t time_t_max = TYPE_MAXIMUM(time_t);
 
@@ -1899,7 +1930,7 @@ do_strftime(int nargs)
 		unref(sub);
 
 		if (val != NULL) {
-			if (do_lint && (val->flags & STRING) == 0)
+			if (do_lint && (fixtype(val)->flags & STRING) == 0)
 				lintwarn(_("strftime: format value in PROCINFO[\"strftime\"] has numeric type"));
 			val = force_string(val);
 			format = val->stptr;
@@ -1913,16 +1944,13 @@ do_strftime(int nargs)
 
 		if (nargs == 3) {
 			t3 = POP_SCALAR();
-			if ((t3->flags & (NUMCUR|NUMBER)) != 0)
-				do_gmt = (t3->numbr != 0);
-			else
-				do_gmt = (t3->stlen > 0);
+			do_gmt = boolval(t3);
 			DEREF(t3);
 		}
 
 		if (nargs >= 2) {
 			t2 = POP_SCALAR();
-			if (do_lint && (t2->flags & (NUMCUR|NUMBER)) == 0)
+			if (do_lint && (fixtype(t2)->flags & NUMBER) == 0)
 				lintwarn(_("strftime: received non-numeric second argument"));
 			(void) force_number(t2);
 			clock_val = get_number_d(t2);
@@ -1948,9 +1976,9 @@ do_strftime(int nargs)
 		}
 
 		tmp = POP_SCALAR();
-		if (do_lint && (tmp->flags & (STRING|STRCUR)) == 0)
+		if (do_lint && (fixtype(tmp)->flags & STRING) == 0)
 			lintwarn(_("strftime: received non-string first argument"));
-	
+
 		t1 = force_string(tmp);
 		format = t1->stptr;
 		formatlen = t1->stlen;
@@ -1960,6 +1988,7 @@ do_strftime(int nargs)
 			DEREF(t1);
 			return make_string("", 0);
 		}
+		str_terminate(t1, save);
 	}
 
 	if (do_gmt)
@@ -1967,8 +1996,10 @@ do_strftime(int nargs)
 	else
 		tm = localtime(& fclock);
 
-	if (tm == NULL)
-		return make_string("", 0);
+	if (tm == NULL) {
+		ret = make_string("", 0);
+		goto done;
+	}
 
 	bufp = buf;
 	bufsize = sizeof(buf);
@@ -1994,8 +2025,11 @@ do_strftime(int nargs)
 	ret = make_string(bufp, buflen);
 	if (bufp != buf)
 		efree(bufp);
-	if (t1)
+done:
+	if (t1) {
+		str_restore(t1, save);
 		DEREF(t1);
+	}
 	return ret;
 }
 
@@ -2010,21 +2044,57 @@ do_systime(int nargs ATTRIBUTE_UNUSED)
 	return make_number((AWKNUM) lclock);
 }
 
+/* mktime_tz --- based on Linux timegm man page */
+
+static time_t
+mktime_tz(struct tm *tm, const char *tzreq)
+{
+	time_t ret;
+	char *tz = getenv("TZ");
+
+	if (tz)
+		tz = estrdup(tz, strlen(tz));
+	if (setenv("TZ", tzreq, 1) < 0) {
+		warning(_("setenv(TZ, %s) failed (%s)"), tzreq, strerror(errno));
+		return -1;
+	}
+	tzset();
+	ret = mktime(tm);
+	if (tz) {
+		if (setenv("TZ", tz, 1) < 0)
+			fatal(_("setenv(TZ, %s) restoration failed (%s)"), tz, strerror(errno));
+		free(tz);
+	} else {
+		if (unsetenv("TZ") < 0)
+			fatal(_("unsetenv(TZ) failed (%s)"), strerror(errno));
+	}
+	tzset();
+	return ret;
+}
+
 /* do_mktime --- turn a time string into a timestamp */
 
 NODE *
 do_mktime(int nargs)
 {
-	NODE *t1;
+	NODE *t1, *t2;
 	struct tm then;
 	long year;
 	int month, day, hour, minute, second, count;
 	int dst = -1; /* default is unknown */
 	time_t then_stamp;
 	char save;
+	bool do_gmt;
 
+	if (nargs == 2) {
+		t2 = POP_SCALAR();
+		do_gmt = boolval(t2);
+		DEREF(t2);
+	}
+	else
+		do_gmt = false;
 	t1 = POP_SCALAR();
-	if (do_lint && (t1->flags & (STRING|STRCUR)) == 0)
+	if (do_lint && (fixtype(t1)->flags & STRING) == 0)
 		lintwarn(_("mktime: received non-string argument"));
 	t1 = force_string(t1);
 
@@ -2062,7 +2132,7 @@ do_mktime(int nargs)
 	then.tm_year = year - 1900;
 	then.tm_isdst = dst;
 
-	then_stamp = mktime(& then);
+	then_stamp = (do_gmt ? mktime_tz(& then, "UTC+0") : mktime(& then));
 	return make_number((AWKNUM) then_stamp);
 }
 
@@ -2082,7 +2152,7 @@ do_system(int nargs)
 
 	(void) flush_io();     /* so output is synchronous with gawk's */
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (STRING|STRCUR)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & STRING) == 0)
 		lintwarn(_("system: received non-string argument"));
 	cmd = force_string(tmp)->stptr;
 
@@ -2092,9 +2162,7 @@ do_system(int nargs)
 		cmd[tmp->stlen] = '\0';
 
 		os_restore_mode(fileno(stdin));
-#ifdef SIGPIPE
-		signal(SIGPIPE, SIG_DFL);
-#endif
+		set_sigpipe_to_default();
 
 		status = system(cmd);
 		/*
@@ -2110,29 +2178,17 @@ do_system(int nargs)
 				;	/* leave it alone, full 16 bits */
 			else if (do_traditional)
 #ifdef __MINGW32__
-			  ret = (((unsigned)status) & ~0xC0000000);
+				ret = (((unsigned)status) & ~0xC0000000);
 #else
 				ret = (status / 256.0);
 #endif
-			else if (WIFEXITED(status))
-				ret = WEXITSTATUS(status); /* normal exit */
-			else if (WIFSIGNALED(status)) {
-				bool coredumped = false;
-#ifdef WCOREDUMP
-				coredumped = WCOREDUMP(status);
-#endif
-				/* use 256 since exit values are 8 bits */
-				ret = WTERMSIG(status) +
-					(coredumped ? 512 : 256);
-			} else
-				ret = 0;	/* shouldn't get here */
+			else
+				ret = sanitize_exit_status(status);
 		}
 
 		if ((BINMODE & BINMODE_INPUT) != 0)
 			os_setbinmode(fileno(stdin), O_BINARY);
-#ifdef SIGPIPE
-		signal(SIGPIPE, SIG_IGN);
-#endif
+		ignore_sigpipe();
 
 		cmd[tmp->stlen] = save;
 	}
@@ -2146,7 +2202,7 @@ void
 do_print(int nargs, int redirtype)
 {
 	struct redirect *rp = NULL;
-	int errflg;	/* not used, sigh */
+	int errflg = 0;
 	FILE *fp = NULL;
 	int i;
 	NODE *redir_exp = NULL;
@@ -2158,13 +2214,21 @@ do_print(int nargs, int redirtype)
 		redir_exp = PEEK(nargs);
 		if (redir_exp->type != Node_val)
 			fatal(_("attempt to use array `%s' in a scalar context"), array_vname(redir_exp));
-		rp = redirect(redir_exp, redirtype, & errflg);
+		rp = redirect(redir_exp, redirtype, & errflg, true);
 		if (rp != NULL) {
 			if ((rp->flag & RED_TWOWAY) != 0 && rp->output.fp == NULL) {
+				if (is_non_fatal_redirect(redir_exp->stptr, redir_exp->stlen)) {
+					update_ERRNO_int(EBADF);
+					return;
+				}
 				(void) close_rp(rp, CLOSE_ALL);
 				fatal(_("print: attempt to write to closed write end of two-way pipe"));
 			}
 			fp = rp->output.fp;
+		}
+		else if (errflg) {
+			update_ERRNO_int(errflg);
+			return;
 		}
 	} else if (do_debug)	/* only the debugger can change the default output */
 		fp = output_fp;
@@ -2178,9 +2242,10 @@ do_print(int nargs, int redirtype)
 				DEREF(args_array[i]);
 			fatal(_("attempt to use array `%s' in a scalar context"), array_vname(tmp));
 		}
-
-		if ((tmp->flags & STRCUR) == 0 || (tmp->stfmt != -1 && tmp->stfmt != OFMTidx))
-			args_array[i] = format_val(OFMT, OFMTidx, tmp);
+		if (   (tmp->flags & STRCUR) == 0
+		    || (   tmp->stfmt != STFMT_UNUSED
+		        && tmp->stfmt != OFMTidx))
+			args_array[i] = force_string_ofmt(tmp);
 	}
 
 	if (redir_exp != NULL) {
@@ -2211,21 +2276,25 @@ do_print(int nargs, int redirtype)
 
 /* do_print_rec --- special case printing of $0, for speed */
 
-void 
+void
 do_print_rec(int nargs, int redirtype)
 {
 	FILE *fp = NULL;
 	NODE *f0;
 	struct redirect *rp = NULL;
-	int errflg;	/* not used, sigh */
+	int errflg = 0;
 	NODE *redir_exp = NULL;
 
 	assert(nargs == 0);
 	if (redirtype != 0) {
 		redir_exp = TOP();
-		rp = redirect(redir_exp, redirtype, & errflg);
+		rp = redirect(redir_exp, redirtype, & errflg, true);
 		if (rp != NULL) {
 			if ((rp->flag & RED_TWOWAY) != 0 && rp->output.fp == NULL) {
+				if (is_non_fatal_redirect(redir_exp->stptr, redir_exp->stlen)) {
+					update_ERRNO_int(EBADF);
+					return;
+				}
 				(void) close_rp(rp, CLOSE_ALL);
 				fatal(_("print: attempt to write to closed write end of two-way pipe"));
 			}
@@ -2235,6 +2304,11 @@ do_print_rec(int nargs, int redirtype)
 		decr_sp();
 	} else
 		fp = output_fp;
+
+	if (errflg) {
+		update_ERRNO_int(errflg);
+		return;
+	}
 
 	if (fp == NULL)
 		return;
@@ -2329,7 +2403,7 @@ do_tolower(int nargs)
 	NODE *t1, *t2;
 
 	t1 = POP_SCALAR();
-	if (do_lint && (t1->flags & (STRING|STRCUR)) == 0)
+	if (do_lint && (fixtype(t1)->flags & STRING) == 0)
 		lintwarn(_("tolower: received non-string argument"));
 	t1 = force_string(t1);
 	t2 = make_string(t1->stptr, t1->stlen);
@@ -2360,7 +2434,7 @@ do_toupper(int nargs)
 	NODE *t1, *t2;
 
 	t1 = POP_SCALAR();
-	if (do_lint && (t1->flags & (STRING|STRCUR)) == 0)
+	if (do_lint && (fixtype(t1)->flags & STRING) == 0)
 		lintwarn(_("toupper: received non-string argument"));
 	t1 = force_string(t1);
 	t2 = make_string(t1->stptr, t1->stlen);
@@ -2393,9 +2467,9 @@ do_atan2(int nargs)
 
 	POP_TWO_SCALARS(t1, t2);
 	if (do_lint) {
-		if ((t1->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(t1)->flags & NUMBER) == 0)
 			lintwarn(_("atan2: received non-numeric first argument"));
-		if ((t2->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(t2)->flags & NUMBER) == 0)
 			lintwarn(_("atan2: received non-numeric second argument"));
 	}
 	d1 = force_number(t1)->numbr;
@@ -2414,7 +2488,7 @@ do_sin(int nargs)
 	double d;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("sin: received non-numeric argument"));
 	d = sin((double) force_number(tmp)->numbr);
 	DEREF(tmp);
@@ -2430,7 +2504,7 @@ do_cos(int nargs)
 	double d;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("cos: received non-numeric argument"));
 	d = cos((double) force_number(tmp)->numbr);
 	DEREF(tmp);
@@ -2449,6 +2523,8 @@ static char *const state = (char *const) istate;
 NODE *
 do_rand(int nargs ATTRIBUTE_UNUSED)
 {
+	double tmprand;
+#define RAND_DIVISOR ((double)GAWK_RANDOM_MAX+1.0)
 	if (firstrand) {
 		(void) initstate((unsigned) 1, state, SIZEOF_STATE);
 		/* don't need to srandom(1), initstate() does it for us. */
@@ -2460,7 +2536,66 @@ do_rand(int nargs ATTRIBUTE_UNUSED)
 	 *
 	 * 	0 <= n < 1
 	 */
-	return make_number((AWKNUM) (random() % GAWK_RANDOM_MAX) / GAWK_RANDOM_MAX);
+ 	/*
+	 * Date: Wed, 28 Aug 2013 17:52:46 -0700
+	 * From: Bob Jewett <jewett@bill.scs.agilent.com>
+	 *
+ 	 * Call random() twice to fill in more bits in the value
+ 	 * of the double.  Also, there is a bug in random() such
+ 	 * that when the values of successive values are combined
+ 	 * like (rand1*rand2)^2, (rand3*rand4)^2,  ...  the
+ 	 * resulting time series is not white noise.  The
+ 	 * following also seems to fix that bug.
+ 	 *
+ 	 * The add/subtract 0.5 keeps small bits from filling
+ 	 * below 2^-53 in the double, not that anyone should be
+ 	 * looking down there.
+	 *
+	 * Date: Wed, 25 Sep 2013 10:45:38 -0600 (MDT)
+	 * From: "Nelson H. F. Beebe" <beebe@math.utah.edu>
+	 * (4) The code is typical of many published fragments for converting
+	 *     from integer to floating-point, and I discuss the serious pitfalls
+	 *     in my book, because it leads to platform-dependent behavior at the
+	 *     end points of the interval [0,1]
+	 *
+	 * (5) the documentation in the gawk info node says
+	 *
+	 *     `rand()'
+	 * 	 Return a random number.  The values of `rand()' are uniformly
+	 * 	 distributed between zero and one.  The value could be zero but is
+	 * 	 never one.(1)
+	 *
+	 *     The division by RAND_DIVISOR may not guarantee that 1.0 is never
+	 *     returned: the programmer forgot the platform-dependent issue of
+	 *     rounding.
+	 *
+	 * For points 4 and 5, the safe way is a loop:
+	 *
+	 *         double
+	 * 	   rand(void)		// return value in [0.0, 1.0)
+	 *         {
+	 * 	    value = internal_rand();
+	 *
+	 * 	    while (value == 1.0)
+	 *                 value = internal_rand();
+	 *
+	 * 	    return (value);
+	 *         }
+ 	 */
+
+	do {
+		long d1, d2;
+		/*
+		 * Do the calls in predictable order to avoid
+		 * compiler differences in order of evaluation.
+		 */
+		d1 = random();
+		d2 = random();
+	 	tmprand = 0.5 + ( (d1/RAND_DIVISOR + d2) / RAND_DIVISOR );
+		tmprand -= 0.5;
+	} while (tmprand == 1.0);
+
+ 	return make_number((AWKNUM) tmprand);
 }
 
 /* do_srand --- seed the random number generator */
@@ -2483,7 +2618,7 @@ do_srand(int nargs)
 		srandom((unsigned int) (save_seed = (long) time((time_t *) 0)));
 	else {
 		tmp = POP_SCALAR();
-		if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+		if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 			lintwarn(_("srand: received non-numeric argument"));
 		srandom((unsigned int) (save_seed = (long) force_number(tmp)->numbr));
 		DEREF(tmp);
@@ -2521,7 +2656,7 @@ do_match(int nargs)
 	tre = POP();
 	rp = re_update(tre);
 	t1 = POP_STRING();
-	
+
 	rstart = research(rp, t1->stptr, 0, t1->stlen, RE_NEED_START);
 	if (rstart >= 0) {	/* match succeded */
 		size_t *wc_indices = NULL;
@@ -2534,7 +2669,7 @@ do_match(int nargs)
 		}
 
 		rstart++;	/* now it's 1-based indexing */
-	
+
 		/* Build the array only if the caller wants the optional subpatterns */
 		if (dest != NULL) {
 			subsepstr = SUBSEP_node->var_value->stptr;
@@ -2550,7 +2685,7 @@ do_match(int nargs)
 					size_t subpat_len;
 					NODE **lhs;
 					NODE *sub;
-					
+
 					start = t1->stptr + s;
 					subpat_start = s;
 					subpat_len = len = SUBPATEND(rp, t1->stptr, ii) - s;
@@ -2558,9 +2693,9 @@ do_match(int nargs)
 						subpat_start = wc_indices[s];
 						subpat_len = wc_indices[s + len - 1] - subpat_start + 1;
 					}
-	
+
 					it = make_string(start, len);
-					it->flags |= MAYBE_NUM;	/* user input */
+					it->flags |= USER_INPUT;
 
 					sub = make_number((AWKNUM) (ii));
 					lhs = assoc_lookup(dest, sub);
@@ -2573,8 +2708,8 @@ do_match(int nargs)
 
 					sprintf(buff, "%d", ii);
 					ilen = strlen(buff);
-					amt = ilen + subseplen + strlen("length") + 2;
-	
+					amt = ilen + subseplen + strlen("length") + 1;
+
 					if (oldamt == 0) {
 						emalloc(buf, char *, amt, "do_match");
 					} else if (amt > oldamt) {
@@ -2584,9 +2719,9 @@ do_match(int nargs)
 					memcpy(buf, buff, ilen);
 					memcpy(buf + ilen, subsepstr, subseplen);
 					memcpy(buf + ilen + subseplen, "start", 6);
-	
+
 					slen = ilen + subseplen + 5;
-	
+
 					it = make_number((AWKNUM) subpat_start + 1);
 					sub = make_string(buf, slen);
 					lhs = assoc_lookup(dest, sub);
@@ -2595,13 +2730,13 @@ do_match(int nargs)
 					if (dest->astore != NULL)
 						(*dest->astore)(dest, sub);
 					unref(sub);
-	
+
 					memcpy(buf, buff, ilen);
 					memcpy(buf + ilen, subsepstr, subseplen);
 					memcpy(buf + ilen + subseplen, "length", 7);
-	
+
 					slen = ilen + subseplen + 6;
-	
+
 					it = make_number((AWKNUM) subpat_len);
 					sub = make_string(buf, slen);
 					lhs = assoc_lookup(dest, sub);
@@ -2636,9 +2771,9 @@ do_match(int nargs)
  * Gsub can be tricksy; particularly when handling the case of null strings.
  * The following awk code was useful in debugging problems.  It is too bad
  * that it does not readily translate directly into the C code, below.
- * 
+ *
  * #! /usr/local/bin/mawk -f
- * 
+ *
  * BEGIN {
  * 	true = 1; false = 0
  * 	print "--->", mygsub("abc", "b+", "FOO")
@@ -2648,7 +2783,7 @@ do_match(int nargs)
  * 	print "--->", mygsub("abc", "c+", "X")
  * 	print "--->", mygsub("abc", "x*$", "X")
  * }
- * 
+ *
  * function mygsub(str, regex, replace,	origstr, newstr, eosflag, nonzeroflag)
  * {
  * 	origstr = str;
@@ -2686,7 +2821,7 @@ do_match(int nargs)
  * 	}
  * 	if (length(str) > 0)
  * 		newstr = newstr str	# rest of string
- * 
+ *
  * 	return newstr
  * }
  */
@@ -2698,7 +2833,7 @@ do_match(int nargs)
  *
  * The relevant text is to be found on lines 6394-6407 (pages 166, 167) of the
  * 2001 standard:
- * 
+ *
  * sub(ere, repl[, in ])
  *  Substitute the string repl in place of the first instance of the
  *  extended regular expression ERE in string in and return the number of
@@ -2747,56 +2882,48 @@ do_sub(int nargs, unsigned int flags)
 	int ampersands;
 	int matches = 0;
 	Regexp *rp;
-	NODE *s;		/* subst. pattern */
-	NODE *t;		/* string to make sub. in; $0 if none given */
+	NODE *rep_node;		/* replacement text */
+	NODE *target;		/* string to make sub. in; $0 if none given */
 	NODE *tmp;
 	NODE **lhs = NULL;
 	long how_many = 1;	/* one substitution for sub, also gensub default */
-	int global;
+	bool global;
 	long current;
 	bool lastmatchnonzero;
 	char *mb_indices = NULL;
-	
+
 	if ((flags & GENSUB) != 0) {
 		double d;
-		NODE *t1;
+		NODE *glob_flag;
 
 		tmp = PEEK(3);
 		rp = re_update(tmp);
 
-		t = POP_STRING();	/* original string */
+		target = POP_STRING();	/* original string */
 
-		t1 = POP_SCALAR();	/* value of global flag */
-		if ((t1->flags & (STRCUR|STRING)) != 0) {
-			if (t1->stlen > 0 && (t1->stptr[0] == 'g' || t1->stptr[0] == 'G'))
-				how_many = -1;
-			else {
-				(void) force_number(t1);
-				d = get_number_d(t1);
-				if ((t1->flags & NUMCUR) != 0)
-					goto set_how_many;
-
-				warning(_("gensub: third argument `%.*s' treated as 1"),
-						(int) t1->stlen, t1->stptr);
-				how_many = 1;
-			}
-		} else {
-			(void) force_number(t1);
-			d = get_number_d(t1);
-set_how_many:
+		glob_flag = POP_SCALAR();	/* value of global flag */
+		if (   (glob_flag->flags & STRING) != 0
+		    && glob_flag->stlen > 0
+		    && (glob_flag->stptr[0] == 'g' || glob_flag->stptr[0] == 'G'))
+			how_many = -1;
+		else {
+			(void) force_number(glob_flag);
+			d = get_number_d(glob_flag);
 			if (d < 1)
 				how_many = 1;
 			else if (d < LONG_MAX)
 				how_many = d;
 			else
 				how_many = LONG_MAX;
-			if (d <= 0)
-				warning(_("gensub: third argument %g treated as 1"), d);
+			if (d <= 0) {
+				(void) force_string(glob_flag);
+				warning(_("gensub: third argument `%.*s' treated as 1"),
+						(int) glob_flag->stlen,
+						glob_flag->stptr);
+			}
 		}
-		DEREF(t1);
-
+		DEREF(glob_flag);
 	} else {
-
 		/* take care of regexp early, in case re_update is fatal */
 
 		tmp = PEEK(2);
@@ -2808,30 +2935,30 @@ set_how_many:
 		/* original string */
 
 		if ((flags & LITERAL) != 0)
-			t = POP_STRING();
+			target = POP_STRING();
 		else {
 			lhs = POP_ADDRESS();
-			t = force_string(*lhs);
+			target = force_string(*lhs);
 		}
 	}
 
 	global = (how_many == -1);
 
-	s = POP_STRING();	/* replacement text */
+	rep_node = POP_STRING();	/* replacement text */
 	decr_sp();		/* regexp, already updated above */
 
 	/* do the search early to avoid work on non-match */
-	if (research(rp, t->stptr, 0, t->stlen, RE_NEED_START) == -1 ||
-			RESTART(rp, t->stptr) > t->stlen)
+	if (research(rp, target->stptr, 0, target->stlen, RE_NEED_START) == -1 ||
+			RESTART(rp, target->stptr) > target->stlen)
 		goto done;
 
-	t->flags |= STRING;
+	target->flags |= STRING;
 
-	text = t->stptr;
-	textlen = t->stlen;
+	text = target->stptr;
+	textlen = target->stlen;
 
-	repl = s->stptr;
-	replend = repl + s->stlen;
+	repl = rep_node->stptr;
+	replend = repl + rep_node->stlen;
 	repllen = replend - repl;
 
 	ampersands = 0;
@@ -2849,6 +2976,7 @@ set_how_many:
 		index_multibyte_buffer(repl, mb_indices, repllen);
 	}
 
+	/* compute length of replacement string, number of ampersands */
 	for (scan = repl; scan < replend; scan++) {
 		if ((gawk_mb_cur_max == 1 || (repllen > 0 && mb_indices[scan - repl] == 1))
 		    && (*scan == '&')) {
@@ -2895,24 +3023,32 @@ set_how_many:
 
 	lastmatchnonzero = false;
 
-	/* guesstimate how much room to allocate; +2 forces > 0 */
-	buflen = textlen + (ampersands + 1) * repllen + 2;
-	emalloc(buf, char *, buflen + 2, "do_sub");
+	/* guesstimate how much room to allocate; +1 forces > 0 */
+	buflen = textlen + (ampersands + 1) * repllen + 1;
+	emalloc(buf, char *, buflen + 1, "do_sub");
 	buf[buflen] = '\0';
-	buf[buflen + 1] = '\0';
 
 	bp = buf;
 	for (current = 1;; current++) {
 		matches++;
-		matchstart = t->stptr + RESTART(rp, t->stptr);
-		matchend = t->stptr + REEND(rp, t->stptr);
+		matchstart = target->stptr + RESTART(rp, target->stptr);
+		matchend = target->stptr + REEND(rp, target->stptr);
 
 		/*
 		 * create the result, copying in parts of the original
-		 * string 
+		 * string. note that length of replacement string can
+		 * vary since ampersand is actual text of regexp match.
 		 */
-		len = matchstart - text + repllen
-		      + ampersands * (matchend - matchstart);
+
+		/*
+		 * add 1 to len to handle "empty" case where
+		 * matchend == matchstart and we force a match on a single
+		 * char.  Use 'matchend - text' instead of 'matchstart - text'
+		 * because we may not actually make any substitution depending
+		 * on the 'global' and 'how_many' values.
+		 */
+		len = matchend - text + repllen
+		      + ampersands * (matchend - matchstart) + 1;
 		sofar = bp - buf;
 		while (buflen < (sofar + len + 1)) {
 			buflen *= 2;
@@ -2959,13 +3095,13 @@ set_how_many:
 					if (flags & GENSUB) {	/* gensub, behave sanely */
 						if (isdigit((unsigned char) scan[1])) {
 							int dig = scan[1] - '0';
-							if (dig < NUMSUBPATS(rp, t->stptr) && SUBPATSTART(rp, tp->stptr, dig) != -1) {
+							if (dig < NUMSUBPATS(rp, target->stptr) && SUBPATSTART(rp, tp->stptr, dig) != -1) {
 								char *start, *end;
-		
-								start = t->stptr
-								      + SUBPATSTART(rp, t->stptr, dig);
-								end = t->stptr
-								      + SUBPATEND(rp, t->stptr, dig);
+
+								start = target->stptr
+								      + SUBPATSTART(rp, target->stptr, dig);
+								end = target->stptr
+								      + SUBPATEND(rp, target->stptr, dig);
 
 								for (cp = start; cp < end; cp++)
 									*bp++ = *cp;
@@ -3021,19 +3157,29 @@ set_how_many:
 		textlen = text + textlen - matchend;
 		text = matchend;
 
+#if 0
+		if (bp - buf > sofar + len)
+			fprintf(stderr, "debug: len = %zu, but used %ld\n", len, (long)((bp - buf) - (long)sofar));
+#endif
+
 		if ((current >= how_many && ! global)
 		    || ((long) textlen <= 0 && matchstart == matchend)
-		    || research(rp, t->stptr, text - t->stptr, textlen, RE_NEED_START) == -1)
+		    || research(rp, target->stptr, text - target->stptr, textlen, RE_NEED_START) == -1)
 			break;
 
 	}
 	sofar = bp - buf;
-	if (buflen - sofar - textlen - 1) {
-		buflen = sofar + textlen + 2;
+	if (buflen < (sofar + textlen + 1)) {
+		buflen = sofar + textlen + 1;
 		erealloc(buf, char *, buflen, "do_sub");
 		bp = buf + sofar;
 	}
-	for (scan = matchend; scan < text + textlen; scan++)
+	/*
+	 * Note that text == matchend, since that assignment is made before
+	 * exiting the 'for' loop above. Thus we copy in the rest of the
+	 * original string.
+	 */
+	for (scan = text; scan < text + textlen; scan++)
 		*bp++ = *scan;
 	*bp = '\0';
 	textlen = bp - buf;
@@ -3042,31 +3188,31 @@ set_how_many:
 		efree(mb_indices);
 
 done:
-	DEREF(s);
+	DEREF(rep_node);
 
 	if ((matches == 0 || (flags & LITERAL) != 0) && buf != NULL) {
-		efree(buf); 
+		efree(buf);
 		buf = NULL;
 	}
 
 	if (flags & GENSUB) {
 		if (matches > 0) {
 			/* return the result string */
-			DEREF(t);
+			DEREF(target);
 			assert(buf != NULL);
-			return make_str_node(buf, textlen, ALREADY_MALLOCED);	
+			return make_str_node(buf, textlen, ALREADY_MALLOCED);
 		}
 
 		/* return the original string */
-		return t;
+		return target;
 	}
 
 	/* For a string literal, must not change the original string. */
 	if ((flags & LITERAL) != 0)
-		DEREF(t);
+		DEREF(target);
 	else if (matches > 0) {
 		unref(*lhs);
-		*lhs = make_str_node(buf, textlen, ALREADY_MALLOCED);	
+		*lhs = make_str_node(buf, textlen, ALREADY_MALLOCED);
 	}
 
 	return make_number((AWKNUM) matches);
@@ -3102,7 +3248,10 @@ call_sub(const char *name, int nargs)
 		 * push replace
 		 * push $0
 		 */
-		regex = make_regnode(Node_regex, regex);
+		if ((regex->flags & REGEX) != 0)
+			regex = regex->typed_re;
+		else
+			regex = make_regnode(Node_regex, regex);
 		PUSH(regex);
 		PUSH(replace);
 		lhs = r_get_field(zero, (Func_ptr *) 0, true);
@@ -3126,7 +3275,10 @@ call_sub(const char *name, int nargs)
 		 *	 nargs++
 		 * }
 		 */
-		regex = make_regnode(Node_regex, regex);
+		if ((regex->flags & REGEX) != 0)
+			regex = regex->typed_re;
+		else
+			regex = make_regnode(Node_regex, regex);
 		PUSH(regex);
 		PUSH(replace);
 		PUSH(glob_flag);
@@ -3163,7 +3315,11 @@ call_match(int nargs)
 
 	/* Don't need to pop the string just to push it back ... */
 
-	regex = make_regnode(Node_regex, regex);
+	if ((regex->flags & REGEX) != 0)
+		regex = regex->typed_re;
+	else
+		regex = make_regnode(Node_regex, regex);
+
 	PUSH(regex);
 
 	if (array)
@@ -3191,7 +3347,10 @@ call_split_func(const char *name, int nargs)
 
 	if (nargs >= 3) {
 		regex = POP_STRING();
-		regex = make_regnode(Node_regex, regex);
+		if ((regex->flags & REGEX) != 0)
+			regex = regex->typed_re;
+		else
+			regex = make_regnode(Node_regex, regex);
 	} else {
 		if (name[0] == 's') {
 			regex = make_regnode(Node_regex, FS_node->var_value);
@@ -3234,16 +3393,18 @@ do_lshift(int nargs)
 
 	POP_TWO_SCALARS(s1, s2);
 	if (do_lint) {
-		if ((s1->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(s1)->flags & NUMBER) == 0)
 			lintwarn(_("lshift: received non-numeric first argument"));
-		if ((s2->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(s2)->flags & NUMBER) == 0)
 			lintwarn(_("lshift: received non-numeric second argument"));
 	}
+
 	val = force_number(s1)->numbr;
 	shift = force_number(s2)->numbr;
+	if (val < 0 || shift < 0)
+		fatal(_("lshift(%f, %f): negative values are not allowed"), val, shift);
+
 	if (do_lint) {
-		if (val < 0 || shift < 0)
-			lintwarn(_("lshift(%f, %f): negative values will give strange results"), val, shift);
 		if (double_to_int(val) != val || double_to_int(shift) != shift)
 			lintwarn(_("lshift(%f, %f): fractional values will be truncated"), val, shift);
 		if (shift >= sizeof(uintmax_t) * CHAR_BIT)
@@ -3271,16 +3432,18 @@ do_rshift(int nargs)
 
 	POP_TWO_SCALARS(s1, s2);
 	if (do_lint) {
-		if ((s1->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(s1)->flags & NUMBER) == 0)
 			lintwarn(_("rshift: received non-numeric first argument"));
-		if ((s2->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(s2)->flags & NUMBER) == 0)
 			lintwarn(_("rshift: received non-numeric second argument"));
 	}
+
 	val = force_number(s1)->numbr;
 	shift = force_number(s2)->numbr;
+	if (val < 0 || shift < 0)
+		fatal(_("rshift(%f, %f): negative values are not allowed"), val, shift);
+
 	if (do_lint) {
-		if (val < 0 || shift < 0)
-			lintwarn(_("rshift(%f, %f): negative values will give strange results"), val, shift);
 		if (double_to_int(val) != val || double_to_int(shift) != shift)
 			lintwarn(_("rshift(%f, %f): fractional values will be truncated"), val, shift);
 		if (shift >= sizeof(uintmax_t) * CHAR_BIT)
@@ -3313,12 +3476,12 @@ do_and(int nargs)
 
 	for (i = 1; nargs > 0; nargs--, i++) {
 		s1 = POP_SCALAR();
-		if (do_lint && (s1->flags & (NUMCUR|NUMBER)) == 0)
+		if (do_lint && (fixtype(s1)->flags & NUMBER) == 0)
 			lintwarn(_("and: argument %d is non-numeric"), i);
 
 		val = force_number(s1)->numbr;
-		if (do_lint && val < 0)
-			lintwarn(_("and: argument %d negative value %g will give strange results"), i, val);
+		if (val < 0)
+			fatal(_("and: argument %d negative value %g is not allowed"), i, val);
 
 		uval = (uintmax_t) val;
 		res &= uval;
@@ -3345,12 +3508,12 @@ do_or(int nargs)
 
 	for (i = 1; nargs > 0; nargs--, i++) {
 		s1 = POP_SCALAR();
-		if (do_lint && (s1->flags & (NUMCUR|NUMBER)) == 0)
+		if (do_lint && (fixtype(s1)->flags & NUMBER) == 0)
 			lintwarn(_("or: argument %d is non-numeric"), i);
 
 		val = force_number(s1)->numbr;
-		if (do_lint && val < 0)
-			lintwarn(_("or: argument %d negative value %g will give strange results"), i, val);
+		if (val < 0)
+			fatal(_("or: argument %d negative value %g is not allowed"), i, val);
 
 		uval = (uintmax_t) val;
 		res |= uval;
@@ -3377,12 +3540,12 @@ do_xor(int nargs)
 	res = 0;	/* silence compiler warning */
 	for (i = 1; nargs > 0; nargs--, i++) {
 		s1 = POP_SCALAR();
-		if (do_lint && (s1->flags & (NUMCUR|NUMBER)) == 0)
+		if (do_lint && (fixtype(s1)->flags & NUMBER) == 0)
 			lintwarn(_("xor: argument %d is non-numeric"), i);
 
 		val = force_number(s1)->numbr;
-		if (do_lint && val < 0)
-			lintwarn(_("xor: argument %d negative value %g will give strange results"), i, val);
+		if (val < 0)
+			fatal(_("xor: argument %d negative value %g is not allowed"), i, val);
 
 		uval = (uintmax_t) val;
 		if (i == 1)
@@ -3406,17 +3569,16 @@ do_compl(int nargs)
 	uintmax_t uval;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("compl: received non-numeric argument"));
 	d = force_number(tmp)->numbr;
 	DEREF(tmp);
 
-	if (do_lint) {
-		if (d < 0)
-			lintwarn(_("compl(%f): negative value will give strange results"), d);
-		if (double_to_int(d) != d)
-			lintwarn(_("compl(%f): fractional value will be truncated"), d);
-	}
+	if (d < 0)
+		fatal(_("compl(%f): negative value is not allowed"), d);
+
+	if (do_lint && double_to_int(d) != d)
+		lintwarn(_("compl(%f): fractional value will be truncated"), d);
 
 	uval = (uintmax_t) d;
 	uval = ~ uval;
@@ -3431,11 +3593,11 @@ do_strtonum(int nargs)
 	NODE *tmp;
 	AWKNUM d;
 
-	tmp = POP_SCALAR();
-	if ((tmp->flags & (NUMBER|NUMCUR)) != 0)
-		d = (AWKNUM) force_number(tmp)->numbr;
-	else if (get_numbase(tmp->stptr, use_lc_numeric) != 10)
-		d = nondec2awknum(tmp->stptr, tmp->stlen);
+	tmp = fixtype(POP_SCALAR());
+	if ((tmp->flags & NUMBER) != 0)
+		d = (AWKNUM) tmp->numbr;
+	else if (get_numbase(tmp->stptr, tmp->stlen, use_lc_numeric) != 10)
+		d = nondec2awknum(tmp->stptr, tmp->stlen, NULL);
 	else
 		d = (AWKNUM) force_number(tmp)->numbr;
 
@@ -3452,20 +3614,23 @@ do_strtonum(int nargs)
  */
 
 AWKNUM
-nondec2awknum(char *str, size_t len)
+nondec2awknum(char *str, size_t len, char **endptr)
 {
 	AWKNUM retval = 0.0;
 	char save;
 	short val;
 	char *start = str;
 
-	if (*str == '0' && (str[1] == 'x' || str[1] == 'X')) {
+	if (len >= 2 && *str == '0' && (str[1] == 'x' || str[1] == 'X')) {
 		/*
 		 * User called strtonum("0x") or some such,
 		 * so just quit early.
 		 */
-		if (len <= 2)
+		if (len <= 2) {
+			if (endptr)
+				*endptr = start;
 			return (AWKNUM) 0.0;
+		}
 
 		for (str += 2, len -= 2; len > 0; len--, str++) {
 			switch (*str) {
@@ -3498,14 +3663,21 @@ nondec2awknum(char *str, size_t len)
 				val = *str - 'A' + 10;
 				break;
 			default:
+				if (endptr)
+					*endptr = str;
 				goto done;
 			}
 			retval = (retval * 16) + val;
 		}
-	} else if (*str == '0') {
+		if (endptr)
+			*endptr = str;
+	} else if (len >= 1 && *str == '0') {
 		for (; len > 0; len--) {
-			if (! isdigit((unsigned char) *str))
+			if (! isdigit((unsigned char) *str)) {
+				if (endptr)
+					*endptr = str;
 				goto done;
+			}
 			else if (*str == '8' || *str == '9') {
 				str = start;
 				goto decimal;
@@ -3513,11 +3685,13 @@ nondec2awknum(char *str, size_t len)
 			retval = (retval * 8) + (*str - '0');
 			str++;
 		}
+		if (endptr)
+			*endptr = str;
 	} else {
 decimal:
 		save = str[len];
 		str[len] = '\0';
-		retval = strtod(str, NULL);
+		retval = strtod(str, endptr);
 		str[len] = save;
 	}
 done:
@@ -3566,6 +3740,8 @@ localecategory_from_argument(NODE *t)
 		char *category;
 		int lc_cat = -1;
 
+		char save = t->stptr[t->stlen];
+		t->stptr[t->stlen] = '\0';
 		category = t->stptr;
 
 		/* binary search the table */
@@ -3584,6 +3760,7 @@ localecategory_from_argument(NODE *t)
 				break;
 			}
 		}
+		t->stptr[t->stlen] = save;
 		if (lc_cat == -1)	/* not there */
 			fatal(_("dcgettext: `%s' is not a valid locale category"), category);
 
@@ -3609,9 +3786,11 @@ do_dcgettext(int nargs)
 	NODE *tmp, *t1, *t2 = NULL;
 	char *string;
 	char *the_result;
+	size_t reslen;
 #if ENABLE_NLS && defined(LC_MESSAGES) && HAVE_DCGETTEXT
 	int lc_cat;
 	char *domain;
+	char save1, save2;
 
 	if (nargs == 3) {	/* third argument */
 		tmp = POP_STRING();
@@ -3623,6 +3802,7 @@ do_dcgettext(int nargs)
 	if (nargs >= 2) {  /* second argument */
 		t2 = POP_STRING();
 		domain = t2->stptr;
+		str_terminate(t2, save2);
 	} else
 		domain = TEXTDOMAIN;
 #else
@@ -3640,14 +3820,20 @@ do_dcgettext(int nargs)
 	string = t1->stptr;
 
 #if ENABLE_NLS && defined(LC_MESSAGES) && HAVE_DCGETTEXT
+	str_terminate(t1, save1);
 	the_result = dcgettext(domain, string, lc_cat);
-	if (t2 != NULL)
+	str_restore(t1, save1);
+	if (t2 != NULL) {
+		str_restore(t2, save2);
 		DEREF(t2);
+	}
+	reslen = strlen(the_result);
 #else
 	the_result = string;
+	reslen = t1->stlen;
 #endif
 	DEREF(t1);
-	return make_string(the_result, strlen(the_result));
+	return make_string(the_result, reslen);
 }
 
 
@@ -3659,10 +3845,13 @@ do_dcngettext(int nargs)
 	unsigned long number;
 	AWKNUM d;
 	char *the_result;
+	size_t reslen;
 
 #if ENABLE_NLS && defined(LC_MESSAGES) && HAVE_DCGETTEXT
 	int lc_cat;
 	char *domain;
+	char save, save1, save2;
+	bool saved_end = false;
 
 	if (nargs == 5) {	/* fifth argument */
 		tmp = POP_STRING();
@@ -3675,6 +3864,9 @@ do_dcngettext(int nargs)
 	if (nargs >= 4) {	/* fourth argument */
 		t3 = POP_STRING();
 		domain = t3->stptr;
+		save = domain[t3->stlen];
+		domain[t3->stlen] = '\0';
+		saved_end = true;
 	} else
 		domain = TEXTDOMAIN;
 #else
@@ -3700,15 +3892,29 @@ do_dcngettext(int nargs)
 
 #if ENABLE_NLS && defined(LC_MESSAGES) && HAVE_DCGETTEXT
 
+	str_terminate(t1, save1);
+	str_terminate(t2, save2);
 	the_result = dcngettext(domain, string1, string2, number, lc_cat);
+	reslen = strlen(the_result);
+	str_restore(t1, save1);
+	str_restore(t2, save2);
+	if (saved_end)
+		domain[t3->stlen] = save;
 	if (t3 != NULL)
 		DEREF(t3);
 #else
-	the_result = (number == 1 ? string1 : string2);
+	if (number == 1) {
+		the_result = string1;
+		reslen = t1->stlen;
+	}
+	else {
+		the_result = string2;
+		reslen = t2->stlen;
+	}
 #endif
 	DEREF(t1);
 	DEREF(t2);
-	return make_string(the_result, strlen(the_result));
+	return make_string(the_result, reslen);
 }
 
 /* do_bindtextdomain --- set the directory for a text domain */
@@ -3733,26 +3939,172 @@ do_bindtextdomain(int nargs)
 	/* set defaults */
 	directory = NULL;
 	domain = TEXTDOMAIN;
+	char save, save1;
 
 	if (nargs == 2) {	/* second argument */
 		t2 = POP_STRING();
 		domain = (const char *) t2->stptr;
+		save = t2->stptr[t2->stlen];
+		t2->stptr[t2->stlen] = '\0';
 	}
 
 	/* first argument */
 	t1 = POP_STRING();
-	if (t1->stlen > 0)
+	if (t1->stlen > 0) {
 		directory = (const char *) t1->stptr;
+		str_terminate(t1, save1);
+	}
 
 	the_result = bindtextdomain(domain, directory);
+	if (directory)
+		str_restore(t1, save1);
 
 	DEREF(t1);
-	if (t2 != NULL)
+	if (t2 != NULL) {
+		t2->stptr[t2->stlen] = save;
 		DEREF(t2);
+	}
 
 	return make_string(the_result, strlen(the_result));
 }
 
+#ifdef SUPPLY_INTDIV
+/* do_intdiv --- do integer division, return quotient and remainder in dest array */
+
+/*
+ * We define the semantics as:
+ * 	numerator = int(numerator)
+ *	denominator = int(denonmator)
+ *	quotient = int(numerator / denomator)
+ *	remainder = int(numerator % denomator)
+ */
+
+NODE *
+do_intdiv(int nargs)
+{
+	NODE *numerator, *denominator, *result;
+	double num, denom, quotient, remainder;
+	NODE *sub, **lhs;
+
+	result = POP_PARAM();
+	if (result->type != Node_var_array)
+		fatal(_("intdiv: third argument is not an array"));
+	assoc_clear(result);
+
+	denominator = POP_SCALAR();
+	numerator = POP_SCALAR();
+
+	if (do_lint) {
+		if ((fixtype(numerator)->flags & NUMBER) == 0)
+			lintwarn(_("intdiv: received non-numeric first argument"));
+		if ((fixtype(denominator)->flags & NUMBER) == 0)
+			lintwarn(_("intdiv: received non-numeric second argument"));
+	}
+
+	(void) force_number(numerator);
+	(void) force_number(denominator);
+	num = double_to_int(get_number_d(numerator));
+	denom = double_to_int(get_number_d(denominator));
+
+	if (denom == 0.0)
+		fatal(_("intdiv: division by zero attempted"));
+
+	quotient = double_to_int(num / denom);
+	/*
+	 * FIXME: This code is duplicated, factor it out to a
+	 * separate function.
+	 */
+#ifdef HAVE_FMOD
+	remainder = fmod(num, denom);
+#else	/* ! HAVE_FMOD */
+	(void) modf(num / denom, & remainder);
+	remainder = num - remainder * denom;
+#endif	/* ! HAVE_FMOD */
+	remainder = double_to_int(remainder);
+
+	sub = make_string("quotient", 8);
+	lhs = assoc_lookup(result, sub);
+	unref(*lhs);
+	*lhs = make_number((AWKNUM) quotient);
+
+	sub = make_string("remainder", 9);
+	lhs = assoc_lookup(result, sub);
+	unref(*lhs);
+	*lhs = make_number((AWKNUM) remainder);
+
+	DEREF(denominator);
+	DEREF(numerator);
+
+	return make_number((AWKNUM) 0.0);
+}
+#endif /* SUPPLY_INTDIV */
+
+/* do_typeof --- return a string with the type of the arg */
+
+NODE *
+do_typeof(int nargs)
+{
+	NODE *arg;
+	char *res = NULL;
+	bool deref = true;
+
+	arg = POP();
+	switch (arg->type) {
+	case Node_var_array:
+		/* Node_var_array is never UPREF'ed */
+		res = "array";
+		deref = false;
+		break;
+	case Node_val:
+		switch (fixtype(arg)->flags & (STRING|NUMBER|USER_INPUT|REGEX)) {
+		case NUMBER:
+			res = "number";
+			break;
+		case NUMBER|USER_INPUT:
+			res = "strnum";
+			break;
+		case REGEX:
+			res = "regexp";
+			break;
+		case STRING:
+			res = "string";
+			// fall through
+		case NUMBER|STRING:
+			if (arg == Nnull_string || (arg->flags & NULL_FIELD) != 0) {
+				res = "unassigned";
+				break;
+			}
+			/* fall through */
+		default:
+			if (res == NULL) {
+				warning(_("typeof detected invalid flags combination `%s'; please file a bug report."), flags2str(arg->flags));
+				res = "unknown";
+			}
+			break;
+		}
+		break;
+	case Node_var_new:
+		res = "untyped";
+		deref = false;
+		break;
+	case Node_var:
+		/*
+		 * Note: this doesn't happen because the function calling code
+		 * in interpret.h pushes Node_var->var_value.
+		 */
+		fatal(_("typeof: invalid argument type `%s'"),
+				nodetype2str(arg->type));
+		break;
+	default:
+		fatal(_("typeof: unknown argument type `%s'"),
+				nodetype2str(arg->type));
+		break;
+	}
+
+	if (deref)
+		DEREF(arg);
+	return make_string(res, strlen(res));
+}
 
 /* mbc_byte_count --- return number of bytes for corresponding numchars multibyte characters */
 
@@ -3795,17 +4147,39 @@ mbc_char_count(const char *ptr, size_t numbytes)
 
 	memset(& cur_state, 0, sizeof(cur_state));
 
-	mb_len = mbrlen(ptr, numbytes * gawk_mb_cur_max, &cur_state);
+	mb_len = mbrlen(ptr, numbytes, &cur_state);
 	if (mb_len <= 0)
 		return numbytes;	/* no valid m.b. char */
 
-	for (; numbytes > 0; numbytes--) {
-		mb_len = mbrlen(ptr, numbytes * gawk_mb_cur_max, &cur_state);
+	while (numbytes > 0) {
+		mb_len = mbrlen(ptr, numbytes, &cur_state);
 		if (mb_len <= 0)
 			break;
 		sum++;
 		ptr += mb_len;
+		numbytes -= mb_len;
 	}
 
 	return sum;
+}
+
+/* sanitize_exit_status --- convert a 16 bit Unix exit status into something reasonable */
+
+int sanitize_exit_status(int status)
+{
+	int ret = 0;
+
+	if (WIFEXITED(status))
+		ret = WEXITSTATUS(status); /* normal exit */
+	else if (WIFSIGNALED(status)) {
+		bool coredumped = false;
+#ifdef WCOREDUMP
+		coredumped = WCOREDUMP(status);
+#endif
+		/* use 256 since exit values are 8 bits */
+		ret = WTERMSIG(status) + (coredumped ? 512 : 256);
+	} else
+		ret = 0;	/* shouldn't get here */
+
+	return ret;
 }

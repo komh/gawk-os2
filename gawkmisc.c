@@ -2,23 +2,23 @@
  * gawkmisc.c --- miscellanious gawk routines that are OS specific.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2004, 2010, 2011
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2004, 2010, 2011, 2017,
  * the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -41,19 +41,3 @@
 #include "posix/gawkmisc.c"
 #endif /* not VMS */
 #endif /* not __DJGPP__, not __MINGW32__ */
-
-/* xmalloc --- provide this so that other GNU library routines work */
-
-typedef void *pointer;
-
-extern pointer xmalloc(size_t bytes);	/* get rid of gcc warning */
-
-pointer
-xmalloc(size_t bytes)
-{
-	pointer p;
-	if (bytes == 0)
-		bytes = 1;	/* avoid dfa.c mishegos */
-	emalloc(p, pointer, bytes, "xmalloc");
-	return p;
-}

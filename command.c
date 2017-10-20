@@ -70,7 +70,7 @@
 #define yychar          zzchar
 
 /* Copy the first part of user declarations.  */
-#line 27 "command.y" /* yacc.c:339  */
+#line 28 "command.y" /* yacc.c:339  */
 
 #include "awk.h"
 #include "cmd.h"
@@ -89,7 +89,7 @@ static bool want_nodeval = false;
 
 static int cmd_idx = -1;		/* index of current command in cmd table */
 static int repeat_idx = -1;		/* index of last repeatable command in command table */
-static CMDARG *arg_list = NULL;		/* list of arguments */ 
+static CMDARG *arg_list = NULL;		/* list of arguments */
 static long errcount = 0;
 static char *lexptr_begin = NULL;
 static bool in_commands = false;
@@ -97,7 +97,7 @@ static int num_dim;
 
 static bool in_eval = false;
 static const char start_EVAL[] = "function @eval(){";
-static const char end_EVAL[] = "}";	
+static const char end_EVAL[] = "}";
 static CMDARG *append_statement(CMDARG *stmt_list, char *stmt);
 static NODE *concat_args(CMDARG *a, int count);
 
@@ -583,22 +583,22 @@ static const yytype_uint8 yytranslate[] =
   /* YYRLINE[YYN] -- Source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,   107,   107,   109,   127,   128,   178,   185,   186,   187,
-     188,   189,   193,   194,   195,   196,   200,   201,   202,   203,
-     207,   208,   213,   217,   237,   244,   244,   251,   267,   281,
-     282,   283,   284,   285,   286,   292,   304,   305,   306,   306,
-     307,   307,   308,   309,   310,   311,   312,   312,   313,   314,
-     314,   315,   315,   316,   316,   317,   318,   319,   324,   329,
-     355,   365,   370,   382,   382,   390,   404,   417,   418,   424,
-     425,   429,   430,   431,   432,   438,   439,   440,   445,   456,
-     457,   462,   470,   487,   488,   489,   490,   491,   496,   497,
-     497,   498,   499,   499,   500,   505,   506,   511,   512,   517,
-     518,   521,   523,   527,   528,   543,   544,   549,   557,   558,
-     559,   560,   564,   565,   569,   570,   571,   576,   577,   579,
-     586,   587,   588,   589,   590,   591,   595,   608,   609,   610,
-     614,   615,   616,   617,   621,   623,   625,   629,   644,   648,
-     650,   655,   656,   665,   675,   677,   684,   697,   698,   704,
-     705,   710,   716,   725,   727,   729,   737
+       0,   108,   108,   110,   128,   129,   179,   186,   187,   188,
+     189,   190,   194,   195,   196,   197,   201,   202,   203,   204,
+     208,   209,   214,   218,   238,   245,   245,   252,   268,   282,
+     283,   284,   285,   286,   287,   293,   305,   306,   307,   307,
+     308,   308,   309,   310,   311,   312,   313,   313,   314,   315,
+     315,   316,   316,   317,   317,   318,   319,   320,   325,   330,
+     356,   366,   371,   383,   383,   391,   405,   418,   419,   425,
+     426,   430,   431,   432,   433,   439,   440,   441,   446,   457,
+     458,   463,   471,   488,   489,   490,   491,   492,   497,   498,
+     498,   499,   500,   500,   501,   506,   507,   512,   513,   518,
+     519,   522,   524,   528,   529,   544,   545,   550,   558,   559,
+     560,   561,   565,   566,   570,   571,   572,   577,   578,   580,
+     587,   588,   589,   590,   591,   592,   596,   609,   610,   611,
+     615,   616,   617,   618,   622,   624,   626,   630,   645,   649,
+     651,   656,   657,   666,   676,   678,   685,   698,   699,   705,
+     706,   711,   717,   726,   728,   730,   738
 };
 #endif
 
@@ -1527,7 +1527,7 @@ yyreduce:
   switch (yyn)
     {
         case 3:
-#line 110 "command.y" /* yacc.c:1646  */
+#line 111 "command.y" /* yacc.c:1646  */
     {
 		cmd_idx = -1;
 		want_nodeval = false;
@@ -1546,14 +1546,14 @@ yyreduce:
     break;
 
   case 5:
-#line 129 "command.y" /* yacc.c:1646  */
+#line 130 "command.y" /* yacc.c:1646  */
     {
 		if (errcount == 0 && cmd_idx >= 0) {
 			Func_cmd cmdfunc;
 			bool terminate = false;
 			CMDARG *args;
 			int ctype = 0;
-			
+
 			ctype = cmdtab[cmd_idx].type;
 
 			/* a blank line repeats previous command
@@ -1600,7 +1600,7 @@ yyreduce:
     break;
 
   case 6:
-#line 179 "command.y" /* yacc.c:1646  */
+#line 180 "command.y" /* yacc.c:1646  */
     {
 		yyerrok;
 	  }
@@ -1608,13 +1608,13 @@ yyreduce:
     break;
 
   case 22:
-#line 213 "command.y" /* yacc.c:1646  */
+#line 214 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1614 "command.c" /* yacc.c:1646  */
     break;
 
   case 23:
-#line 218 "command.y" /* yacc.c:1646  */
+#line 219 "command.y" /* yacc.c:1646  */
     {
 		if (errcount == 0) {
 			/* don't free arg_list;	passed on to statement_list
@@ -1634,7 +1634,7 @@ yyreduce:
     break;
 
   case 24:
-#line 237 "command.y" /* yacc.c:1646  */
+#line 238 "command.y" /* yacc.c:1646  */
     {
 		(yyval) = append_statement(arg_list, (char *) start_EVAL);
 		if (read_a_line == read_commands_string)	/* unserializing 'eval' in 'commands' */
@@ -1646,13 +1646,13 @@ yyreduce:
     break;
 
   case 25:
-#line 244 "command.y" /* yacc.c:1646  */
+#line 245 "command.y" /* yacc.c:1646  */
     { (yyval) = append_statement((yyvsp[-1]), lexptr_begin); }
 #line 1652 "command.c" /* yacc.c:1646  */
     break;
 
   case 26:
-#line 245 "command.y" /* yacc.c:1646  */
+#line 246 "command.y" /* yacc.c:1646  */
     {
 		(yyval) = (yyvsp[-1]);
 	  }
@@ -1660,7 +1660,7 @@ yyreduce:
     break;
 
   case 27:
-#line 252 "command.y" /* yacc.c:1646  */
+#line 253 "command.y" /* yacc.c:1646  */
     {
 		arg_list = append_statement((yyvsp[-1]), (char *) end_EVAL);
 		if (read_a_line == read_commands_string) {	/* unserializing 'eval' in 'commands' */
@@ -1680,7 +1680,7 @@ yyreduce:
     break;
 
   case 28:
-#line 268 "command.y" /* yacc.c:1646  */
+#line 269 "command.y" /* yacc.c:1646  */
     {
 		NODE *n;
 		CMDARG *arg;
@@ -1695,7 +1695,7 @@ yyreduce:
     break;
 
   case 34:
-#line 287 "command.y" /* yacc.c:1646  */
+#line 288 "command.y" /* yacc.c:1646  */
     {
 		if (cmdtab[cmd_idx].class == D_FRAME
 				&& (yyvsp[0]) != NULL && (yyvsp[0])->a_int < 0)
@@ -1705,7 +1705,7 @@ yyreduce:
     break;
 
   case 35:
-#line 293 "command.y" /* yacc.c:1646  */
+#line 294 "command.y" /* yacc.c:1646  */
     {
 		int idx = find_argument((yyvsp[0]));
 		if (idx < 0)
@@ -1721,43 +1721,43 @@ yyreduce:
     break;
 
   case 38:
-#line 306 "command.y" /* yacc.c:1646  */
+#line 307 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1727 "command.c" /* yacc.c:1646  */
     break;
 
   case 40:
-#line 307 "command.y" /* yacc.c:1646  */
+#line 308 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1733 "command.c" /* yacc.c:1646  */
     break;
 
   case 46:
-#line 312 "command.y" /* yacc.c:1646  */
+#line 313 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1739 "command.c" /* yacc.c:1646  */
     break;
 
   case 49:
-#line 314 "command.y" /* yacc.c:1646  */
+#line 315 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1745 "command.c" /* yacc.c:1646  */
     break;
 
   case 51:
-#line 315 "command.y" /* yacc.c:1646  */
+#line 316 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1751 "command.c" /* yacc.c:1646  */
     break;
 
   case 53:
-#line 316 "command.y" /* yacc.c:1646  */
+#line 317 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1757 "command.c" /* yacc.c:1646  */
     break;
 
   case 57:
-#line 320 "command.y" /* yacc.c:1646  */
+#line 321 "command.y" /* yacc.c:1646  */
     {
 		if (in_cmd_src((yyvsp[0])->a_string))
 			yyerror(_("source \"%s\": already sourced."), (yyvsp[0])->a_string);
@@ -1766,7 +1766,7 @@ yyreduce:
     break;
 
   case 58:
-#line 325 "command.y" /* yacc.c:1646  */
+#line 326 "command.y" /* yacc.c:1646  */
     {
 		if (! input_from_tty)
 			yyerror(_("save \"%s\": command not permitted."), (yyvsp[0])->a_string);
@@ -1775,7 +1775,7 @@ yyreduce:
     break;
 
   case 59:
-#line 330 "command.y" /* yacc.c:1646  */
+#line 331 "command.y" /* yacc.c:1646  */
     {
 		int type = 0;
 		int num;
@@ -1794,7 +1794,7 @@ yyreduce:
 		if (type) {
 			in_commands = true;
 			if (input_from_tty) {
-				dbg_prompt = commands_prompt; 
+				dbg_prompt = commands_prompt;
 				fprintf(out_fp, _("Type commands for when %s %d is hit, one per line.\n"),
 								(type == D_break) ? "breakpoint" : "watchpoint", num);
 				fprintf(out_fp, _("End with the command \"end\"\n"));
@@ -1805,13 +1805,13 @@ yyreduce:
     break;
 
   case 60:
-#line 356 "command.y" /* yacc.c:1646  */
+#line 357 "command.y" /* yacc.c:1646  */
     {
 		if (! in_commands)
 			yyerror(_("`end' valid only in command `commands' or `eval'"));
 		else {
 			if (input_from_tty)
-				dbg_prompt = dgawk_prompt;	
+				dbg_prompt = dgawk_prompt;
 			in_commands = false;
 		}
 	  }
@@ -1819,7 +1819,7 @@ yyreduce:
     break;
 
   case 61:
-#line 366 "command.y" /* yacc.c:1646  */
+#line 367 "command.y" /* yacc.c:1646  */
     {
 		if (! in_commands)
 			yyerror(_("`silent' valid only in command `commands'"));
@@ -1828,7 +1828,7 @@ yyreduce:
     break;
 
   case 62:
-#line 371 "command.y" /* yacc.c:1646  */
+#line 372 "command.y" /* yacc.c:1646  */
     {
 		int idx = find_argument((yyvsp[0]));
 		if (idx < 0)
@@ -1844,13 +1844,13 @@ yyreduce:
     break;
 
   case 63:
-#line 382 "command.y" /* yacc.c:1646  */
+#line 383 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1850 "command.c" /* yacc.c:1646  */
     break;
 
   case 64:
-#line 383 "command.y" /* yacc.c:1646  */
+#line 384 "command.y" /* yacc.c:1646  */
     {
 		int type;
 		int num = (yyvsp[-2])->a_int;
@@ -1862,7 +1862,7 @@ yyreduce:
     break;
 
   case 65:
-#line 391 "command.y" /* yacc.c:1646  */
+#line 392 "command.y" /* yacc.c:1646  */
     {
 		if (in_commands) {
 			/* Prepend command 'eval' to argument list */
@@ -1877,7 +1877,7 @@ yyreduce:
     break;
 
   case 66:
-#line 405 "command.y" /* yacc.c:1646  */
+#line 406 "command.y" /* yacc.c:1646  */
     {
 		if ((yyvsp[0]) != NULL) {
 			NODE *n = (yyvsp[0])->a_node;
@@ -1891,37 +1891,37 @@ yyreduce:
     break;
 
   case 68:
-#line 419 "command.y" /* yacc.c:1646  */
+#line 420 "command.y" /* yacc.c:1646  */
     {	(yyval) = NULL; }
 #line 1897 "command.c" /* yacc.c:1646  */
     break;
 
   case 69:
-#line 424 "command.y" /* yacc.c:1646  */
+#line 425 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1903 "command.c" /* yacc.c:1646  */
     break;
 
   case 74:
-#line 433 "command.y" /* yacc.c:1646  */
+#line 434 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1909 "command.c" /* yacc.c:1646  */
     break;
 
   case 75:
-#line 438 "command.y" /* yacc.c:1646  */
+#line 439 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1915 "command.c" /* yacc.c:1646  */
     break;
 
   case 77:
-#line 441 "command.y" /* yacc.c:1646  */
+#line 442 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1921 "command.c" /* yacc.c:1646  */
     break;
 
   case 78:
-#line 446 "command.y" /* yacc.c:1646  */
+#line 447 "command.y" /* yacc.c:1646  */
     {
 		NODE *n;
 		n = (yyvsp[0])->a_node;
@@ -1932,13 +1932,13 @@ yyreduce:
     break;
 
   case 79:
-#line 456 "command.y" /* yacc.c:1646  */
+#line 457 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1938 "command.c" /* yacc.c:1646  */
     break;
 
   case 80:
-#line 458 "command.y" /* yacc.c:1646  */
+#line 459 "command.y" /* yacc.c:1646  */
     {
 		if (find_option((yyvsp[0])->a_string) < 0)
 			yyerror(_("option: invalid parameter - \"%s\""), (yyvsp[0])->a_string);
@@ -1947,7 +1947,7 @@ yyreduce:
     break;
 
   case 81:
-#line 463 "command.y" /* yacc.c:1646  */
+#line 464 "command.y" /* yacc.c:1646  */
     {
 		if (find_option((yyvsp[-2])->a_string) < 0)
 			yyerror(_("option: invalid parameter - \"%s\""), (yyvsp[-2])->a_string);
@@ -1956,7 +1956,7 @@ yyreduce:
     break;
 
   case 82:
-#line 471 "command.y" /* yacc.c:1646  */
+#line 472 "command.y" /* yacc.c:1646  */
     {
 		NODE *n;
 		n = lookup((yyvsp[0])->a_string);
@@ -1973,49 +1973,49 @@ yyreduce:
     break;
 
   case 83:
-#line 487 "command.y" /* yacc.c:1646  */
+#line 488 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1979 "command.c" /* yacc.c:1646  */
     break;
 
   case 88:
-#line 496 "command.y" /* yacc.c:1646  */
+#line 497 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 1985 "command.c" /* yacc.c:1646  */
     break;
 
   case 89:
-#line 497 "command.y" /* yacc.c:1646  */
+#line 498 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1991 "command.c" /* yacc.c:1646  */
     break;
 
   case 92:
-#line 499 "command.y" /* yacc.c:1646  */
+#line 500 "command.y" /* yacc.c:1646  */
     { want_nodeval = true; }
 #line 1997 "command.c" /* yacc.c:1646  */
     break;
 
   case 95:
-#line 505 "command.y" /* yacc.c:1646  */
+#line 506 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2003 "command.c" /* yacc.c:1646  */
     break;
 
   case 97:
-#line 511 "command.y" /* yacc.c:1646  */
+#line 512 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2009 "command.c" /* yacc.c:1646  */
     break;
 
   case 99:
-#line 517 "command.y" /* yacc.c:1646  */
+#line 518 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2015 "command.c" /* yacc.c:1646  */
     break;
 
   case 104:
-#line 529 "command.y" /* yacc.c:1646  */
+#line 530 "command.y" /* yacc.c:1646  */
     {
 		int idx = find_argument((yyvsp[-1]));
 		if (idx < 0)
@@ -2031,7 +2031,7 @@ yyreduce:
     break;
 
   case 106:
-#line 545 "command.y" /* yacc.c:1646  */
+#line 546 "command.y" /* yacc.c:1646  */
     {
 		(yyvsp[0])->type = D_array;	/* dump all items */
 		(yyvsp[0])->a_count = 0;
@@ -2040,7 +2040,7 @@ yyreduce:
     break;
 
   case 107:
-#line 550 "command.y" /* yacc.c:1646  */
+#line 551 "command.y" /* yacc.c:1646  */
     {
 		(yyvsp[-1])->type = D_array;
 		(yyvsp[-1])->a_count = num_dim;
@@ -2049,19 +2049,19 @@ yyreduce:
     break;
 
   case 117:
-#line 576 "command.y" /* yacc.c:1646  */
+#line 577 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2055 "command.c" /* yacc.c:1646  */
     break;
 
   case 118:
-#line 578 "command.y" /* yacc.c:1646  */
+#line 579 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2061 "command.c" /* yacc.c:1646  */
     break;
 
   case 119:
-#line 580 "command.y" /* yacc.c:1646  */
+#line 581 "command.y" /* yacc.c:1646  */
     {
 		CMDARG *a;
 		a = mk_cmdarg(D_int);
@@ -2072,7 +2072,7 @@ yyreduce:
     break;
 
   case 126:
-#line 596 "command.y" /* yacc.c:1646  */
+#line 597 "command.y" /* yacc.c:1646  */
     {
 		if ((yyvsp[-2])->a_int > (yyvsp[0])->a_int)
 			yyerror(_("invalid range specification: %d - %d"),
@@ -2085,30 +2085,30 @@ yyreduce:
     break;
 
   case 127:
-#line 608 "command.y" /* yacc.c:1646  */
+#line 609 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2091 "command.c" /* yacc.c:1646  */
     break;
 
   case 134:
-#line 622 "command.y" /* yacc.c:1646  */
+#line 623 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); }
 #line 2097 "command.c" /* yacc.c:1646  */
     break;
 
   case 135:
-#line 624 "command.y" /* yacc.c:1646  */
+#line 625 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[-2]); }
 #line 2103 "command.c" /* yacc.c:1646  */
     break;
 
   case 137:
-#line 630 "command.y" /* yacc.c:1646  */
+#line 631 "command.y" /* yacc.c:1646  */
     {
 		CMDARG *a;
 		NODE *subs;
 		int count = 0;
-		
+
 		for (a = (yyvsp[-1]); a != NULL; a = a->next)
 			count++;
 		subs = concat_args((yyvsp[-1]), count);
@@ -2122,19 +2122,19 @@ yyreduce:
     break;
 
   case 139:
-#line 649 "command.y" /* yacc.c:1646  */
+#line 650 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); num_dim = 1; }
 #line 2128 "command.c" /* yacc.c:1646  */
     break;
 
   case 140:
-#line 651 "command.y" /* yacc.c:1646  */
+#line 652 "command.y" /* yacc.c:1646  */
     {	(yyval) = (yyvsp[-1]); num_dim++; }
 #line 2134 "command.c" /* yacc.c:1646  */
     break;
 
   case 142:
-#line 657 "command.y" /* yacc.c:1646  */
+#line 658 "command.y" /* yacc.c:1646  */
     {
 		NODE *n = (yyvsp[0])->a_node;
 		if ((n->flags & NUMBER) == 0)
@@ -2147,7 +2147,7 @@ yyreduce:
     break;
 
   case 143:
-#line 666 "command.y" /* yacc.c:1646  */
+#line 667 "command.y" /* yacc.c:1646  */
     {
 		/* a_string is array name, a_count is dimension count */
 		(yyvsp[-1])->type = D_subscript;
@@ -2158,14 +2158,14 @@ yyreduce:
     break;
 
   case 144:
-#line 676 "command.y" /* yacc.c:1646  */
+#line 677 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); }
 #line 2164 "command.c" /* yacc.c:1646  */
     break;
 
   case 145:
-#line 678 "command.y" /* yacc.c:1646  */
-    { 
+#line 679 "command.y" /* yacc.c:1646  */
+    {
 		NODE *n = (yyvsp[0])->a_node;
 		if ((n->flags & NUMBER) == 0)
 			yyerror(_("non-numeric value found, numeric expected"));
@@ -2175,8 +2175,8 @@ yyreduce:
     break;
 
   case 146:
-#line 685 "command.y" /* yacc.c:1646  */
-    { 
+#line 686 "command.y" /* yacc.c:1646  */
+    {
 		NODE *n = (yyvsp[0])->a_node;
 		if ((n->flags & NUMBER) == 0)
 			yyerror(_("non-numeric value found, numeric expected"));
@@ -2188,31 +2188,31 @@ yyreduce:
     break;
 
   case 147:
-#line 697 "command.y" /* yacc.c:1646  */
+#line 698 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2194 "command.c" /* yacc.c:1646  */
     break;
 
   case 148:
-#line 699 "command.y" /* yacc.c:1646  */
+#line 700 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); }
 #line 2200 "command.c" /* yacc.c:1646  */
     break;
 
   case 149:
-#line 704 "command.y" /* yacc.c:1646  */
+#line 705 "command.y" /* yacc.c:1646  */
     { (yyval) = NULL; }
 #line 2206 "command.c" /* yacc.c:1646  */
     break;
 
   case 150:
-#line 706 "command.y" /* yacc.c:1646  */
+#line 707 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); }
 #line 2212 "command.c" /* yacc.c:1646  */
     break;
 
   case 151:
-#line 711 "command.y" /* yacc.c:1646  */
+#line 712 "command.y" /* yacc.c:1646  */
     {
 		if ((yyvsp[0])->a_int == 0)
 			yyerror(_("non-zero integer value"));
@@ -2222,7 +2222,7 @@ yyreduce:
     break;
 
   case 152:
-#line 717 "command.y" /* yacc.c:1646  */
+#line 718 "command.y" /* yacc.c:1646  */
     {
 		if ((yyvsp[0])->a_int == 0)
 			yyerror(_("non-zero integer value"));
@@ -2232,19 +2232,19 @@ yyreduce:
     break;
 
   case 153:
-#line 726 "command.y" /* yacc.c:1646  */
+#line 727 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); }
 #line 2238 "command.c" /* yacc.c:1646  */
     break;
 
   case 154:
-#line 728 "command.y" /* yacc.c:1646  */
+#line 729 "command.y" /* yacc.c:1646  */
     { (yyval) = (yyvsp[0]); }
 #line 2244 "command.c" /* yacc.c:1646  */
     break;
 
   case 155:
-#line 730 "command.y" /* yacc.c:1646  */
+#line 731 "command.y" /* yacc.c:1646  */
     {
 		(yyvsp[0])->a_int = - (yyvsp[0])->a_int;
 		(yyval) = (yyvsp[0]);
@@ -2253,7 +2253,7 @@ yyreduce:
     break;
 
   case 156:
-#line 738 "command.y" /* yacc.c:1646  */
+#line 739 "command.y" /* yacc.c:1646  */
     {
 		if (lexptr_begin != NULL) {
 			if (input_from_tty && lexptr_begin[0] != '\0')
@@ -2494,16 +2494,16 @@ yyreturn:
 #endif
   return yyresult;
 }
-#line 748 "command.y" /* yacc.c:1906  */
+#line 749 "command.y" /* yacc.c:1906  */
 
 
 
-/* append_statement --- append 'stmt' to the list of eval awk statements */ 
+/* append_statement --- append 'stmt' to the list of eval awk statements */
 
 static CMDARG *
-append_statement(CMDARG *stmt_list, char *stmt) 
+append_statement(CMDARG *stmt_list, char *stmt)
 {
-	CMDARG *a, *arg; 
+	CMDARG *a, *arg;
 	char *s;
 	int len, slen, ssize;
 
@@ -2515,7 +2515,7 @@ append_statement(CMDARG *stmt_list, char *stmt)
 			len += strlen(a->a_string) + 1;	/* 1 for ',' */
 		len += EVALSIZE;
 
-		emalloc(s, char *, (len + 2) * sizeof(char), "append_statement");
+		emalloc(s, char *, (len + 1) * sizeof(char), "append_statement");
 		arg = mk_cmdarg(D_string);
 		arg->a_string = s;
 		arg->a_count = len;	/* kludge */
@@ -2535,14 +2535,14 @@ append_statement(CMDARG *stmt_list, char *stmt)
 		s[slen] = '\0';
 		return arg;
 	}
-		 
+
 	len = strlen(stmt) + 1;	/* 1 for newline */
 	s = stmt_list->a_string;
 	slen = strlen(s);
 	ssize = stmt_list->a_count;
 	if (len > ssize - slen) {
 		ssize = slen + len + EVALSIZE;
-		erealloc(s, char *, (ssize + 2) * sizeof(char), "append_statement");
+		erealloc(s, char *, (ssize + 1) * sizeof(char), "append_statement");
 		stmt_list->a_string = s;
 		stmt_list->a_count = ssize;
 	}
@@ -2554,7 +2554,7 @@ append_statement(CMDARG *stmt_list, char *stmt)
 	}
 
 	if (stmt == end_EVAL)
-		erealloc(stmt_list->a_string, char *, slen + 2, "append_statement");
+		erealloc(stmt_list->a_string, char *, slen + 1, "append_statement");
 	return stmt_list;
 
 #undef EVALSIZE
@@ -2699,7 +2699,7 @@ get_command_name(int ctype)
 			return cmdtab[i].name;
 	}
 	return NULL;
-} 
+}
 
 /* mk_cmdarg --- make an argument for command */
 
@@ -2707,14 +2707,13 @@ static CMDARG *
 mk_cmdarg(enum argtype type)
 {
 	CMDARG *arg;
-	emalloc(arg, CMDARG *, sizeof(CMDARG), "mk_cmdarg");
-	memset(arg, 0, sizeof(CMDARG));
+	ezalloc(arg, CMDARG *, sizeof(CMDARG), "mk_cmdarg");
 	arg->type = type;
 	return arg;
 }
 
 /* append_cmdarg --- append ARG to the list of arguments for the current command */
- 
+
 static void
 append_cmdarg(CMDARG *arg)
 {
@@ -2785,7 +2784,7 @@ yylex(void)
 	static char *lexend;
 	int c;
 	char *tokstart;
-	size_t toklen; 
+	size_t toklen;
 
 	yylval = (CMDARG *) NULL;
 
@@ -2799,7 +2798,7 @@ yylex(void)
 again:
 		lexptr_begin = read_a_line(dbg_prompt);
 		if (lexptr_begin == NULL) {	/* EOF or error */
-			if (get_eof_status() == EXIT_FATAL) 
+			if (get_eof_status() == EXIT_FATAL)
 				exit(EXIT_FATAL);
 			if (get_eof_status() == EXIT_FAILURE) {
 				static int seen_eof = 0;
@@ -2831,7 +2830,7 @@ again:
 				&& input_from_tty
 		)
 			history_expand_line(&lexptr_begin);
-	
+
 		lexptr = lexptr_begin;
 		lexend = lexptr + strlen(lexptr);
 		if (*lexptr == '\0'		/* blank line */
@@ -2850,14 +2849,14 @@ again:
 		}
 		repeat_idx = -1;
 	}
-	
+
 	c = *lexptr;
 
 	while (c == ' ' || c == '\t')
 		c = *++lexptr;
 
 	if (! input_from_tty && c == '#')
-		return '\n'; 
+		return '\n';
 
 	tokstart = lexptr;
 	if (lexptr >= lexend)
@@ -2914,7 +2913,7 @@ again:
 	}
 
 	c = *lexptr;
-	
+
 	if (cmdtab[cmd_idx].type == D_option) {
 		if (c == '=')
 			return *lexptr++;
@@ -2927,7 +2926,7 @@ again:
 		bool esc_seen = false;
 
 		toklen = lexend - lexptr;
-		emalloc(str, char *, toklen + 2, "yylex");
+		emalloc(str, char *, toklen + 1, "yylex");
 		p = str;
 
 		while ((c = *++lexptr) != '"') {
@@ -3016,8 +3015,8 @@ err:
 				r = mpg_integer();
 				mpfr_get_z(r->mpg_i, tmp->mpg_numbr, MPFR_RNDZ);
 				unref(tmp);
-			}			
-		} else 
+			}
+		} else
 #endif
 			r = make_number(strtod(tokstart, & lexptr));
 
@@ -3039,7 +3038,7 @@ err:
 			|| c == ',' || c == '=')
 		return *lexptr++;
 
-	if (c != '_' && ! is_alpha(c)) {
+	if (! is_letter(c)) {
 		yyerror(_("invalid character"));
 		return '\n';
 	}
@@ -3126,7 +3125,7 @@ concat_args(CMDARG *arg, int count)
 		n = force_string(arg->a_node);
 		return dupnode(n);
 	}
-	
+
 	emalloc(tmp, NODE **, count * sizeof(NODE *), "concat_args");
 	subseplen = SUBSEP_node->var_value->stlen;
 	subsep = SUBSEP_node->var_value->stptr;
@@ -3139,7 +3138,7 @@ concat_args(CMDARG *arg, int count)
 		arg = arg->next;
 	}
 
-	emalloc(str, char *, len + 2, "concat_args");
+	emalloc(str, char *, len + 1, "concat_args");
 	n = tmp[0];
 	memcpy(str, n->stptr, n->stlen);
 	p = str + n->stlen;
@@ -3161,7 +3160,7 @@ concat_args(CMDARG *arg, int count)
 }
 
 /* find_command --- find the index in 'cmdtab' using exact,
- *                  abbreviation or unique partial match 
+ *                  abbreviation or unique partial match
  */
 
 static int
@@ -3253,10 +3252,10 @@ do_help(CMDARG *arg, int cmd)
 
 #ifdef HAVE_LIBREADLINE
 
-/* next_word --- find the next word in a line to complete 
+/* next_word --- find the next word in a line to complete
  *               (word seperation characters are space and tab).
  */
-   
+
 static char *
 next_word(char *p, int len, char **endp)
 {
@@ -3338,10 +3337,10 @@ command_completion(const char *text, int start, int end)
 	if (this_cmd == D_print || this_cmd == D_printf)
 		return rl_completion_matches(text, variable_generator);
 	return NULL;
-}	
+}
 
 /* command_generator --- generator function for command completion */
- 
+
 static char *
 command_generator(const char *text, int state)
 {
@@ -3414,7 +3413,7 @@ argument_generator(const char *text, int state)
 			if (strncmp(name, text, textlen) == 0)
 				return estrdup(name, strlen(name));
 		}
-	}		
+	}
 	return NULL;
 }
 

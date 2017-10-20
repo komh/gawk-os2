@@ -111,6 +111,10 @@ PRE_UNINSTALL = :
 POST_UNINSTALL = :
 build_triplet = @build@
 host_triplet = @host@
+
+# Build in extension before test so that
+# 	./configure && make check
+# works properly too.
 @ENABLE_EXTENSIONS_TRUE@am__append_1 = extension
 bin_PROGRAMS = gawk$(EXEEXT)
 subdir = .
@@ -118,14 +122,14 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/arch.m4 \
 	$(top_srcdir)/m4/codeset.m4 $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/intlmacosx.m4 \
-	$(top_srcdir)/m4/isc-posix.m4 $(top_srcdir)/m4/lcmessage.m4 \
-	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
-	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libsigsegv.m4 \
-	$(top_srcdir)/m4/longlong.m4 $(top_srcdir)/m4/mpfr.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/noreturn.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/m4/readline.m4 $(top_srcdir)/m4/socket.m4 \
-	$(top_srcdir)/m4/ulonglong.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/lcmessage.m4 $(top_srcdir)/m4/lib-ld.m4 \
+	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
+	$(top_srcdir)/m4/libsigsegv.m4 $(top_srcdir)/m4/longlong.m4 \
+	$(top_srcdir)/m4/mpfr.m4 $(top_srcdir)/m4/nls.m4 \
+	$(top_srcdir)/m4/noreturn.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/m4/readline.m4 \
+	$(top_srcdir)/m4/socket.m4 $(top_srcdir)/m4/ulonglong.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(top_srcdir)/configure \
@@ -140,20 +144,19 @@ am__installdirs = "$(DESTDIR)$(bindir)" "$(DESTDIR)$(includedir)"
 PROGRAMS = $(bin_PROGRAMS)
 am__objects_1 = array.$(OBJEXT) awkgram.$(OBJEXT) builtin.$(OBJEXT) \
 	cint_array.$(OBJEXT) command.$(OBJEXT) debug.$(OBJEXT) \
-	dfa.$(OBJEXT) eval.$(OBJEXT) ext.$(OBJEXT) field.$(OBJEXT) \
+	eval.$(OBJEXT) ext.$(OBJEXT) field.$(OBJEXT) \
 	floatcomp.$(OBJEXT) gawkapi.$(OBJEXT) gawkmisc.$(OBJEXT) \
-	getopt.$(OBJEXT) getopt1.$(OBJEXT) int_array.$(OBJEXT) \
-	io.$(OBJEXT) main.$(OBJEXT) mpfr.$(OBJEXT) msg.$(OBJEXT) \
-	node.$(OBJEXT) profile.$(OBJEXT) random.$(OBJEXT) re.$(OBJEXT) \
-	regex.$(OBJEXT) replace.$(OBJEXT) str_array.$(OBJEXT) \
-	symbol.$(OBJEXT) version.$(OBJEXT)
+	int_array.$(OBJEXT) io.$(OBJEXT) main.$(OBJEXT) mpfr.$(OBJEXT) \
+	msg.$(OBJEXT) node.$(OBJEXT) profile.$(OBJEXT) re.$(OBJEXT) \
+	replace.$(OBJEXT) str_array.$(OBJEXT) symbol.$(OBJEXT) \
+	version.$(OBJEXT)
 am_gawk_OBJECTS = $(am__objects_1)
 gawk_OBJECTS = $(am_gawk_OBJECTS)
 gawk_LDADD = $(LDADD)
 am__DEPENDENCIES_1 =
-gawk_DEPENDENCIES = $(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
+gawk_DEPENDENCIES = support/libsupport.a $(am__DEPENDENCIES_1) \
 	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1) \
-	$(am__DEPENDENCIES_1)
+	$(am__DEPENDENCIES_1) $(am__DEPENDENCIES_1)
 AM_V_P = $(am__v_P_@AM_V@)
 am__v_P_ = $(am__v_P_@AM_DEFAULT_V@)
 am__v_P_0 = false
@@ -262,9 +265,9 @@ am__define_uniq_tagged_files = \
 ETAGS = etags
 CTAGS = ctags
 CSCOPE = cscope
-DIST_SUBDIRS = . extension doc awklib po test
+DIST_SUBDIRS = support . extension extras doc awklib po test
 am__DIST_COMMON = $(srcdir)/Makefile.in $(srcdir)/configh.in ABOUT-NLS \
-	AUTHORS COPYING ChangeLog INSTALL NEWS README awkgram.c \
+	AUTHORS COPYING ChangeLog INSTALL NEWS README TODO awkgram.c \
 	command.c compile config.guess config.rpath config.sub depcomp \
 	install-sh missing mkinstalldirs ylwrap
 DISTFILES = $(DIST_COMMON) $(DIST_SOURCES) $(TEXINFOS) $(EXTRA_DIST)
@@ -325,7 +328,7 @@ CFLAGS = @CFLAGS@
 CPP = @CPP@
 CPPFLAGS = @CPPFLAGS@
 CYGPATH_W = @CYGPATH_W@
-DEFS = -DDEFPATH=$(DEFPATH) -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DHAVE_CONFIG_H -DGAWK -DLOCALEDIR='"$(datadir)/locale"'
+DEFS = -DDEFPATH=$(DEFPATH) -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DHAVE_CONFIG_H -DGAWK -DLOCALEDIR='"$(datadir)/locale"' -I"$(srcdir)/support"
 DEPDIR = @DEPDIR@
 ECHO_C = @ECHO_C@
 ECHO_N = @ECHO_N@
@@ -374,6 +377,7 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 POSUB = @POSUB@
+RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
@@ -457,7 +461,6 @@ EXTRA_DIST = \
 	NEWS.0 \
 	POSIX.STD \
 	README_d \
-	bisonfix.awk \
 	config.guess \
 	config.rpath  \
 	config.sub \
@@ -468,26 +471,20 @@ EXTRA_DIST = \
 	po/README \
 	pc \
 	posix \
-	regcomp.c \
-	regex_internal.c \
-	regex_internal.h \
-	regexec.c \
 	vms \
 	ylwrap
 
 
 # The order to do things in.
 #
+# Build in support first, since we need the support library.
+#
 # Build explicitly in "." in order to build gawk first, so
 # that `make check' without a prior `make' works.
-#
-# Build in extension before test so that
-# 	./configure && make check
-# works properly too.
-#
+
 # Build in awklib after in doc, since we want to extract
 # sample files if doc/gawk.texi changed.
-SUBDIRS = . $(am__append_1) doc awklib po test
+SUBDIRS = support . $(am__append_1) extras doc awklib po test
 include_HEADERS = gawkapi.h
 
 # sources for both gawk and dgawk
@@ -501,8 +498,6 @@ base_sources = \
 	command.y \
 	custom.h \
 	debug.c \
-	dfa.c \
-	dfa.h \
 	eval.c \
 	ext.c \
 	field.c \
@@ -511,10 +506,6 @@ base_sources = \
 	gawkapi.c \
 	gawkapi.h \
 	gawkmisc.c \
-	getopt.c \
-	getopt.h \
-	getopt1.c \
-	getopt_int.h \
 	gettext.h \
 	int_array.c \
 	interpret.h \
@@ -527,21 +518,18 @@ base_sources = \
 	nonposix.h \
 	profile.c \
 	protos.h \
-	random.c \
-	random.h \
 	re.c \
-	regex.c \
-	regex.h \
 	replace.c \
 	str_array.c \
 	symbol.c \
-	version.c \
-	xalloc.h
+	version.c
 
 gawk_SOURCES = $(base_sources)
 
 # Get extra libs as needed, Automake will supply LIBINTL and SOCKET_LIBS.
-LDADD = $(LIBSIGSEGV) $(LIBINTL) $(SOCKET_LIBS) $(LIBREADLINE) $(LIBMPFR)
+LDADD = support/libsupport.a \
+	$(LIBSIGSEGV) $(LIBINTL) $(SOCKET_LIBS) $(LIBREADLINE) $(LIBMPFR)
+
 
 # stuff for compiling gawk/pgawk
 DEFPATH = '".$(PATH_SEPARATOR)$(pkgdatadir)"'
@@ -670,15 +658,12 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/cint_array.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/command.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/debug.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/dfa.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/eval.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/ext.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/field.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/floatcomp.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gawkapi.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/gawkmisc.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getopt.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/getopt1.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/int_array.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/io.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/main.Po@am__quote@
@@ -686,9 +671,7 @@ distclean-compile:
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/msg.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/node.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/profile.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/random.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/re.Po@am__quote@
-@AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/regex.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/replace.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/str_array.Po@am__quote@
 @AMDEP_TRUE@@am__include@ @am__quote@./$(DEPDIR)/symbol.Po@am__quote@
@@ -1209,19 +1192,14 @@ dist-hook:
 	cp "$(srcdir)"/pc/config.h "$(distdir)"/pc/config.h
 
 # Special rules for individual files
-# Use of awk instead of $(AWK) is deliberate, in case gawk doesn't build
-# or work correctly.
 
 awkgram.c: awkgram.y
-	$(YACC) $(AM_YFLAGS) $(YFLAGS) $<
-	sed 's/parse error/syntax error/g' < y.tab.c | awk -f "$(srcdir)"/bisonfix.awk awkgram > $*.c && rm y.tab.c
-	if test -f y.tab.h; then \
-	if cmp -s y.tab.h $*.h; then rm -f y.tab.h; else mv y.tab.h $*.h; fi; \
-	else :; fi
+	$(YACC) -o $@ $(AM_YFLAGS) $(YFLAGS) $<
+	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
 command.c: command.y
-	$(YACC) -p zz $<
-	sed 's/parse error/syntax error/g' < y.tab.c | awk -f "$(srcdir)"/bisonfix.awk command > $*.c && rm y.tab.c
+	$(YACC) -o $@ -p zz $<
+	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
 # This is for my development & testing.
 efence: gawk

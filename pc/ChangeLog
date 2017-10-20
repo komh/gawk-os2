@@ -1,3 +1,147 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-10-01  Scott Deifik  <scottd.mail@sbcglobal.net>
+
+	* Makefile.tst (readdir_test): Announce a possible MinGW failure.
+
+2017-09-20  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (jarebug): Don't announce a MinGW failure.
+	(mpfr-tests, shlib-tests): Fix the command to not fail due to a
+	second "@".  Reported by Scott Deifik <scottd.mail@sbcglobal.net>.
+	(clean-local): Remove readdir_test.ok, for the case that the test
+	failed.
+
+2017-09-18         Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* pc/Makefile.tst (mbprintf5, beginfile1, sigpipe1, backw, nonfatal1)
+	(nonfatal2, nonfatal3, timeout): Update the expected failure messages
+	for DJGPP.
+
+2017-09-16  Eli Zaretskii  <eliz@gnu.org>
+
+	* config.h (HAVE_GAI_STRERROR) [__MINGW32__]: Define to 1.  Update
+	to Gawk 4.1.64.
+
+	* config.sed (HAVE_GAI_STRERROR) [__MINGW32__]: Edit to 1 for MinGW.
+
+	* Makefile.tst (nondec): Edit the error message to match teh
+	expected results.
+
+	* Makefile (awkgram.c): Edit "parse error" into "syntax error",
+	like the mainline Makefile does.
+	(clean): Remove awkgram.tmp.
+
+2017-08-27         Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* pc/Makefile.tst (mbstr1, mbstr2, errno, getlndir, clos1way2)
+	(clos1way3, clos1way4, clos1way5, clos1way6): Update the expected
+	failure messages for DJGPP.
+
+2017-08-26  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (SLASH, PATH_SEPARATOR, LS): Change the default
+	values to be less specific to my private setup.
+
+2017-08-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (testext): Fix spelling of testexttmp.txt.
+
+2017-08-21  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (testext): Remove textexttmp.txt.
+
+2017-08-19  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (SLASH): New variable for use it readdir_test.
+	(mbprintf5, profile4, profile5, profile8, getfile): Update the
+	expected failure messages.
+	(readdir_test): Use SLASH instead of a literal /, as the latter
+	gets converted by MSYS Bash to the corresponding Windows directory.
+
+	* Makefile.ext (MPFR, MPFR_LIBS): New variables, used in compiling
+	intdiv.c.
+	(ALL_EXTENSIONS): Add intdiv and readdir_test.
+	(intdiv.$(SOEXT), readdir_test.$(SOEXT)): New recipes.
+
+	* Makefile.tst: Synchronize with test/Makefile.in.
+
+2017-08-18  Eli Zaretskii  <eliz@gnu.org>
+
+	* config.h (HAVE_SYS_IOCTL_H):
+	* config.sed (HAVE_SYS_IOCTL_H): Do not define for MinGW.
+
+2017-08-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.h: Regenerated in preparation for release.
+
+2017-08-01         Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	Bring DJGPP support up to speed.
+
+	* Makefile: Add LOCALEDIR, infodir, mandir. Revise prefix,
+	SHLIBExT, CFLAGS.
+	* config.sed: Update for DJGPP.
+	* gawkmisc.pc: Update for DJGPP.
+	(putwc): New funcction.
+
+2017-01-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawkmisc.pc: Fix a typo.
+
+2017-01-21  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst: Modify the locale values to valid ones on Windows.
+
+	* gawkmisc.pc: Undef setlocale and include locale.h.
+	(lc_var, w32_setlocale): New functions.
+
+	* Makefile (VAPTH): Set to allow Make to find sources in the
+	'support' subdirectory.
+	(CFLAGS): Add "-I./support", as some headers are there.
+	(LIBOBJS): Add localeinfo$O.
+	(regex$O): Depend on regex_internal.c.
+	(localeinfo$O): New dependency.
+
+	* config.sed (SIZEOF_UNSIGNED_INT, SIZEOF_UNSIGNED_LONG): Set to 4
+	unconditioonally, as we no longer support 16-bit ports.  The
+	previous definitions caused compilation errors, since config.h is
+	included by random.h before awk.h, where limits.h is included and
+	defines UINT_MAX etc.
+	* config.h: Regenerated.
+
+	* Makefile.tst: Sync with test/Makefile.in.
+
+2016-11-04  Eli Zaretskii  <eliz@gnu.org>
+
+	* gawkmisc.pc (w32_maybe_set_errno) [__MINGW32__]: New function,
+	to correct errno when it is not set to a useful value.
+
+2016-10-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* General: Remove trailing whitespace from all relevant files.
+
+2016-09-24  Eli Zaretskii  <eliz@gnu.org>
+
+	Fix compilation warnings on MinGW with the latest runtime.
+	Reported by Marc de Bourget <marcdebourget@gmail.com>.
+
+	* socket.h (_WIN32_WINNT): If it's already defined, redefine it
+	only if the value is less than what we need.  This avoids compiler
+	warnings about redefinitions.
+
+	* config.h (HAVE_STRINGS_H): Define to 1.
+
+	* config.sed: Define STRINGS_H as well, as MinGW runtime 3.22 and
+	later needs that to get the prototypes of strcasecmp and
+	strncasecmp.
+
+2016-09-08         Scott Deifik  <scottd.mail@sbcglobal.net>
+
+	* Makefile.tst: Sync with mainline.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -72,6 +216,10 @@
 	(mingw32-readline-mpfr): Use -Wno-deprecated-declarations, to
 	avoid warnings about 'usleep' in newer versions of mingw.org's
 	MinGW runtime.
+
+2016-01-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.h: Updated to current.
 
 2015-05-29         Arnold D. Robbins     <arnold@skeeve.com>
 

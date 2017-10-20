@@ -1,6 +1,270 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-10-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* forcenum.awk: Convert values manually to number and then
+	to string and remove leading sign, to avoid C library
+	differences across platforms. Thanks to Corinna Vinschen
+	for the report.
+	* forcenum.ok: Adjust for above change.
+
+2017-10-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* fork.awk: Close the file in the parent after reading it.
+	* fork2.awk: Ditto.
+
+2017-10-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (randtest): Minor fix from Andreas for OS/2.
+
+2017-09-14         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (nonfatal1): New rule with postprocessing to remove
+	the platform-specific portion of the error message.
+	* nonfatal1.ok: Remove the platform-specific portion of the error
+	message.
+
+2017-09-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (readdir): Add to message that test can fail on
+	a JFS filesystem also. Thanks to Nelson Beebe for the info
+	and suggestion.
+
+2017-08-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* nonfatal1.ok: Update after code change.
+
+2017-08-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (testext): Fix spelling of testexttmp.txt.
+
+2017-08-21        Eli Zaretskii          <eliz@gnu.org>
+
+	* Makefile.am (testext): Remove testexttmp.txt.
+
+2017-08-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Add aryunasgn files.
+	(arrdbg): Make test work on out-of-tree builds in order
+	to pass `make distcheck'.
+
+2017-08-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am: Sort and prettify the lists of tests.
+
+2017-08-09         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* badargs.ok: Update after code changes.
+
+	Unrelated:
+
+	* Makefile.am (aryunasgn): New test. 
+	* aryunasgn.awk, aryunasgn.ok: New files.
+
+2017-08-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am: Update copyright year.
+
+2017-07-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (mprintf5): Put an @ on the echo statement.
+	Thanks to Hermann Peifer for the report.
+
+2017-07-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace1.ok, inplace2.ok, inplace3.ok: Update after
+	adding license to inplace.awk.
+
+2017-06-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (mbprintf5): Skip this test on Cygwin.
+
+2017-06-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile4.ok, profile5.ok, profile7.ok: Updated after code changes.
+	* profile7.awk: Added two more statements.
+
+2017-06-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (mbprintf5): New test.
+	* mbprintf5.awk, mbprintf5.in, mbprintf5.ok: New files.
+
+2017-05-24         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* fwtest8.ok: Fix field number in error message, thanks to a bug
+	report from Michal Jaegermann.
+
+2017-05-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (fwtest5, fwtest6, fwtest7, fwtest8): New tests.
+	* fwtest5.awk, fwtest5.in, fwtest5.ok, fwtest6.awk, fwtest6.in,
+	fwtest6.ok, fwtest7.awk, fwtest7.in, fwtest7.ok, fwtest8.awk,
+	fwtest8.in, fwtest8.ok: New files.
+
+2017-05-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* noeffect.awk, noeffect.ok: Updated after code change.
+
+2017-05-01         Aharon Robbins       <aharon.robbins@intel.com>
+
+	* Makefile.am (sourcesplit): New test.
+	* sourcesplit.ok: New file.
+	Thanks to Hermann Peifer for the report.
+
+	Unrelated:
+
+	* Makefile.am (charset-msg-start): Document that having
+	el_GR.iso88597 is helpful.
+
+2017-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* mpfrsqrt.awk: Add `@load intdiv'.
+	* dumpvars.ok, id.ok, symtab6.ok, symtab8.ok: Updated.
+
+2017-04-12         Manuel Collado        <m-collado@users.sourceforge.net>
+
+	* Makefile.am (fpat6): New test.
+	* fpat6.awk, fpat6.in, fpat6.ok: New files.
+	Check for the bug reported by Ed Morton in the bug-gawk mailing list.
+	* patsplit.ok: Updated to the new patsplit behavior.
+
+2017-04-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (memleak): New test.
+	* memleak.awk, memleak.ok: New files.
+
+2017-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* fwtest4: Renamed from fwtest3.
+	* fwtest3: Renamed from fwtest2b.
+	* Makefile.am: Updated.
+
+2017-03-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (fwtest2b): Add new test of enhanced FIELDWIDTHS syntax.
+	* fwtest2b.awk, fwtest2b.ok: New files.
+
+2017-03-19         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (argarray): Always copy argarray.in to the local
+	directory as argarray.input instead of trying to figure out whether
+	$(srcdir) is the current directory.
+	* argarray.ok: Replace argarray.in with argarray.input.
+
+2017-03-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (readdir_test): New test to check whether get_record
+	field_width parsing is working by comparing the results from the
+	readdir and readdir_test extensions.
+	(SHLIB_TESTS): Add readdir_test.
+
+2017-02-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (mktime): New test.
+	* mktime.awk, mktime.in, mktime.ok: New files.
+
+2017-02-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (typeof5): New test.
+	* typeof5.awk, typeof5.in, typeof5.ok: New files.
+	Thanks to Andrew Schorr for part of the tests.
+
+2017-01-27         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (gensub3): New test.
+	* gensub3.awk, gensub3.in, gensub3.ok: New files.
+
+2017-01-26         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (strftfld): New test.
+	* strftfld.awk, strftfld.in, strftfld.ok: New files.
+
+2017-01-15         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (concat5): New test.
+	* concat5.awk, concat5.ok: New files.
+	Check for bug forwarded by Corinna Vinschen from Cygwin mailing list.
+
+2016-12-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* rwarray.awk: Check that strnum is recreated correctly.
+
+2016-11-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.awk: Use typeof() to verify that typed regex is
+	created correctly upon reading.
+
+2016-11-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.awk: Add a typed regex into the array before
+	writing it out and reading it back.
+
+2016-11-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Add valgrind.awk to the list.
+
+2016-11-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* valgrind.awk: New file. Based on original valgrind-scan code.
+	Having it in a separate file makes it easier to adjust.
+	Commented out several checks that just produced false positives.
+	Add check for invalid read and write.
+	* Makefile.am (valgrind-scan): Use valgrind.awk.
+
+2016-11-04         Fabio Berton          <fabio.berton@ossystems.com.br>
+
+	* arrayind1.awk: Remove "#!/usr/local/bin/awk -f" as none of the
+	other awk scripts in the test suite have a hashbang.
+
+2016-10-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* mpfrmemok1.ok: Update after code change.
+
+2016-09-09         Norihiro Tanaka      <noritnk@kcn.ne.jp>
+
+	* Makefile.am (anchor): New test.
+	* anchor.awk, anchor.in, anchor.ok: New files.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
+
+2016-08-16         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (arrdbg): New test using adump.
+	(ARRAYDEBUG_TESTS): New test group requiring ARRAYDEBUG compilation.
+	(check): Add arraydebug-tests.
+	(arraydebug-tests): Check $(ARRAYDEBUG_TESTS) when compiled with
+	ARRAYDEBUG.
+	* arrdbg.awk: New test using adump to check array type.
+
+2016-08-14         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intarray.awk, intarray.ok: Updated.
+
+2016-08-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Restore typed regexp tests.
+
+	* typeof1.awk, typeof1.ok: Adjusted.
+	* typeof3.awk, typeof3.ok: Adjusted.
+	* gsubind.awk, gsubind.ok: Adjusted.
+	* Makefile.am (TYPED_RE_TESTS): Removed.
+	(dbugtypedre1, dbugtypedre2, typedregex1, typedregex2,
+	typedregex3): Moved back into regular tests.
+
+2016-08-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Remove typed regexes until they can be done correctly.
+
+	* typeof1.awk, typeof1.ok: Adjusted.
+	* typeof3.awk, typeof3.ok: Adjusted.
+	* gsubind.awk, gsubind.ok: Adjusted.
+	* Makefile.am (TYPED_RE_TESTS): New macro to hold typed regexp tests.
+	(dbugtypedre1, dbugtypedre2, typedregex1, typedregex2,
+	typedregex3): Moved into it.
 
 2016-08-01         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -20,16 +284,80 @@
 	* ignrcas3.awk, ignrcas3.ok: New files.
 	Based on test code from Norihiro Tanaka <noritnk@kcn.ne.jp>.
 
+	* Makefile.am (ignrcas4): New test.
+	* ignrcas4.awk, ignrcas4.ok: Andrew Schorr's files, renamed.
+
+2016-07-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (status-close): New test.
+	* status-close.awk, status-close.ok: New files.
+
 2015-06-17         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am (ofmtstrnum): New test.
 	* ofmtstrnum.awk, ofmtstrnum.ok: New files.
+
+2016-07-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Remove clos1way6.ok2.
+	(close1way6): Removed test, it will be autogenerated back into
+	the right place.
+	* clos1way6.awk: Use gensub on ERRNO to force the right text.
+	Thanks to Andrew Schorr for the suggestion.
+	* clos1way6.ok2: Removed.
+
+2016-07-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (clos1way6): Add additional file to check result
+	against for 32 bit Solaris. Thanks to Dagobert Michelsen for
+	the report.
+	* clos1way6.ok2: New file.
+
+2016-07-08         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (apiterm, fldterm): New tests to make sure that we
+	are handling unterminated field string values properly.
+	* apiterm.awk, apiterm.in, apiterm.ok: New files.
+	* fldterm.awk, fldterm.in, fldterm.ok: New files.
+
+2016-07-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* forcenum.awk: We no longer need to force the strnum conversion,
+	since typeof now does this automatically.
+	* forcenum.ok: Change "number" to "strnum" for the numeric strings.
+	* rebuild.in: Change input to include a strnum.
+	* rebuild.ok: Update results.
+
+2016-07-04         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (arrayind3): New test.
+	* arrayind3.awk, arrayind3.ok: New files.
+
+2016-07-03         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (rebuild): New test.
+	* rebuild.awk, rebuild.in, rebuild.ok: New files.
 
 2016-07-01         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* arrayind1.awk, arrayind1.ok: Comment out prints to stderr to
 	avoid buffer flushing on obscure systems.
 	* dumpvars.ok, symtab6.ok, symtab8.ok: Update after code changes.
+
+2016-06-26         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* strnum2.ok: Fix results, since print for a strnum should not be
+	affected by OFMT or CONVFMT.
+
+2016-06-22         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* strnum2.awk, strnum2.ok: Improve test case to show both OFMT and
+	CONVFMT conversions.
+
+2016-06-20         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (strnum2): New test.
+	* strnum2.awk, strnum2.ok: New files.
 
 2016-06-14         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -48,6 +376,18 @@
 	* mixed1.ok: Adjust to match what the code produces.
 	Thanks to John E. Malmberg <wb8tyw@qsl.net> for the report.
 
+2016-06-13         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (forcenum, ignrcas3, intarray, lintexp, lintindex,
+	lintint, lintlength, lintset, mpfrstrtonum, mpgforcenum, printfchar,
+	strtonum1): New tests.
+	* forcenum.awk, forcenum.ok, ignrcas3.awk, ignrcas3.ok, intarray.awk,
+	intarray.ok, lintexp.awk, lintexp.ok, lintindex.awk, lintindex.ok,
+	lintint.awk, lintint.ok, lintlength.awk, lintlength.ok, lintset.awk,
+	lintset.ok, mpfrstrtonum.awk, mpfrstrtonum.ok, mpgforcenum.awk,
+	mpgforcenum.ok, printfchar.awk, printfchar.ok, strtonum1.awk,
+	strtonum1.ok: New files.
+
 2016-06-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* symtab10.awk, symtab10.in, symtab10.ok: New files.
@@ -63,6 +403,12 @@
 
 	* Makefile.am (fsnul1): New test.
 	* fsnul1.awk, fsnul1.in, fsnul1.ok: New files.
+
+2016-05-26         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (arrayind2): New test.
+	* arrayind2.awk, arrayind2.ok: New files.
+	Thanks to Andrew J. Schorr <aschorr@telemetry-investments.com>.
 
 2016-05-25         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -114,6 +460,11 @@
 	* clos1way2.ok, clos1way3.ok, clos1way4.ok: Updated after
 	code changes.
 
+2016-04-06         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (clos1way6): New test.
+	* clos1way6.awk, clos1way6.ok: New files.
+
 2016-04-04         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am (clos1way2, clos1way3, clos1way4, clos1way5):
@@ -124,9 +475,35 @@
 	* clos1way2.awk: Add call to fflush() to test it too.
 	* clos1way2.ok: Updated after code change.
 
+2016-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile5.ok: Adjust after code changes.
+
+2016-03-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile5.ok, profile10.awk, profile10.ok: Adjust after code changes.
+
+2016-03-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile5.ok: Adjust after code changes.
+	* Makefile.am (profile10): New test.
+	* profile10.awk, profile10.ok: New files.
+
+2016-02-21         Nelson H.F. Beebe     <beebe@math.utah.edu>
+
+	* rand.ok: Updated after code change.
+
 2016-02-18         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* profile2.ok, profile5.ok: Adjust after code changes.
+
+2016-02-05         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* badargs.ok: Update after adding Yet Another Command Line Option.
+
+2016-01-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Add profile9.awk and profile9.ok.
 
 2016-01-14         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -139,8 +516,15 @@
 
 2015-12-27         Arnold D. Robbins     <arnold@skeeve.com>
 
+	These came in from gawk-4.1-stable:
+
 	* Makefile.am (profile8): New test.
 	* profile8.awk, profile8.ok: New files.
+
+	These used to be profile8:
+
+	* Makefile.am (profile9): Renamed.
+	* profile9.awk, profile9.ok: Renamed files.
 
 2015-11-24         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -191,9 +575,64 @@
 	* Makefile.am (mbstr2): New test.
 	* mbstr2.awk, mbstr2.in, mbstr2.ok: New files.
 
+2015-06-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (dbugeval2, typedregex3): New tests.
+	* dbugeval2.awk, dbugeval2.in, dbugeval2.ok: New files.
+	* typedregex3.awk, typedregex3.ok: New files.
+	Thanks to Hermann Peifer for the reports.
+
+2015-06-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (typedregex2): New test.
+	* typedregex2.awk, typedregex2.ok: New files.
+	Thanks to Hermann Peifer for the report.
+
+2015-06-26         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (dbugtypedre1): Renamed from dbugtypedre.
+	(dbugtypedre2): New test.
+	* dbugtypedre1.awk, dbugtypedre1.in, dbugtypedre1.ok: Renamed files.
+	* dbugtypedre2.awk, dbugtypedre2.in, dbugtypedre2.ok: New files.
+
+	Unrelated:
+
+	* id.ok: Update after code changes.
+
+	Unrelated:
+
+	* Makefile.am (getfile, dbugtypedre1, dbugtypedre2): Fixed to
+	work if building out of the source tree.
+
+	Unrelated:
+
+	* dbugtypedre1.ok, typedregex1.awk, typeof1.ok, typeof3.ok:
+	Update after code changes.
+
 2015-06-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am (negtime): Fix out-of-tree test run.
+
+	Unrelated:
+
+	* Makefile.am (typeof3, typeof4): New tests.
+	* typeof2.awk, typeof2.ok, typeof3.awk, typeof3.ok: New files.
+
+	Unrelated:
+
+	* Makefile.am (dbugtypedre): New tests.
+	* dbugtypedre.awk, dbugtypedre.in, dbugtypedre.ok: New files.
+
+2015-06-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (typeof2): New test.
+	* typeof2.awk, typeof2.ok: New files.
+
+2015-06-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (gsubind, typedregex1, typeof1): New tests.
+	* gsubind.awk, gsubind.ok, typedregex1.awk, typedregex1.ok,
+	typeof1.awk, typeof1.ok: New files.
 
 2015-06-17         Andrew J. Schorr     <aschorr@telemetry-investments.com>
 
@@ -244,6 +683,11 @@
 	* regexpbrack2.awk, regexpbrack2.in, regexpbrack2.ok: New files.
 	Thanks to Nelson Beebe.
 
+2015-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (shadowbuiltin): New test.
+	* shadowbuiltin.awk, shadowbuiltin.ok: New files.
+
 2015-04-14         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* indirectbuiltin.awk: Add another test (gensub 3 args).
@@ -268,10 +712,21 @@
 	* Makefile.am (mpfrmemok1): Use -p- for portability and
 	compatibility with pc/Makefile.tst.
 
+2015-04-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* id.ok, mpfrsqrt.awk: Update after rename of div() --> intdiv().
+
 2015-03-31         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am (indirectbuiltin): New test.
 	* indirectbuiltin.awk, indirectbuiltin.ok: New files.
+
+2015-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am: Remove defvar test and reference to files; test
+	code moved into extension/testext.c.
+	* defvar.awk, defvar.ok: Removed.
+	* testext.ok: Updated.
 
 2015-03-24         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -298,10 +753,37 @@
 	* Makefile.am (fpat4): New test.
 	* fpat4.awk, fpat4.ok: New files.
 
+2015-03-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* nonfatal3.awk, nonfatal3.ok: Adjust for portability.
+	Thanks to Hermann Peifer for the report.
+
 2015-03-06         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* charasbytes.awk, ofs1.awk, range1.awk, sortglos.awk,
 	sortglos.in: Remove execute permission.
+
+2015-03-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* nonfatal1.awk: Do not print ERRNO, since the value appears to be
+	platform-dependent.  Instead, print (ERRNO != "").
+	* nonfatal1.ok: Update.
+
+2015-02-28         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add nonfatal3.{awk,ok}.
+	(GAWK_EXT_TESTS): Add nonfatal3.
+	* nonfatal1.awk: Replace "ti10/357" with "local:host/25", since
+	"local:host" should be a universally bad hostname due to the
+	invalid ":" character.
+	* nonfatal1.ok: Update.
+	* nonfatal3.{awk,ok}: New test for connecting to a TCP port where
+	nobody is listening.
+
+2015-02-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* nonfatal1.ok: Update after code changes.
+	* id.ok: Updated after code change.
 
 2015-02-26         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -318,6 +800,16 @@
 	* Makefile.am (profile0): New test.
 	* profile0.awk, profile0.in, profile0.ok: New files.
 
+2015-02-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* nonfatal1.awk, nonfatal2.awk: String is now "NONFATAL".
+
+2015-02-06         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (nonfatal1, nonfatal2): New tests.
+	* nonfatal1.awk, nonfatal1.ok: New files.
+	* nonfatal2.awk, nonfatal2.ok: New files.
+
 2015-02-01         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am (paramasfunc1, paramasfunc2): Now need --posix.
@@ -330,6 +822,16 @@
 	* paramasfunc1.awk, paramasfunc1.ok: New files.
 	* paramasfunc2.awk, paramasfunc2.ok: New files.
 	* exit.sh, indirectcall.awk: Update after code change.
+
+2015-01-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (profile8): Actually add the test and the files.
+	Thanks to Hermann Peifer for the report.
+
+2015-01-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (profile8): New test.
+	* profile8.awk, profile8.ok: New files.
 
 2015-01-14         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -351,6 +853,34 @@
 
 	* testext.ok: Adjust for code changes.
 
+2015-01-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add defvar.awk and defvar.ok.
+	(SHLIB_TESTS): Add defvar.
+	(defvar): New test.
+	* defvar.awk, defvar.ok: New files.
+
+2015-01-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add getfile.awk and getfile.ok.
+	(SHLIB_TESTS): Add getfile.
+	(getfile): New test.
+	* getfile.awk, getfile.ok: New files.
+
+2015-01-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add timeout.awk and timeout.ok.
+	(BASIC_TESTS): Remove errno.
+	(GAWK_EXT_TESTS): Add errno and timeout.
+	* timeout.awk, timeout.ok: New files.
+
+2015-01-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add errno.awk, errno.in, and errno.ok.
+	(BASIC_TESTS): Add errno.
+	(errno): New test.
+	* errno.awk, errno.in, errno.ok: New files.
+
 2014-12-24         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am (badbuild): New test.
@@ -361,6 +891,10 @@
 	* Makefile.am (check): If tests don't pass, run 'make diffout'
 	and exit 1. Should help distros to notice when they have built
 	gawk incorrectly. (Can you say "Fedora", boys and girls?)
+
+2014-12-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile5.ok: Updated after code changes.
 
 2014-11-26         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -374,11 +908,16 @@
 
 	* Makefile.am (sortglos): New test.
 	* sortglos.awk, sortglos.in, sortglos.ok: New files.
+	Thanks to Antonio Columbo.
 
 2014-11-09         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* mbprintf4.awk: Add record and line number for debugging.
 	* mpprint4.ok: Adjust.
+
+2014-11-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* testext.ok: Add results from new test_get_file test.
 
 2014-11-02         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -431,6 +970,16 @@
 	* filefuncs.awk: Change to build directory instead of "..".
 	* Makefile.am (filefuncs): Pass in $(abs_top_builddir).
 
+2014-09-13         Stephen Davies        <sdavies@sdc.com.au>
+
+	* Makefile.am (profile4, profile5): Changes processing to not delete
+	the first two lines. This is no longer needed.
+	* profile4.ok, profile5.ok: Changed to suit new rules and comments.
+
+2014-09-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile2.ok, profile4.ok, profile5.ok: Update for new code.
+
 2014-09-05         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* functab4.awk: Changed to use stat instead of chdir since
@@ -476,6 +1025,11 @@
 	* Makefile.am (printhuge): New test.
 	* printhuge.awk, printhuge.ok: New files.
 	Test from mail.green.fox@gmail.com.
+
+2014-06-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (profile1, profile4, profile5): Adjust for change to
+	--pretty-print option.
 
 2014-06-19         Michael Forney       <forney@google.com>
 
@@ -693,6 +1247,12 @@
 	* Makefile.am (badassign1): New test.
 	* badassign1.awk, badassign1.ok: New files.
 
+2013-09-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (randtest): New test.
+	* randtest.sh, randtest.ok: New files.
+	* rand.ok: Updated to reflect new results based on code change.
+
 2013-09-13         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am: Fix quoting for generation of Maketests file so
@@ -708,6 +1268,10 @@
 	* Makefile.am: Quote $(srcdir) everywhere so that tests can run
 	in locations with spaces in their names (think Windows or Mac OS X).
 	* Gentests: Ditto for when creating Maketests file.
+
+2013-07-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* profile2.ok, profile5.ok: Update.
 
 2013-07-04         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -738,13 +1302,13 @@
 
 2013-06-01  Eli Zaretskii  <eliz@gnu.org>
 
-	* clos1way.awk: Don't use features of Posix shells, to allow this
+	* clos1way.awk: Don't use features of POSIX shells, to allow this
 	test to work on Windows.
 
 	* beginfile2.sh: Leave one blank between the left quote and the
 	following slash.  Use non-absolute name for a non-existent file.
 	This is to avoid breakage on Windows due to MSYS transformation of
-	Posix style /foo/bar absolute file names.
+	POSIX style /foo/bar absolute file names.
 
 	* beginfile2.ok: Adapt to changes in beginfile2.sh.
 
@@ -755,7 +1319,7 @@
 
 2013-05-20         Arnold D. Robbins     <arnold@skeeve.com>
 
-	* Makefile.am (mpfr-tests, shlib-tests): Propogate Eli's changes
+	* Makefile.am (mpfr-tests, shlib-tests): Propagate Eli's changes
 	and comment of 2013-05-14 to here, so that they get passed into
 	Makefile.in whenever Makefile.am is modified.
 

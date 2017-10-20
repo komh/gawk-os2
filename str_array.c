@@ -2,23 +2,23 @@
  * str_array.c - routines for associative arrays of string indices.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016,
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017,
  * the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -70,6 +70,25 @@ afunc_t str_array_func[] = {
 	(afunc_t) 0,
 };
 
+static NODE **env_remove(NODE *symbol, NODE *subs);
+static NODE **env_store(NODE *symbol, NODE *subs);
+static NODE **env_clear(NODE *symbol, NODE *subs);
+
+/* special case for ENVIRON */
+afunc_t env_array_func[] = {
+	str_array_init,
+	(afunc_t) 0,
+	null_length,
+	str_lookup,
+	str_exists,
+	env_clear,
+	env_remove,
+	str_list,
+	str_copy,
+	str_dump,
+	env_store,
+};
+
 static inline NODE **str_find(NODE *symbol, NODE *s1, size_t code1, unsigned long hash1);
 static void grow_table(NODE *symbol);
 
@@ -107,7 +126,7 @@ str_array_init(NODE *symbol ATTRIBUTE_UNUSED, NODE *subs ATTRIBUTE_UNUSED)
  * isn't there. Returns a pointer ala get_lhs to where its value is stored.
  *
  * SYMBOL is the address of the node (or other pointer) being dereferenced.
- * SUBS is a number or string used as the subscript. 
+ * SUBS is a number or string used as the subscript.
  */
 
 static NODE **
@@ -145,11 +164,14 @@ str_lookup(NODE *symbol, NODE *subs)
 	 * "Array indices are always strings."
 	 * "Array indices are always strings."
 	 * ....
-	 * If subs is a STRNUM, copy it; don't clear the MAYBE_NUM
-	 * flag on it since other variables could be using the same
-	 * reference-counted value.
 	 */
-	if (subs->stfmt != -1 || (subs->flags & MAYBE_NUM) != 0) {
+	// Special cases:
+	// 1. The string was generated using CONVFMT.
+	// 2. The string was from an unassigned variable.
+	// 3. The string was from an unassigned field.
+	if (   subs->stfmt != STFMT_UNUSED
+	    || subs == Nnull_string
+	    || (subs->flags & NULL_FIELD) != 0) {
 		NODE *tmp;
 
 		/*
@@ -175,12 +197,10 @@ str_lookup(NODE *symbol, NODE *subs)
 		}
 		subs = tmp;
 	} else {
-		/* string value already "frozen" */	
+		/* string value already "frozen" */
 
 		subs = dupnode(subs);
 	}
-
-	assert((subs->flags & MAYBE_NUM) == 0);
 
 	getbucket(b);
 	b->ahnext = symbol->buckets[hash1];
@@ -226,7 +246,7 @@ str_clear(NODE *symbol, NODE *subs ATTRIBUTE_UNUSED)
 			r = b->ahvalue;
 			if (r->type == Node_var_array) {
 				assoc_clear(r);	/* recursively clear all sub-arrays */
-				efree(r->vname);			
+				efree(r->vname);
 				freenode(r);
 			} else
 				unref(r);
@@ -303,15 +323,14 @@ str_copy(NODE *symbol, NODE *newsymb)
 	BUCKET **old, **new, **pnew;
 	BUCKET *chain, *newchain;
 	unsigned long cursize, i;
-	
+
 	assert(symbol->table_size > 0);
 
 	/* find the current hash size */
 	cursize = symbol->array_size;
 
 	/* allocate new table */
-	emalloc(new, BUCKET **, cursize * sizeof(BUCKET *), "str_copy");
-	memset(new, '\0', cursize * sizeof(BUCKET *));
+	ezalloc(new, BUCKET **, cursize * sizeof(BUCKET *), "str_copy");
 
 	old = symbol->buckets;
 
@@ -349,7 +368,7 @@ str_copy(NODE *symbol, NODE *newsymb)
 			newchain->ahnext = NULL;
 			pnew = & newchain->ahnext;
 		}
-	}	
+	}
 
 	newsymb->table_size = symbol->table_size;
 	newsymb->buckets = new;
@@ -383,9 +402,9 @@ str_list(NODE *symbol, NODE *t)
 	if ((assoc_kind & (AINDEX|AVALUE|ADELETE)) == (AINDEX|ADELETE))
 		num_elems = 1;
 	list_size =  elem_size * num_elems;
-	
+
 	emalloc(list, NODE **, list_size * sizeof(NODE *), "str_list");
- 
+
 	/* populate it */
 
 	for (i = 0; i < symbol->array_size; i++) {
@@ -409,7 +428,7 @@ str_list(NODE *symbol, NODE *t)
 			}
 			if (k >= list_size)
 				return list;
-		}			
+		}
 	}
 	return list;
 }
@@ -426,7 +445,7 @@ str_kilobytes(NODE *symbol)
 	bucket_cnt = symbol->table_size;
 
 	/* This does not include extra memory for indices with stfmt != -1 */
-	kb = (((AWKNUM) bucket_cnt) * sizeof (BUCKET) + 
+	kb = (((AWKNUM) bucket_cnt) * sizeof (BUCKET) +
 		((AWKNUM) symbol->array_size) * sizeof (BUCKET *)) / 1024.0;
 	return kb;
 }
@@ -514,7 +533,7 @@ str_dump(NODE *symbol, NODE *ndump)
 	return NULL;
 
 #undef HCNT
-}	
+}
 
 
 /* awk_hash --- calculate the hash function of the string in subs */
@@ -627,11 +646,11 @@ grow_table(NODE *symbol)
 	 * very large (> 8K), we just double more or less, instead of
 	 * just jumping from 8K to 64K.
 	 */
- 
+
 	static const unsigned long sizes[] = {
 		13, 127, 1021, 8191, 16381, 32749, 65497,
 		131101, 262147, 524309, 1048583, 2097169,
-		4194319, 8388617, 16777259, 33554467, 
+		4194319, 8388617, 16777259, 33554467,
 		67108879, 134217757, 268435459, 536870923,
 		1073741827
 	};
@@ -651,8 +670,7 @@ grow_table(NODE *symbol)
 	}
 
 	/* allocate new table */
-	emalloc(new, BUCKET **, newsize * sizeof(BUCKET *), "grow_table");
-	memset(new, '\0', newsize * sizeof(BUCKET *));
+	ezalloc(new, BUCKET **, newsize * sizeof(BUCKET *), "grow_table");
 
 	old = symbol->buckets;
 	symbol->buckets = new;
@@ -750,4 +768,68 @@ scramble(unsigned long x)
 	}
 
 	return x;
+}
+
+/* env_remove --- for ENVIRON, remove value from real environment */
+
+static NODE **
+env_remove(NODE *symbol, NODE *subs)
+{
+	NODE **val = str_remove(symbol, subs);
+	char save;
+
+	if (val != NULL) {
+		str_terminate(subs, save);
+		(void) unsetenv(subs->stptr);
+		str_restore(subs, save);
+	}
+
+	return val;
+}
+
+/* env_clear --- clear out the environment when ENVIRON is deleted */
+
+static NODE **
+env_clear(NODE *symbol, NODE *subs)
+{
+	extern char **environ;
+	NODE **val = str_clear(symbol, subs);
+
+	environ = NULL;	/* ZAP! */
+
+	/* str_clear zaps the vtable, reset it */
+	symbol->array_funcs = env_array_func;
+
+	return val;
+}
+
+/* env_store --- post assign function for ENVIRON, put new value into env */
+
+static NODE **
+env_store(NODE *symbol, NODE *subs)
+{
+	NODE **val = str_exists(symbol, subs);
+	const char *newval;
+
+	assert(val != NULL);
+
+	newval = (*val)->stptr;
+	if (newval == NULL)
+		newval = "";
+
+	(void) setenv(subs->stptr, newval, 1);
+
+	return val;
+}
+
+/* init_env_array --- set up the pointers for ENVIRON. A bit hacky. */
+
+void
+init_env_array(NODE *env_node)
+{
+	/* If POSIX simply don't reset the vtable and things work as before */
+	if (do_posix)
+		return;
+
+	env_node->array_funcs = env_array_func;
 }

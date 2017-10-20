@@ -2,22 +2,22 @@
  * nonposix.h --- definitions needed on non-POSIX systems.
  */
 
-/* 
+/*
  * Copyright (C) 2012, 2013, 2016 the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -55,6 +55,10 @@ unsigned int getegid (void);
 /* gawkmisc.pc */
 int unsetenv (const char *);
 int setenv (const char *, const char *, int);
+void w32_maybe_set_errno (void);
+char *w32_setlocale (int, const char *);
+#define setlocale(c,v) w32_setlocale(c,v)
+
 #endif	/* __MINGW32__ */
 
 #if defined(VMS) || defined(__DJGPP__) || defined(__MINGW32__)
@@ -63,4 +67,11 @@ int getpgrp(void);
 
 #if defined(__DJGPP__) || defined(__MINGW32__)
 int getppid(void);
+#endif
+
+#ifdef __DJGPP__
+/* Prototypes of for Posix functions for which we define replacements
+   in pc/ files.  */
+wint_t btowc (int c);
+wint_t putwc (wchar_t wc, FILE *stream);
 #endif

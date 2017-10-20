@@ -4,24 +4,25 @@
  * Arnold Robbins
  * May 2009
  * Redone June 2012
+ * Improved September 2017
  */
 
 /*
- * Copyright (C) 2009-2014 the Free Software Foundation, Inc.
- * 
+ * Copyright (C) 2009-2014, 2017 the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -41,6 +42,7 @@
 
 #ifdef __MINGW32__
 #include <winsock2.h>
+#include <stdint.h>
 #else
 #include <arpa/inet.h>
 #endif
@@ -55,11 +57,11 @@
 
 #define MAGIC "awkrulz\n"
 #define MAJOR 3
-#define MINOR 0
+#define MINOR 1
 
 static const gawk_api_t *api;	/* for convenience macros to work */
 static awk_ext_id_t *ext_id;
-static const char *ext_version = "rwarray extension: version 1.0";
+static const char *ext_version = "rwarray extension: version 1.2";
 static awk_bool_t (*init_func)(void) = NULL;
 
 int plugin_is_GPL_compatible;
@@ -80,11 +82,11 @@ static awk_bool_t read_value(FILE *fp, awk_value_t *value);
  * Minor version	4 bytes - network order
  * Element count	4 bytes - network order
  * Elements
- * 
+ *
  * For each element:
  * Length of index val:	4 bytes - network order
  * Index val as characters (N bytes)
- * Value type		4 bytes (0 = string, 1 = number, 2 = array)
+ * Value type		4 bytes (0 = string, 1 = number, 2 = array, 3 = regex, 4 = strnum, 5 = undefined)
  * IF string:
  * 	Length of value	4 bytes
  * 	Value as characters (N bytes)
@@ -99,7 +101,7 @@ static awk_bool_t read_value(FILE *fp, awk_value_t *value);
 /* do_writea --- write an array */
 
 static awk_value_t *
-do_writea(int nargs, awk_value_t *result)
+do_writea(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename, array;
 	FILE *fp = NULL;
@@ -108,9 +110,6 @@ do_writea(int nargs, awk_value_t *result)
 
 	assert(result != NULL);
 	make_number(0.0, result);
-
-	if (do_lint && nargs > 2)
-		lintwarn(ext_id, _("writea: called with too many arguments"));
 
 	if (nargs < 2)
 		goto out;
@@ -213,7 +212,7 @@ write_elem(FILE *fp, awk_element_t *element)
 	return write_value(fp, & element->value);
 }
 
-/* write_value --- write a number or a string or a array */
+/* write_value --- write a number or a string or a strnum or a regex or an array */
 
 static awk_bool_t
 write_value(FILE *fp, awk_value_t *val)
@@ -235,7 +234,25 @@ write_value(FILE *fp, awk_value_t *val)
 		if (fwrite(& val->num_value, 1, sizeof(val->num_value), fp) != sizeof(val->num_value))
 			return awk_false;
 	} else {
-		code = 0;
+		switch (val->val_type) {
+		case AWK_STRING:
+			code = htonl(0);
+			break;
+		case AWK_STRNUM:
+			code = htonl(4);
+			break;
+		case AWK_REGEX:
+			code = htonl(3);
+			break;
+		case AWK_UNDEFINED:
+			code = htonl(5);
+			break;
+		default:
+			/* XXX can this happen? */
+			code = htonl(0);
+			warning(ext_id, _("array value has unknown type %d"), val->val_type);
+			break;
+		}
 		if (fwrite(& code, 1, sizeof(code), fp) != sizeof(code))
 			return awk_false;
 
@@ -254,7 +271,7 @@ write_value(FILE *fp, awk_value_t *val)
 /* do_reada --- read an array */
 
 static awk_value_t *
-do_reada(int nargs, awk_value_t *result)
+do_reada(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename, array;
 	FILE *fp = NULL;
@@ -264,9 +281,6 @@ do_reada(int nargs, awk_value_t *result)
 
 	assert(result != NULL);
 	make_number(0.0, result);
-
-	if (do_lint && nargs > 2)
-		lintwarn(ext_id, _("reada: called with too many arguments"));
 
 	if (nargs < 2)
 		goto out;
@@ -436,7 +450,7 @@ read_value(FILE *fp, awk_value_t *value)
 		awk_array_t array = create_array();
 
 		if (! read_array(fp, array))
-			return awk_false; 
+			return awk_false;
 
 		/* hook into value */
 		value->val_type = AWK_ARRAY;
@@ -455,23 +469,41 @@ read_value(FILE *fp, awk_value_t *value)
 			return awk_false;
 		}
 		len = ntohl(len);
-		value->val_type = AWK_STRING;
+		switch (code) {
+		case 0:
+			value->val_type = AWK_STRING;
+			break;
+		case 3:
+			value->val_type = AWK_REGEX;
+			break;
+		case 4:
+			value->val_type = AWK_STRNUM;
+			break;
+		case 5:
+			value->val_type = AWK_UNDEFINED;
+			break;
+		default:
+			/* this cannot happen! */
+			warning(ext_id, _("treating recovered value with unknown type code %d as a string"), code);
+			value->val_type = AWK_STRING;
+			break;
+		}
 		value->str_value.len = len;
-		value->str_value.str = gawk_malloc(len + 2);
-		memset(value->str_value.str, '\0', len + 2);
+		value->str_value.str = gawk_malloc(len + 1);
 
 		if (fread(value->str_value.str, 1, len, fp) != (ssize_t) len) {
 			gawk_free(value->str_value.str);
 			return awk_false;
 		}
+		value->str_value.str[len] = '\0';
 	}
 
 	return awk_true;
 }
 
 static awk_ext_func_t func_table[] = {
-	{ "writea", do_writea, 2 },
-	{ "reada", do_reada, 2 },
+	{ "writea", do_writea, 2, 2, awk_false, NULL },
+	{ "reada", do_reada, 2, 2, awk_false, NULL },
 };
 
 

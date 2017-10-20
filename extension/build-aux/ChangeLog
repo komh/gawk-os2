@@ -1,3 +1,41 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-10-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated.
+
+2017-09-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* ar-lib, compile, config.guess, config.sub, depcomp: Updated.
+
+2017-08-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess: Updated from GNULIB.
+
+2017-08-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess: Updated from GNULIB.
+
+2017-06-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Update to latest from GNULIB.
+
+2017-03-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated again.
+
+2017-03-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.rpath, config.sub, install-sh:
+	Sync with GNULIB.
+
+2017-01-04         Arnold Robbins        <arnold@skeeve.com>
+
+	* config.guess, config.sub, compile, depcomp: Sync from latest
+	in GNULIB.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.

@@ -8,20 +8,20 @@
 
 /*
  * Copyright (C) 2009, 2010, 2011, 2012, 2013 the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -76,7 +76,7 @@ static awk_bool_t read_value(int fd, awk_value_t *value);
  * Minor version	4 bytes - network order
  * Element count	4 bytes - network order
  * Elements
- * 
+ *
  * For each element:
  * Length of index val:	4 bytes - network order
  * Index val as characters (N bytes)
@@ -95,7 +95,7 @@ static awk_bool_t read_value(int fd, awk_value_t *value);
 /* do_writea --- write an array */
 
 static awk_value_t *
-do_writea(int nargs, awk_value_t *result)
+do_writea(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename, array;
 	int fd = -1;
@@ -104,9 +104,6 @@ do_writea(int nargs, awk_value_t *result)
 
 	assert(result != NULL);
 	make_number(0.0, result);
-
-	if (do_lint && nargs > 2)
-		lintwarn(ext_id, _("writea: called with too many arguments"));
 
 	if (nargs < 2)
 		goto out;
@@ -250,7 +247,7 @@ write_value(int fd, awk_value_t *val)
 /* do_reada --- read an array */
 
 static awk_value_t *
-do_reada(int nargs, awk_value_t *result)
+do_reada(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename, array;
 	int fd = -1;
@@ -260,9 +257,6 @@ do_reada(int nargs, awk_value_t *result)
 
 	assert(result != NULL);
 	make_number(0.0, result);
-
-	if (do_lint && nargs > 2)
-		lintwarn(ext_id, _("reada: called with too many arguments"));
 
 	if (nargs < 2)
 		goto out;
@@ -431,7 +425,7 @@ read_value(int fd, awk_value_t *value)
 		awk_array_t array = create_array();
 
 		if (read_array(fd, array) != 0)
-			return awk_false; 
+			return awk_false;
 
 		/* hook into value */
 		value->val_type = AWK_ARRAY;
@@ -452,21 +446,21 @@ read_value(int fd, awk_value_t *value)
 		len = ntohl(len);
 		value->val_type = AWK_STRING;
 		value->str_value.len = len;
-		value->str_value.str = malloc(len + 2);
-		memset(value->str_value.str, '\0', len + 2);
+		value->str_value.str = malloc(len + 1);
 
 		if (read(fd, value->str_value.str, len) != (ssize_t) len) {
 			free(value->str_value.str);
 			return awk_false;
 		}
+		value->str_value.str[len] = '\0';
 	}
 
 	return awk_true;
 }
 
 static awk_ext_func_t func_table[] = {
-	{ "writea", do_writea, 2 },
-	{ "reada", do_reada, 2 },
+	{ "writea", do_writea, 2, 2, awk_false, NULL },
+	{ "reada", do_reada, 2, 2, awk_false, NULL },
 };
 
 

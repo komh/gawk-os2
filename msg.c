@@ -2,23 +2,23 @@
  * msg.c - routines for error messages.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003, 2010-2013
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003, 2010-2013, 2017,
  * the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2, or (at your option)
  * any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -33,7 +33,7 @@ static const char *srcfile = NULL;
 static int srcline;
 
 jmp_buf fatal_tag;
-bool fatal_tag_valid = false;
+int fatal_tag_valid = 0;
 
 /* err --- print an error message with source line and file and record */
 
@@ -76,19 +76,21 @@ err(bool isfatal, const char *s, const char *emsg, va_list argp)
 		val = mpg_update_var(FNR_node);
 		assert((val->flags & MPZN) != 0);
 		if (mpz_sgn(val->mpg_i) > 0) {
+			int len = FILENAME_node->var_value->stlen;
 			file = FILENAME_node->var_value->stptr;
 			(void) putc('(', stderr);
 			if (file)
-				(void) fprintf(stderr, "FILENAME=%s ", file);
+				(void) fprintf(stderr, "FILENAME=%.*s ", len, file);
 			(void) mpfr_fprintf(stderr, "FNR=%Zd) ", val->mpg_i);
 		}
 	} else
 #endif
 	if (FNR > 0) {
+		int len = FILENAME_node->var_value->stlen;
 		file = FILENAME_node->var_value->stptr;
 		(void) putc('(', stderr);
 		if (file)
-			(void) fprintf(stderr, "FILENAME=%s ", file);
+			(void) fprintf(stderr, "FILENAME=%.*s ", len, file);
 		(void) fprintf(stderr, "FNR=%ld) ", FNR);
 	}
 

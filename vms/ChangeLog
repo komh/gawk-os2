@@ -1,3 +1,40 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-08-25         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: Improve negative tests, and fix some tests.
+	New tests: aryunasgn, concat5, fpat5, fpat6, fwtest5, fwtest6,
+	fwtest7, fwtest8, mbprintf5, memleak, sourcesplit
+
+2017-08-31         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: Fix profile3, profile6, profile7,
+	rsgetline, rstest6 tests.
+
+2017-08-25         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmstest.com: Fix argarray test.
+
+2016-12-22         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* vmsbuild.com, descrip.mms:
+	Update for new [.support] directory.
+
+2016-11-24         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* gawk_verb.com: correct location for gawk executable.
+
+2016-10-24         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* backup_gawk_src.com: Do not backup entire git repository.
+	* pcsi_product_gawk.com: Create a ZIP archive of PCSI kit.
+
+2016-10-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* General: Remove trailing whitespace from all relevant files.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -96,6 +133,11 @@
 	  correct simulated Linux directory.
 	* remove_old_gawk.com: Look for old gawk images that may
 	  have been installed in the wrong directory.
+
+2015-07-02         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* build_gawk_pcsi_desc.com: Update to support new VMS
+	producer of VSI.
 
 2015-05-19         Arnold D. Robbins     <arnold@skeeve.com>
 

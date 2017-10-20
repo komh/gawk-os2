@@ -4,20 +4,20 @@
 
 /*
  * Copyright (C) 2013-2015 the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -28,7 +28,7 @@
 #endif
 
 #ifndef _XOPEN_SOURCE
-# define _XOPEN_SOURCE
+# define _XOPEN_SOURCE 1
 #endif
 #ifndef _XOPEN_SOURCE_EXTENDED
 # define _XOPEN_SOURCE_EXTENDED 1
@@ -118,7 +118,7 @@ invalid_filename(const awk_string_t *filename)
 /* do_inplace_begin --- start in-place editing */
 
 static awk_value_t *
-do_inplace_begin(int nargs, awk_value_t *result)
+do_inplace_begin(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename;
 	struct stat sbuf;
@@ -132,7 +132,7 @@ do_inplace_begin(int nargs, awk_value_t *result)
 
 	if (nargs != 2)
 		fatal(ext_id, _("inplace_begin: expects 2 arguments but called with %d"), nargs);
-		
+
 	if (! get_argument(0, AWK_STRING, &filename))
 		fatal(ext_id, _("inplace_begin: cannot retrieve 1st argument as a string filename"));
 
@@ -201,14 +201,14 @@ do_inplace_begin(int nargs, awk_value_t *result)
 /* do_inplace_end --- finish in-place editing */
 
 static awk_value_t *
-do_inplace_end(int nargs, awk_value_t *result)
+do_inplace_end(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename, suffix;
 
 	assert(result != NULL);
 
 	if (nargs != 2)
-		fatal(ext_id, _("inplace_begin: expects 2 arguments but called with %d"), nargs);
+		fatal(ext_id, _("inplace_end: expects 2 arguments but called with %d"), nargs);
 
 	if (! get_argument(0, AWK_STRING, &filename))
 		fatal(ext_id, _("inplace_end: cannot retrieve 1st argument as a string filename"));
@@ -262,8 +262,8 @@ do_inplace_end(int nargs, awk_value_t *result)
 }
 
 static awk_ext_func_t func_table[] = {
-	{ "inplace_begin", do_inplace_begin, 2 },
-	{ "inplace_end", do_inplace_end, 2 },
+	{ "inplace_begin", do_inplace_begin, 2, 2, awk_false, NULL },
+	{ "inplace_end", do_inplace_end, 2, 2, awk_false, NULL },
 };
 
 static awk_bool_t init_inplace(void)

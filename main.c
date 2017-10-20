@@ -1,30 +1,30 @@
 /*
- * main.c -- Code generator and main program for gawk. 
+ * main.c -- Code generator and main program for gawk.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
 /* FIX THIS BEFORE EVERY RELEASE: */
-#define UPDATE_YEAR	2016
+#define UPDATE_YEAR	2017
 
 #include "awk.h"
 #include "getopt.h"
@@ -58,7 +58,7 @@ static void init_args(int argc0, int argc, const char *argv0, char **argv);
 static void init_vars(void);
 static NODE *load_environ(void);
 static NODE *load_procinfo(void);
-static RETSIGTYPE catchsig(int sig);
+static void catchsig(int sig);
 #ifdef HAVE_LIBSIGSEGV
 static int catchsegv(void *fault_address, int serious);
 static void catchstackoverflow(int emergency, stackoverflow_context_t scp);
@@ -85,7 +85,7 @@ long NF;
 long NR;
 long FNR;
 int BINMODE;
-int IGNORECASE;
+bool IGNORECASE;
 char *OFS;
 char *ORS;
 char *OFMT;
@@ -147,7 +147,7 @@ static void set_locale_stuff(void);
 static bool stopped_early = false;
 
 int do_flags = false;
-bool do_optimize = false;		/* apply default optimizations */
+bool do_optimize = true;		/* apply default optimizations */
 static int do_nostalgia = false;	/* provide a blast from the past */
 static int do_binary = false;		/* hands off my data! */
 static int do_version = false;		/* print version info */
@@ -194,6 +194,7 @@ static const struct option optab[] = {
 	{ "locale",		required_argument,	NULL,	'Z' },
 #endif
 	{ "non-decimal-data",	no_argument,		NULL,	'n' },
+	{ "no-optimize",	no_argument,		NULL,	's' },
 	{ "nostalgia",		no_argument,		& do_nostalgia,	1 },
 	{ "optimize",		no_argument,		NULL,	'O' },
 #if defined(YYDEBUG) || defined(GAWKDEBUG)
@@ -254,7 +255,7 @@ main(int argc, char **argv)
 #ifdef SIGBUS
 	(void) signal(SIGBUS, catchsig);
 #endif
-#ifdef SIGPIPE
+
 	/*
 	 * Ignore SIGPIPE so that writes to pipes that fail don't
 	 * kill the process but instead return -1 and set errno.
@@ -268,8 +269,7 @@ main(int argc, char **argv)
 	 * should not give us "broken pipe" messages --- mainly because
 	 * it did not do so in the past and people would complain.
 	 */
-	signal(SIGPIPE, SIG_IGN);
-#endif
+	ignore_sigpipe();
 
 	(void) sigsegv_install_handler(catchsegv);
 #define STACK_SIZE (16*1024)
@@ -307,21 +307,9 @@ main(int argc, char **argv)
 	 * this value once makes a speed difference.
 	 */
 	gawk_mb_cur_max = MB_CUR_MAX;
-#ifdef LIBC_IS_BORKED
-{
-	const char *env_lc;
-
-	env_lc = getenv("LC_ALL");
-	if (env_lc == NULL)
-		env_lc = getenv("LANG");
-	if (env_lc != NULL && env_lc[1] == '\0' && tolower(env_lc[0]) == 'c')
-		gawk_mb_cur_max = 1;
-}
-#endif
 
 	/* init the cache for checking bytes if they're characters */
 	init_btowc_cache();
-
 
 	if (do_nostalgia)
 		nostalgia();
@@ -368,7 +356,7 @@ main(int argc, char **argv)
 		init_debug();
 
 #ifdef HAVE_MPFR
-	/* Set up MPFR defaults, and register pre-exec hook to process arithmetic opcodes */ 
+	/* Set up MPFR defaults, and register pre-exec hook to process arithmetic opcodes */
 	if (do_mpfr)
 		init_mpfr(DEFAULT_PREC, DEFAULT_ROUNDMODE);
 #endif
@@ -469,7 +457,7 @@ main(int argc, char **argv)
 	/* Read in the program */
 	if (parse_program(& code_block) != 0)
 		exit(EXIT_FAILURE);
-	
+
 	if (do_intl)
 		exit(EXIT_SUCCESS);
 
@@ -511,9 +499,8 @@ main(int argc, char **argv)
 
 	if (do_debug)
 		debug_prog(code_block);
-	else if (do_pretty_print && ! do_debug && getenv("GAWK_NO_PP_RUN") != NULL)
-		/* hack to run pretty printer only. need a better solution */
-		;
+	else if (do_pretty_print && ! do_profile)
+		;	/* run pretty printer only. */
 	else
 		interpret(code_block);
 
@@ -532,7 +519,7 @@ main(int argc, char **argv)
 
 	if (do_tidy_mem)
 		release_all_vars();
-	
+
 	/* keep valgrind happier */
 	if (extra_stack)
 		efree(extra_stack);
@@ -609,6 +596,7 @@ usage(int exitval, FILE *fp)
 	fputs(_("\t-p[file]\t\t--profile[=file]\n"), fp);
 	fputs(_("\t-P\t\t\t--posix\n"), fp);
 	fputs(_("\t-r\t\t\t--re-interval\n"), fp);
+	fputs(_("\t-s\t\t\t--no-optimize\n"), fp);
 	fputs(_("\t-S\t\t\t--sandbox\n"), fp);
 	fputs(_("\t-t\t\t\t--lint-old\n"), fp);
 	fputs(_("\t-V\t\t\t--version\n"), fp);
@@ -625,8 +613,10 @@ usage(int exitval, FILE *fp)
 	   for this application.  Please add _another line_ with the
 	   address for translation bugs.
 	   no-wrap */
-	fputs(_("\nTo report bugs, see node `Bugs' in `gawk.info', which is\n\
-section `Reporting Problems and Bugs' in the printed version.\n\n"), fp);
+	fputs(_("\nTo report bugs, see node `Bugs' in `gawk.info'\n\
+which is section `Reporting Problems and Bugs' in the\n\
+printed version.  This same information may be found at\n\
+https://www.gnu.org/software/gawk/manual/html_node/Bugs.html.\n\n"), fp);
 
 	/* ditto */
 	fputs(_("gawk is a pattern scanning and processing language.\n\
@@ -639,13 +629,20 @@ By default it reads standard input and writes standard output.\n\n"), fp);
 	fflush(fp);
 
 	if (ferror(fp)) {
+#ifdef __MINGW32__
+		if (errno == 0 || errno == EINVAL)
+			w32_maybe_set_errno();
+#endif
 		/* don't warn about stdout/stderr if EPIPE, but do error exit */
-		if (errno != EPIPE) {
-			if (fp == stdout)
-				warning(_("error writing standard output (%s)"), strerror(errno));
-			else if (fp == stderr)
-				warning(_("error writing standard error (%s)"), strerror(errno));
-		}
+		if (errno == EPIPE)
+			die_via_sigpipe();
+
+		if (fp == stdout)
+			warning(_("error writing standard output (%s)"), strerror(errno));
+		else if (fp == stderr)
+			warning(_("error writing standard error (%s)"), strerror(errno));
+
+		// some other problem than SIGPIPE
 		exit(EXIT_FAILURE);
 	}
 
@@ -674,7 +671,7 @@ GNU General Public License for more details.\n\
 	static const char blurb_part3[] =
 	  N_("You should have received a copy of the GNU General Public License\n\
 along with this program. If not, see http://www.gnu.org/licenses/.\n");
- 
+
 	/* multiple blurbs are needed for some brain dead compilers. */
 	printf(_(blurb_part1), UPDATE_YEAR);	/* Last update year */
 	fputs(_(blurb_part2), stdout);
@@ -682,6 +679,10 @@ along with this program. If not, see http://www.gnu.org/licenses/.\n");
 	fflush(stdout);
 
 	if (ferror(stdout)) {
+#ifdef __MINGW32__
+		if (errno == 0 || errno == EINVAL)
+			w32_maybe_set_errno();
+#endif
 		/* don't warn about stdout if EPIPE, but do error exit */
 		if (errno != EPIPE)
 			warning(_("error writing standard output (%s)"), strerror(errno));
@@ -733,14 +734,14 @@ init_args(int argc0, int argc, const char *argv0, char **argv)
 	unref(tmp);
 	unref(*aptr);
 	*aptr = make_string(argv0, strlen(argv0));
-	(*aptr)->flags |= MAYBE_NUM;
+	(*aptr)->flags |= USER_INPUT;
 	for (i = argc0, j = 1; i < argc; i++, j++) {
 		tmp = make_number((AWKNUM) j);
 		aptr = assoc_lookup(ARGV_node, tmp);
 		unref(tmp);
 		unref(*aptr);
 		*aptr = make_string(argv[i], strlen(argv[i]));
-		(*aptr)->flags |= MAYBE_NUM;
+		(*aptr)->flags |= USER_INPUT;
 	}
 
 	ARGC_node = install_symbol(estrdup("ARGC", 4), Node_var);
@@ -785,7 +786,7 @@ static const struct varinit varinit[] = {
 {&FPAT_node,	"FPAT",		"[^[:space:]]+", 0,  NULL, set_FPAT,	false, NON_STANDARD },
 {&IGNORECASE_node, "IGNORECASE", NULL,	0,  NULL, set_IGNORECASE,	false, NON_STANDARD },
 {&LINT_node,	"LINT",		NULL,	0,  NULL, set_LINT,	false, NON_STANDARD },
-{&PREC_node,	"PREC",		NULL,	DEFAULT_PREC,	NULL,	set_PREC,	false,	NON_STANDARD}, 	
+{&PREC_node,	"PREC",		NULL,	DEFAULT_PREC,	NULL,	set_PREC,	false,	NON_STANDARD},
 {&NF_node,	"NF",		NULL,	-1, update_NF, set_NF,	false, 0 },
 {&NR_node,	"NR",		NULL,	0,  update_NR, set_NR,	true, 0 },
 {&OFMT_node,	"OFMT",		"%.6g",	0,  NULL, set_OFMT,	true, 0 },
@@ -894,7 +895,7 @@ load_environ()
 		unref(tmp);
 		unref(*aptr);
 		*aptr = make_string(val, strlen(val));
-		(*aptr)->flags |= MAYBE_NUM;
+		(*aptr)->flags |= USER_INPUT;
 
 		/* restore '=' so that system() gets a valid environment */
 		if (val != nullstr)
@@ -911,7 +912,38 @@ load_environ()
 	 */
 	path_environ("AWKPATH", defpath);
 	path_environ("AWKLIBPATH", deflibpath);
+
+	/* set up array functions */
+	init_env_array(ENVIRON_node);
+
 	return ENVIRON_node;
+}
+
+static void
+load_procinfo_argv()
+{
+	NODE *tmp;
+	NODE **aptr;
+	NODE *argv_array;
+	int i;
+
+	tmp = make_string("argv", 4);
+	aptr = assoc_lookup(PROCINFO_node, tmp);
+	unref(tmp);
+	unref(*aptr);
+	getnode(argv_array);
+ 	memset(argv_array, '\0', sizeof(NODE));  /* valgrind wants this */
+	null_array(argv_array);
+	*aptr = argv_array;
+	argv_array->parent_array = PROCINFO_node;
+	argv_array->vname = estrdup("argv", 4);
+	for (i = 0; d_argv[i] != NULL; i++) {
+		tmp = make_number(i);
+		aptr = assoc_lookup(argv_array, tmp);
+		unref(tmp);
+		unref(*aptr);
+		*aptr = make_string(d_argv[i], strlen(d_argv[i]));
+	}
 }
 
 /* load_procinfo --- populate the PROCINFO array */
@@ -985,22 +1017,7 @@ load_procinfo()
 	value = getegid();
 	update_PROCINFO_num("egid", value);
 
-	switch (current_field_sep()) {
-	case Using_FIELDWIDTHS:
-		update_PROCINFO_str("FS", "FIELDWIDTHS");
-		break;
-	case Using_FPAT:
-		update_PROCINFO_str("FS", "FPAT");
-		break;
-	case Using_FS:
-		update_PROCINFO_str("FS", "FS");
-		break;
-	default:
-		fatal(_("unknown value for field spec: %d\n"),
-				current_field_sep());
-		break;
-	}
-
+	update_PROCINFO_str("FS", current_field_sep_str());
 
 #if defined (HAVE_GETGROUPS) && defined(NGROUPS_MAX) && NGROUPS_MAX > 0
 	for (i = 0; i < ngroups; i++) {
@@ -1013,6 +1030,7 @@ load_procinfo()
 		groupset = NULL;
 	}
 #endif
+	load_procinfo_argv();
 	return PROCINFO_node;
 }
 
@@ -1109,7 +1127,7 @@ arg_assign(char *arg, bool initing)
 
 	/* first check that the variable name has valid syntax */
 	badvar = false;
-	if (! is_alpha((unsigned char) arg[0]) && arg[0] != '_')
+	if (! is_letter((unsigned char) arg[0]))
 		badvar = true;
 	else
 		for (cp2 = arg+1; *cp2; cp2++)
@@ -1132,7 +1150,7 @@ arg_assign(char *arg, bool initing)
 		if (! initing) {
 			var = lookup(arg);
 			if (var != NULL && var->type == Node_func)
-				fatal(_("cannot use function `%s' as variable name"), arg); 
+				fatal(_("cannot use function `%s' as variable name"), arg);
 		}
 
 		/*
@@ -1140,7 +1158,7 @@ arg_assign(char *arg, bool initing)
 		 * This makes sense, so we do it too.
 		 */
 		it = make_str_node(cp, strlen(cp), SCAN);
-		it->flags |= MAYBE_NUM;
+		it->flags |= USER_INPUT;
 #ifdef LC_NUMERIC
 		/*
 		 * See comment above about locale decimal point.
@@ -1183,7 +1201,7 @@ arg_assign(char *arg, bool initing)
 
 /* catchsig --- catch signals */
 
-static RETSIGTYPE
+static void
 catchsig(int sig)
 {
 	if (sig == SIGFPE) {
@@ -1254,7 +1272,7 @@ version()
 #ifdef HAVE_MPFR
 	printf(" (GNU MPFR %s, GNU MP %s)", mpfr_get_version(), gmp_version);
 #endif
-	printf("\n"); 
+	printf("\n");
 	print_ext_versions();
 
 	/*
@@ -1337,7 +1355,7 @@ estrdup(const char *str, size_t len)
 	s[len] = '\0';
 	return s;
 }
-             
+
 #if defined(HAVE_LOCALE_H)
 
 /* init_locale --- initialize locale info. */
@@ -1407,7 +1425,7 @@ long
 getenv_long(const char *name)
 {
 	const char *val;
-	long newval;	
+	long newval;
 	if ((val = getenv(name)) != NULL && isdigit((unsigned char) *val)) {
 		for (newval = 0; *val && isdigit((unsigned char) *val); val++)
 			newval = (newval * 10) + *val - '0';
@@ -1424,7 +1442,7 @@ parse_args(int argc, char **argv)
 	/*
 	 * The + on the front tells GNU getopt not to rearrange argv.
 	 */
-	const char *optlist = "+F:f:v:W;bcCd::D::e:E:ghi:l:L:nNo::Op::MPrStVYZ:";
+	const char *optlist = "+F:f:v:W;bcCd::D::e:E:ghi:l:L:nNo::Op::MPrSstVYZ:";
 	int old_optind;
 	int c;
 	char *scan;
@@ -1433,7 +1451,7 @@ parse_args(int argc, char **argv)
 	/* we do error messages ourselves on invalid options */
 	opterr = false;
 
-	/* copy argv before getopt gets to it; used to restart the debugger */  
+	/* copy argv before getopt gets to it; used to restart the debugger */
 	save_argv(argc, argv);
 
 	/* option processing. ready, set, go! */
@@ -1583,7 +1601,11 @@ parse_args(int argc, char **argv)
 		case 'r':
 			do_flags |= DO_INTERVALS;
  			break;
- 
+
+		case 's':
+			do_optimize = false;
+			break;
+
 		case 'S':
 			do_flags |= DO_SANDBOX;
   			break;
@@ -1658,6 +1680,8 @@ parse_args(int argc, char **argv)
 			break;
 	}
 out:
+	do_optimize = (do_optimize && ! do_pretty_print);
+
 	return;
 }
 

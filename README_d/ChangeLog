@@ -1,3 +1,38 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-10-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.rpm: New file.
+
+2017-09-04  Eli Zaretskii  <eliz@gnu.org>
+
+	* README.pc: Update instructions for building the extensions
+	without libmpfr.
+
+2017-08-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.pc: Updated to point to Juan Guerrero for DJGPP.
+	Thanks to Scott Deifik for the report.
+
+2017-08-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.alpine: New file.
+
+2017-08-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.freebsd: New file.
+
+2016-12-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.macosx: Updated.
+
+2016-10-31         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.aix: New file.
+	* README.zLinux: Typo fix.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -25,6 +60,10 @@
 2015-04-09         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* README.macosx: New file.
+
+2014-08-12         Juergen Kahrs <jkahrs@users.sourceforge.net>
+
+	* README.cmake: Moved file from top-level to here.
 
 2014-04-08         Arnold D. Robbins     <arnold@skeeve.com>
 

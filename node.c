@@ -2,23 +2,23 @@
  * node.c -- routines for node management
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003-2015,
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003-2015, 2017,
  * the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -30,7 +30,7 @@
 
 static int is_ieee_magic_val(const char *val);
 static NODE *r_make_number(double x);
-static AWKNUM get_ieee_magic_val(const char *val);
+static AWKNUM get_ieee_magic_val(char *val);
 extern NODE **fmt_list;          /* declared in eval.c */
 
 NODE *(*make_number)(double) = r_make_number;
@@ -41,12 +41,13 @@ int (*cmp_numbers)(const NODE *, const NODE *) = cmp_awknums;
 /* is_hex --- return true if a string looks like a hex value */
 
 static bool
-is_hex(const char *str)
+is_hex(const char *str, const char *cpend)
 {
+	/* on entry, we know the string length is >= 1 */
 	if (*str == '-' || *str == '+')
 		str++;
 
-	if (str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
+	if (str + 1 < cpend && str[0] == '0' && (str[1] == 'x' || str[1] == 'X'))
 		return true;
 
 	return false;
@@ -61,23 +62,35 @@ r_force_number(NODE *n)
 	char *cpend;
 	char save;
 	char *ptr;
-	unsigned int newflags;
 	extern double strtod();
 
 	if ((n->flags & NUMCUR) != 0)
 		return n;
 
-	/* all the conditionals are an attempt to avoid the expensive strtod */
+	/*
+	 * We should always set NUMCUR. If USER_INPUT is set and it's a
+	 * numeric string, we clear STRING and enable NUMBER, but if it's not
+	 * numeric, we disable USER_INPUT.
+	 */
 
-	/* Note: only set NUMCUR if we actually convert some digits */
+	/* All the conditionals are an attempt to avoid the expensive strtod */
 
+	n->flags |= NUMCUR;
 	n->numbr = 0.0;
 
-	if (n->stlen == 0) {
-		return n;
-	}
+	/* Trim leading white space, bailing out if there's nothing else */
+	for (cp = n->stptr, cpend = cp + n->stlen;
+	     cp < cpend && isspace((unsigned char) *cp); cp++)
+		continue;
 
-	cp = n->stptr;
+	if (cp == cpend)
+		goto badnum;
+
+	/* At this point, we know the string is not entirely white space */
+	/* Trim trailing white space */
+	while (isspace((unsigned char) cpend[-1]))
+		cpend--;
+
 	/*
 	 * 2/2007:
 	 * POSIX, by way of severe language lawyering, seems to
@@ -86,80 +99,52 @@ r_force_number(NODE *n)
 	 * This also allows hexadecimal floating point. Ugh.
 	 */
 	if (! do_posix) {
-		if (is_alpha((unsigned char) *cp)) {
-			return n;
-		} else if (n->stlen == 4 && is_ieee_magic_val(n->stptr)) {
-			if ((n->flags & MAYBE_NUM) != 0)
-				n->flags &= ~MAYBE_NUM;
-			n->flags |= NUMBER|NUMCUR;
-			n->flags &= ~STRING;
-			n->numbr = get_ieee_magic_val(n->stptr);
-
-			return n;
+		if (is_alpha((unsigned char) *cp))
+			goto badnum;
+		else if (cpend == cp+4 && is_ieee_magic_val(cp)) {
+			n->numbr = get_ieee_magic_val(cp);
+			goto goodnum;
 		}
 		/* else
 			fall through */
 	}
-	/* else not POSIX, so
+	/* else POSIX, so
 		fall through */
 
-	cpend = cp + n->stlen;
-	while (cp < cpend && isspace((unsigned char) *cp))
-		cp++;
-
-	if (   cp == cpend		/* only spaces, or */
-	    || (! do_posix		/* not POSIXLY paranoid and */
+	if (   (! do_posix		/* not POSIXLY paranoid and */
 	        && (is_alpha((unsigned char) *cp)	/* letter, or */
 					/* CANNOT do non-decimal and saw 0x */
-		    || (! do_non_decimal_data && is_hex(cp))))) {
-		return n;
+		    || (! do_non_decimal_data && is_hex(cp, cpend))))) {
+		goto badnum;
 	}
-
-	if ((n->flags & MAYBE_NUM) != 0) {
-		newflags = NUMBER;
-		n->flags &= ~MAYBE_NUM;
-	} else
-		newflags = 0;
 
 	if (cpend - cp == 1) {		/* only one character */
 		if (isdigit((unsigned char) *cp)) {	/* it's a digit! */
 			n->numbr = (AWKNUM)(*cp - '0');
-			n->flags |= newflags;
-			n->flags |= NUMCUR;
-			n->flags &= ~STRING;
-			if (cp == n->stptr)		/* no leading spaces */
+			if (n->stlen == 1)		/* no white space */
 				n->flags |= NUMINT;
+			goto goodnum;
 		}
-		return n;
-	}
-
-	if (do_non_decimal_data) {	/* main.c assures false if do_posix */
-		errno = 0;
-		if (! do_traditional && get_numbase(cp, true) != 10) {
-			n->numbr = nondec2awknum(cp, cpend - cp);
-			n->flags |= NUMCUR;
-			n->flags &= ~STRING;
-			ptr = cpend;
-			goto finish;
-		}
+		goto badnum;
 	}
 
 	errno = 0;
-	save = *cpend;
-	*cpend = '\0';
-	n->numbr = (AWKNUM) strtod((const char *) cp, &ptr);
+	if (do_non_decimal_data		/* main.c assures false if do_posix */
+		&& ! do_traditional && get_numbase(cp, cpend - cp, true) != 10) {
+		/* nondec2awknum() saves and restores the byte after the string itself */
+		n->numbr = nondec2awknum(cp, cpend - cp, &ptr);
+	} else {
+		save = *cpend;
+		*cpend = '\0';
+		n->numbr = (AWKNUM) strtod((const char *) cp, &ptr);
+		*cpend = save;
+	}
 
-	/* POSIX says trailing space is OK for NUMBER */
-	while (isspace((unsigned char) *ptr))
-		ptr++;
-	*cpend = save;
-finish:
 	if (errno == 0) {
-		if (ptr == cpend) {
-			n->flags |= newflags;
-			n->flags |= NUMCUR;
-		}
+		if (ptr == cpend)
+			goto goodnum;
 		/* else keep the leading numeric value without updating flags */
+		/* fall through to badnum */
 	} else {
 		errno = 0;
 		/*
@@ -168,15 +153,29 @@ finish:
 		 * We force the numeric value to 0 in such cases.
 		 */
 		n->numbr = 0;
+		/*
+		 * Or should we accept it as a NUMBER even though strtod
+		 * threw an error?
+		 */
+		/* fall through to badnum */
 	}
+badnum:
+	n->flags &= ~USER_INPUT;
+	return n;
 
+goodnum:
+	if ((n->flags & USER_INPUT) != 0) {
+		/* leave USER_INPUT enabled to indicate that this is a strnum */
+		n->flags &= ~STRING;
+		n->flags |= NUMBER;
+	}
 	return n;
 }
 
 
 /*
  * The following lookup table is used as an optimization in force_string;
- * (more complicated) variations on this theme didn't seem to pay off, but 
+ * (more complicated) variations on this theme didn't seem to pay off, but
  * systematic testing might be in order at some point.
  */
 static const char *values[] = {
@@ -227,7 +226,7 @@ r_format_val(const char *format, int index, NODE *s)
 		 * Once upon a time, we just blindly did this:
 		 *	sprintf(sp, format, s->numbr);
 		 *	s->stlen = strlen(sp);
-		 *	s->stfmt = (char) index;
+		 *	s->stfmt = index;
 		 * but that's no good if, e.g., OFMT is %s. So we punt,
 		 * and just always format the value ourselves.
 		 */
@@ -242,7 +241,7 @@ r_format_val(const char *format, int index, NODE *s)
 		if (val == s->numbr) {
 			/* integral value, but outside range of %ld, use %.0f */
 			r = format_tree("%.0f", 4, dummy, 2);
-			s->stfmt = -1;
+			s->stfmt = STFMT_UNUSED;
 		} else {
 			r = format_tree(format, fmt_list[index]->stlen, dummy, 2);
 			assert(r != NULL);
@@ -250,7 +249,7 @@ r_format_val(const char *format, int index, NODE *s)
 		}
 		s->flags = oflags;
 		s->stlen = r->stlen;
-		if ((s->flags & STRCUR) != 0)
+		if ((s->flags & (MALLOC|STRCUR)) == (MALLOC|STRCUR))
 			efree(s->stptr);
 		s->stptr = r->stptr;
 		freenode(r);	/* Do not unref(r)! We want to keep s->stptr == r->stpr.  */
@@ -269,15 +268,15 @@ r_format_val(const char *format, int index, NODE *s)
 			(void) sprintf(sp, "%ld", num);
 			s->stlen = strlen(sp);
 		}
-		s->stfmt = -1;
+		s->stfmt = STFMT_UNUSED;
 		if ((s->flags & INTIND) != 0) {
 			s->flags &= ~(INTIND|NUMBER);
 			s->flags |= STRING;
 		}
 	}
-	if (s->stptr != NULL)
+	if ((s->flags & (MALLOC|STRCUR)) == (MALLOC|STRCUR))
 		efree(s->stptr);
-	emalloc(s->stptr, char *, s->stlen + 2, "format_val");
+	emalloc(s->stptr, char *, s->stlen + 1, "format_val");
 	memcpy(s->stptr, sp, s->stlen + 1);
 no_malloc:
 	s->flags |= STRCUR;
@@ -303,7 +302,6 @@ r_dupnode(NODE *n)
 
 	getnode(r);
 	*r = *n;
-	r->flags &= ~FIELD;
 	r->flags |= MALLOC;
 	r->valref = 1;
 	/*
@@ -315,18 +313,18 @@ r_dupnode(NODE *n)
 	r->wstlen = 0;
 
 	if ((n->flags & STRCUR) != 0) {
-		emalloc(r->stptr, char *, n->stlen + 2, "r_dupnode");
+		emalloc(r->stptr, char *, n->stlen + 1, "r_dupnode");
 		memcpy(r->stptr, n->stptr, n->stlen);
 		r->stptr[n->stlen] = '\0';
 		if ((n->flags & WSTRCUR) != 0) {
 			r->wstlen = n->wstlen;
-			emalloc(r->wstptr, wchar_t *, sizeof(wchar_t) * (n->wstlen + 2), "r_dupnode");
+			emalloc(r->wstptr, wchar_t *, sizeof(wchar_t) * (n->wstlen + 1), "r_dupnode");
 			memcpy(r->wstptr, n->wstptr, n->wstlen * sizeof(wchar_t));
 			r->wstptr[n->wstlen] = L'\0';
 			r->flags |= WSTRCUR;
 		}
 	}
-	
+
 	return r;
 }
 
@@ -335,16 +333,8 @@ r_dupnode(NODE *n)
 static NODE *
 r_make_number(double x)
 {
-	NODE *r;
-	getnode(r);
-	r->type = Node_val;
+	NODE *r = make_number_node(0);
 	r->numbr = x;
-	r->flags = MALLOC|NUMBER|NUMCUR;
-	r->valref = 1;
-	r->stptr = NULL;
-	r->stlen = 0;
-	r->wstptr = NULL;
-	r->wstlen = 0;
 	return r;
 }
 
@@ -386,18 +376,18 @@ make_str_node(const char *s, size_t len, int flags)
 	r->numbr = 0;
 	r->flags = (MALLOC|STRING|STRCUR);
 	r->valref = 1;
-	r->stfmt = -1;
+	r->stfmt = STFMT_UNUSED;
 	r->wstptr = NULL;
 	r->wstlen = 0;
 
 	if ((flags & ALREADY_MALLOCED) != 0)
 		r->stptr = (char *) s;
 	else {
-		emalloc(r->stptr, char *, len + 2, "make_str_node");
+		emalloc(r->stptr, char *, len + 1, "make_str_node");
 		memcpy(r->stptr, s, len);
 	}
 	r->stptr[len] = '\0';
-       
+
 	if ((flags & SCAN) != 0) {	/* scan for escape sequences */
 		const char *pf;
 		char *ptm;
@@ -447,6 +437,27 @@ make_str_node(const char *s, size_t len, int flags)
 	return r;
 }
 
+/* make_typed_regex --- make a typed regex node */
+
+NODE *
+make_typed_regex(const char *re, size_t len)
+{
+	NODE *n, *exp, *n2;
+
+	exp = make_str_node(re, len, ALREADY_MALLOCED);
+	n = make_regnode(Node_regex, exp);
+	if (n == NULL)
+		fatal(_("could not make typed regex"));
+
+	n2 = make_string(re, len);
+	n2->typed_re = n;
+	n2->numbr = 0;
+	n2->flags |= NUMCUR|STRCUR|REGEX; 
+	n2->flags &= ~(STRING|NUMBER);
+
+	return n2;
+}
+
 
 /* unref --- remove reference to a particular node */
 
@@ -481,16 +492,16 @@ r_unref(NODE *tmp)
  *
  * Parse a C escape sequence.  STRING_PTR points to a variable containing a
  * pointer to the string to parse.  That pointer is updated past the
- * characters we use.  The value of the escape sequence is returned. 
+ * characters we use.  The value of the escape sequence is returned.
  *
  * A negative value means the sequence \ newline was seen, which is supposed to
- * be equivalent to nothing at all. 
+ * be equivalent to nothing at all.
  *
  * If \ is followed by a null character, we return a negative value and leave
- * the string pointer pointing at the null character. 
+ * the string pointer pointing at the null character.
  *
  * If \ is followed by 000, we return 0 and leave the string pointer after the
- * zeros.  A value of 0 does not mean end of string.  
+ * zeros.  A value of 0 does not mean end of string.
  *
  * POSIX doesn't allow \x.
  */
@@ -570,9 +581,8 @@ parse_escape(const char **string_ptr)
 			warning(_("no hex digits in `\\x' escape sequence"));
 			return ('x');
 		}
-		i = j = 0;
 		start = *string_ptr;
-		for (;; j++) {
+		for (i = j = 0; j < 2; j++) {
 			/* do outside test to avoid multiple side effects */
 			c = *(*string_ptr)++;
 			if (isxdigit(c)) {
@@ -614,7 +624,7 @@ parse_escape(const char **string_ptr)
 /* get_numbase --- return the base to use for the number in 's' */
 
 int
-get_numbase(const char *s, bool use_locale)
+get_numbase(const char *s, size_t len, bool use_locale)
 {
 	int dec_point = '.';
 	const char *str = s;
@@ -628,7 +638,7 @@ get_numbase(const char *s, bool use_locale)
 		dec_point = loc.decimal_point[0];	/* XXX --- assumes one char */
 #endif
 
-	if (str[0] != '0')
+	if (len < 2 || str[0] != '0')
 		return 10;
 
 	/* leading 0x or 0X */
@@ -641,7 +651,7 @@ get_numbase(const char *s, bool use_locale)
 	 *
 	 * These beasts can have trailing whitespace. Deal with that too.
 	 */
-	for (; *str != '\0'; str++) {
+	for (; len > 0; len--, str++) {
 		if (*str == 'e' || *str == 'E' || *str == dec_point)
 			return 10;
 		else if (! isdigit((unsigned char) *str))
@@ -698,7 +708,7 @@ str2wstr(NODE *n, size_t **ptr)
 	 * realloc the wide string down in size.
 	 */
 
-	emalloc(n->wstptr, wchar_t *, sizeof(wchar_t) * (n->stlen + 2), "str2wstr");
+	emalloc(n->wstptr, wchar_t *, sizeof(wchar_t) * (n->stlen + 1), "str2wstr");
 	wsp = n->wstptr;
 
 	/*
@@ -710,8 +720,7 @@ str2wstr(NODE *n, size_t **ptr)
 	 * Create the array.
 	 */
 	if (ptr != NULL) {
-		emalloc(*ptr, size_t *, sizeof(size_t) * n->stlen, "str2wstr");
-		memset(*ptr, 0, sizeof(size_t) * n->stlen);
+		ezalloc(*ptr, size_t *, sizeof(size_t) * n->stlen, "str2wstr");
 	}
 
 	sp = n->stptr;
@@ -756,7 +765,7 @@ str2wstr(NODE *n, size_t **ptr)
 			 * stopping early. This is particularly important
 			 * for match() where we need to build the indices.
 			 */
-			if (dfa_using_utf8()) {
+			if (using_utf8()) {
 				count = 1;
 				wc = 0xFFFD;	/* unicode replacement character */
 				goto set_wc;
@@ -788,7 +797,7 @@ str2wstr(NODE *n, size_t **ptr)
 	n->flags |= WSTRCUR;
 #define ARBITRARY_AMOUNT_TO_GIVE_BACK 100
 	if (n->stlen - n->wstlen > ARBITRARY_AMOUNT_TO_GIVE_BACK)
-		erealloc(n->wstptr, wchar_t *, sizeof(wchar_t) * (n->wstlen + 2), "str2wstr");
+		erealloc(n->wstptr, wchar_t *, sizeof(wchar_t) * (n->wstlen + 1), "str2wstr");
 
 	return n;
 }
@@ -815,7 +824,7 @@ wstr2str(NODE *n)
 	memset(& mbs, 0, sizeof(mbs));
 
 	length = n->wstlen;
-	emalloc(newval, char *, (length * gawk_mb_cur_max) + 2, "wstr2str");
+	emalloc(newval, char *, (length * gawk_mb_cur_max) + 1, "wstr2str");
 
 	wp = n->wstptr;
 	for (cp = newval; length > 0; length--) {
@@ -827,6 +836,7 @@ wstr2str(NODE *n)
 	}
 	*cp = '\0';
 
+	/* N.B. caller just created n with make_string, so this free is safe */
 	efree(n->stptr);
 	n->stptr = newval;
 	n->stlen = cp - newval;
@@ -941,14 +951,18 @@ is_ieee_magic_val(const char *val)
 /* get_ieee_magic_val --- return magic value for string */
 
 static AWKNUM
-get_ieee_magic_val(const char *val)
+get_ieee_magic_val(char *val)
 {
 	static bool first = true;
 	static AWKNUM inf;
 	static AWKNUM nan;
+	char save;
 
 	char *ptr;
+	save = val[4];
+	val[4] = '\0';
 	AWKNUM v = strtod(val, &ptr);
+	val[4] = save;
 
 	if (val == ptr) { /* Older strtod implementations don't support inf or nan. */
 		if (first) {
@@ -980,32 +994,36 @@ void init_btowc_cache()
 
 #define BLOCKCHUNK 100
 
-BLOCK nextfree[BLOCK_MAX] = {
-	{ 0, NULL},	/* invalid */	
-	{ sizeof(NODE), NULL },
-	{ sizeof(BUCKET), NULL },
+struct block_header nextfree[BLOCK_MAX] = {
+	{ NULL, sizeof(NODE) },
+	{ NULL, sizeof(BUCKET) },
+#ifdef HAVE_MPFR
+	{ NULL, sizeof(mpfr_t) },
+	{ NULL, sizeof(mpz_t) },
+#endif
 };
 
 
 /* more_blocks --- get more blocks of memory and add to the free list;
-	size of a block must be >= sizeof(BLOCK)
+	size of a block must be >= sizeof(struct block_item)
  */
 
 void *
 more_blocks(int id)
 {
-	BLOCK *freep, *np, *next;
+	struct block_item *freep, *np, *next;
 	char *p, *endp;
 	size_t size;
 
 	size = nextfree[id].size;
 
-	emalloc(freep, BLOCK *, BLOCKCHUNK * size, "more_blocks");
+	assert(size >= sizeof(struct block_item));
+	emalloc(freep, struct block_item *, BLOCKCHUNK * size, "more_blocks");
 	p = (char *) freep;
 	endp = p + BLOCKCHUNK * size;
 
 	for (np = freep; ; np = next) {
-		next = (BLOCK *) (p += size);
+		next = (struct block_item *) (p += size);
 		if (p >= endp) {
 			np->freep = NULL;
 			break;

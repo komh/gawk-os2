@@ -14,20 +14,20 @@
 /*
  * Copyright (C) 2002, 2003, 2004, 2011, 2012, 2013, 2014
  * the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -73,32 +73,29 @@ int plugin_is_GPL_compatible;
 static char *
 read_file_to_buffer(int fd, const struct stat *sbuf)
 {
-	char *text = NULL;
-	int ret;
+	char *text;
 
 	if ((sbuf->st_mode & S_IFMT) != S_IFREG) {
 		errno = EINVAL;
 		update_ERRNO_int(errno);
-		goto done;
+		return NULL;
 	}
 
-	emalloc(text, char *, sbuf->st_size + 2, "do_readfile");
-	memset(text, '\0', sbuf->st_size + 2);
+	emalloc(text, char *, sbuf->st_size + 1, "do_readfile");
 
-	if ((ret = read(fd, text, sbuf->st_size)) != sbuf->st_size) {
+	if (read(fd, text, sbuf->st_size) != sbuf->st_size) {
 		update_ERRNO_int(errno);
 		gawk_free(text);
-		text = NULL;
-		/* fall through to return */
+		return NULL;
 	}
-done:
+	text[sbuf->st_size] = '\0';
 	return text;
 }
 
 /* do_readfile --- read a file into memory */
 
 static awk_value_t *
-do_readfile(int nargs, awk_value_t *result)
+do_readfile(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t filename;
 	int ret;
@@ -108,9 +105,6 @@ do_readfile(int nargs, awk_value_t *result)
 
 	assert(result != NULL);
 	make_null_string(result);	/* default return value */
-
-	if (do_lint && nargs > 1)
-		lintwarn(ext_id, _("readfile: called with too many arguments"));
 
 	unset_ERRNO();
 
@@ -134,7 +128,7 @@ do_readfile(int nargs, awk_value_t *result)
 		make_malloced_string(text, sbuf.st_size, result);
 		goto done;
 	} else if (do_lint)
-		lintwarn(ext_id, _("readfile: called with no arguments"));
+		lintwarn(ext_id, _("readfile: called with wrong kind of argument"));
 
 done:
 	/* Set the return value */
@@ -145,7 +139,8 @@ done:
 
 static int
 readfile_get_record(char **out, awk_input_buf_t *iobuf, int *errcode,
-			char **rt_start, size_t *rt_len)
+			char **rt_start, size_t *rt_len,
+			const awk_fieldwidth_info_t **unused)
 {
 	char *text;
 
@@ -241,7 +236,7 @@ init_readfile()
 }
 
 static awk_ext_func_t func_table[] = {
-	{ "readfile", do_readfile, 1 },
+	{ "readfile", do_readfile, 1, 1, awk_false, NULL },
 };
 
 /* define the dl_load function using the boilerplate macro */

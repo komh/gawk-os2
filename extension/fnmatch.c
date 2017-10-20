@@ -8,20 +8,20 @@
 
 /*
  * Copyright (C) 2012, 2013 the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -38,6 +38,12 @@
 
 #include <sys/types.h>
 #include <sys/stat.h>
+
+#ifdef MAJOR_IN_MKDEV
+#include <sys/mkdev.h>
+#elif defined(MAJOR_IN_SYSMACROS)
+#include <sys/sysmacros.h>
+#endif
 
 #include "gawkapi.h"
 
@@ -95,7 +101,7 @@ int plugin_is_GPL_compatible;
 /* do_fnmatch --- implement the fnmatch interface */
 
 static awk_value_t *
-do_fnmatch(int nargs, awk_value_t *result)
+do_fnmatch(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 #ifdef HAVE_FNMATCH_H
 	static int flags_mask =
@@ -107,13 +113,8 @@ do_fnmatch(int nargs, awk_value_t *result)
 	int int_flags, retval;
 
 	make_number(-1.0, result);	/* default return */
-#ifdef HAVE_FNMATCH
-	if (nargs < 3) {
-		warning(ext_id, _("fnmatch: called with less than three arguments"));
-		goto out;
-	} else if (do_lint && nargs > 3)
-		lintwarn(ext_id, _("fnmatch: called with more than three arguments"));
 
+#ifdef HAVE_FNMATCH
 	if (! get_argument(0, AWK_STRING, & pattern)) {
 		warning(ext_id, _("fnmatch: could not get first argument"));
 		goto out;
@@ -199,7 +200,7 @@ init_fnmatch(void)
 }
 
 static awk_ext_func_t func_table[] = {
-	{ "fnmatch", do_fnmatch, 3 },
+	{ "fnmatch", do_fnmatch, 3, 3, awk_false, NULL },
 };
 
 /* define the dl_load function using the boilerplate macro */

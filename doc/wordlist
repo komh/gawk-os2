@@ -130,7 +130,6 @@ Dupword
 EAGAIN
 EBCDIC
 EC
-ECBDIC
 EINTR
 EMISTERED
 EMRED
@@ -241,6 +240,7 @@ IFSOCK
 IGNORECASE
 INPLACE
 INT
+INTDIV
 IPv
 ISBLK
 ISBN
@@ -299,6 +299,7 @@ MMK
 MMS
 MP
 MPFR
+MPZ
 MSC
 MSEC
 MSG
@@ -391,6 +392,7 @@ POS
 POSIX
 POSIXLY
 PP
+PQgetvalue
 PREC
 PROCINFO
 PVERSION
@@ -411,6 +413,7 @@ PowerPC
 Pr
 Pre
 Preopened
+Preprocessor
 Prestandard
 Printf
 Prolog
@@ -422,6 +425,7 @@ Quicksort
 QuikTrim
 RANLIB
 README
+REGEX
 RELICENSING
 REVOUT
 RLENGTH
@@ -437,9 +441,11 @@ Readfile
 Readline
 Redirections
 Redis
+Regex
 Regexp
 Regexps
 Reimplementing
+Retryable
 Revout
 RiscOS
 Ritchie
@@ -484,6 +490,7 @@ Solaris
 Stallman
 Stepan
 Stewartson's
+Strnum
 Strtonum
 Subarrays
 Sublicensing
@@ -554,6 +561,7 @@ Yawitz
 Za
 Zaphod
 Zaretskii
+Zaretskii's
 Zcrtdll
 Zeichen
 Zeichenkette
@@ -568,6 +576,9 @@ aIt
 aSAgbfocFVtguG
 aaa
 aaaabcd
+aab
+aabbb
+aabbbccccddd
 aaccdd
 ab
 abCDEf
@@ -577,6 +588,7 @@ abcd
 abcde
 abcdef
 abcdefg
+abcdefghi
 abcdefghijklmnopqrstuvwxyz
 abcdxyz
 abs
@@ -634,6 +646,7 @@ arraydump
 arraymax
 arsenio
 asc
+aschorr
 ascii
 asis
 asn
@@ -659,6 +672,7 @@ awkcard
 awkforai
 awkgram
 awklib
+awknum
 awkp
 awkprof
 awks
@@ -845,6 +859,7 @@ dayname
 db
 dcgettext
 dcngettext
+ddd
 de
 deallocations
 debuggee
@@ -879,6 +894,7 @@ dir
 dircategory
 direntry
 distributable
+div
 djgpp
 dl
 dlload
@@ -918,6 +934,7 @@ emalloc
 embeddable
 emory
 emph
+emptor
 emxomfar
 en
 encodings
@@ -957,6 +974,8 @@ expr
 ext
 extenders
 extern
+ezalloc
+ezwinports
 fPIC
 fabi
 fabius
@@ -968,11 +987,13 @@ fdata
 fe
 ferror
 fffffffffff
+fffffffffffd
 fflush
 fi
 fieldlist
 fieldpat
 fieldsep
+fieldwidth
 fifo
 filedata
 filefuncs
@@ -987,6 +1008,7 @@ filetype
 filll
 finalout
 findpat
+finfo
 finx
 firstname
 flac
@@ -1010,6 +1032,7 @@ formfeed
 fp
 fpat
 fpath
+fpbits
 fprintf
 fr
 freebsd
@@ -1088,6 +1111,7 @@ groupsbyuser
 grp
 gst
 gsub
+guerrero
 gunzip
 gvim
 gz
@@ -1205,6 +1229,7 @@ joe
 johansen
 johnny
 joyent
+juan
 julie
 karl
 katie
@@ -1308,6 +1333,7 @@ monthname
 moore
 mortoneccc
 mpfr
+mpz
 msg
 msgfmt
 msgid
@@ -1412,6 +1438,7 @@ nr
 nroff
 nul
 num
+numfields
 nums
 nusers
 nvalue
@@ -1699,6 +1726,7 @@ strerror
 strftime
 strlen
 strnum
+strnums
 strtod
 strtonum
 struct
@@ -1901,6 +1929,7 @@ xdeadBEEF
 xdigit
 xfcc
 xfcd
+xffffffffffffffd
 xgawk
 xgettext
 xnrkb

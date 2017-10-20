@@ -11,20 +11,20 @@
 
 /*
  * Copyright (C) 2012-2014 the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -51,7 +51,7 @@
 #ifdef HAVE_DIRENT_H
 #include <dirent.h>
 #else
-#error Cannot compile the dirent extension on this system!
+#error Cannot compile the readdir extension on this system!
 #endif
 
 #ifdef __MINGW32__
@@ -137,6 +137,7 @@ ftype(struct dirent *entry, const char *dirname)
 }
 
 /* get_inode --- get the inode of a file */
+
 static long long
 get_inode(struct dirent *entry, const char *dirname)
 {
@@ -168,7 +169,8 @@ get_inode(struct dirent *entry, const char *dirname)
 
 static int
 dir_get_record(char **out, awk_input_buf_t *iobuf, int *errcode,
-		char **rt_start, size_t *rt_len)
+		char **rt_start, size_t *rt_len,
+		const awk_fieldwidth_info_t **unused)
 {
 	DIR *dp;
 	struct dirent *dirent;
@@ -198,7 +200,7 @@ dir_get_record(char **out, awk_input_buf_t *iobuf, int *errcode,
 		return EOF;
 	}
 
-	ino = get_inode (dirent, iobuf->name);
+	ino = get_inode(dirent, iobuf->name);
 
 #if __MINGW32__
 	len = sprintf(the_dir->buf, "%I64u/%s", ino, dirent->d_name);
@@ -316,7 +318,7 @@ init_readdir()
 }
 
 static awk_ext_func_t func_table[] = {
-	{ NULL, NULL, 0 }
+	{ NULL, NULL, 0, 0, awk_false, NULL }
 };
 
 /* define the dl_load function using the boilerplate macro */

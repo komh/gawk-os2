@@ -17,7 +17,7 @@
 #
 # doc/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 2000, 2001, 2002, 2004, 2005, 2007, 2010, 2011
+# Copyright (C) 2000, 2001, 2002, 2004, 2005, 2007, 2010, 2011, 2016, 2017
 # the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
@@ -116,14 +116,14 @@ ACLOCAL_M4 = $(top_srcdir)/aclocal.m4
 am__aclocal_m4_deps = $(top_srcdir)/m4/arch.m4 \
 	$(top_srcdir)/m4/codeset.m4 $(top_srcdir)/m4/gettext.m4 \
 	$(top_srcdir)/m4/iconv.m4 $(top_srcdir)/m4/intlmacosx.m4 \
-	$(top_srcdir)/m4/isc-posix.m4 $(top_srcdir)/m4/lcmessage.m4 \
-	$(top_srcdir)/m4/lib-ld.m4 $(top_srcdir)/m4/lib-link.m4 \
-	$(top_srcdir)/m4/lib-prefix.m4 $(top_srcdir)/m4/libsigsegv.m4 \
-	$(top_srcdir)/m4/longlong.m4 $(top_srcdir)/m4/mpfr.m4 \
-	$(top_srcdir)/m4/nls.m4 $(top_srcdir)/m4/noreturn.m4 \
-	$(top_srcdir)/m4/po.m4 $(top_srcdir)/m4/progtest.m4 \
-	$(top_srcdir)/m4/readline.m4 $(top_srcdir)/m4/socket.m4 \
-	$(top_srcdir)/m4/ulonglong.m4 $(top_srcdir)/configure.ac
+	$(top_srcdir)/m4/lcmessage.m4 $(top_srcdir)/m4/lib-ld.m4 \
+	$(top_srcdir)/m4/lib-link.m4 $(top_srcdir)/m4/lib-prefix.m4 \
+	$(top_srcdir)/m4/libsigsegv.m4 $(top_srcdir)/m4/longlong.m4 \
+	$(top_srcdir)/m4/mpfr.m4 $(top_srcdir)/m4/nls.m4 \
+	$(top_srcdir)/m4/noreturn.m4 $(top_srcdir)/m4/po.m4 \
+	$(top_srcdir)/m4/progtest.m4 $(top_srcdir)/m4/readline.m4 \
+	$(top_srcdir)/m4/socket.m4 $(top_srcdir)/m4/ulonglong.m4 \
+	$(top_srcdir)/configure.ac
 am__configure_deps = $(am__aclocal_m4_deps) $(CONFIGURE_DEPENDENCIES) \
 	$(ACLOCAL_M4)
 DIST_COMMON = $(srcdir)/Makefile.am $(am__DIST_COMMON)
@@ -173,13 +173,14 @@ AM_V_texidevnull = $(am__v_texidevnull_@AM_V@)
 am__v_texidevnull_ = $(am__v_texidevnull_@AM_DEFAULT_V@)
 am__v_texidevnull_0 = > /dev/null
 am__v_texidevnull_1 = 
-INFO_DEPS = $(srcdir)/gawk.info $(srcdir)/gawkinet.info
+INFO_DEPS = $(srcdir)/gawk.info $(srcdir)/gawkinet.info \
+	$(srcdir)/gawkworkflow.info
 am__TEXINFO_TEX_DIR = $(srcdir)
-DVIS = gawk.dvi gawkinet.dvi
-PDFS = gawk.pdf gawkinet.pdf
-PSS = gawk.ps gawkinet.ps
-HTMLS = gawk.html gawkinet.html
-TEXINFOS = gawk.texi gawkinet.texi
+DVIS = gawk.dvi gawkinet.dvi gawkworkflow.dvi
+PDFS = gawk.pdf gawkinet.pdf gawkworkflow.pdf
+PSS = gawk.ps gawkinet.ps gawkworkflow.ps
+HTMLS = gawk.html gawkinet.html gawkworkflow.html
+TEXINFOS = gawk.texi gawkinet.texi gawkworkflow.texi
 TEXI2DVI = texi2dvi
 TEXI2PDF = $(TEXI2DVI) --pdf --batch
 MAKEINFOHTML = $(MAKEINFO) --html
@@ -287,6 +288,7 @@ PACKAGE_URL = @PACKAGE_URL@
 PACKAGE_VERSION = @PACKAGE_VERSION@
 PATH_SEPARATOR = @PATH_SEPARATOR@
 POSUB = @POSUB@
+RANLIB = @RANLIB@
 SED = @SED@
 SET_MAKE = @SET_MAKE@
 SHELL = @SHELL@
@@ -352,8 +354,8 @@ target_alias = @target_alias@
 top_build_prefix = @top_build_prefix@
 top_builddir = @top_builddir@
 top_srcdir = @top_srcdir@
-info_TEXINFOS = gawk.texi gawkinet.texi
-man_MANS = gawk.1 igawk.1
+info_TEXINFOS = gawk.texi gawkinet.texi gawkworkflow.texi
+man_MANS = gawk.1
 EXTRA_DIST = ChangeLog ChangeLog.0 README.card ad.block setter.outline \
 	awkcard.in awkforai.txt texinfo.tex cardfonts \
 	api-figure1.eps api-figure1.fig api-figure1.pdf \
@@ -367,18 +369,19 @@ EXTRA_DIST = ChangeLog ChangeLog.0 README.card ad.block setter.outline \
 	gawktexi.in sidebar.awk \
 	general-program.eps general-program.fig general-program.pdf \
 	general-program.png general-program.txt \
+	it \
 	process-flow.eps process-flow.fig process-flow.pdf \
 	process-flow.png process-flow.txt \
 	macros colors no.colors $(man_MANS) \
 	lflashlight-small.xpic lflashlight.eps lflashlight.pdf \
 	rflashlight-small.xpic rflashlight.eps rflashlight.pdf \
 	statist.jpg statist.eps statist.pdf \
-	wordlist \
+	wordlist wordlist2 \
 	bc_notes
 
 
 # Get rid of generated files when cleaning
-CLEANFILES = *.ps *.html *.dvi *~ awkcard.nc awkcard.tr gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf igawk.1.pdf
+CLEANFILES = *.ps *.html *.dvi *~ awkcard.nc awkcard.tr gawk.pdf gawkinet.pdf gawkworkflow.pdf awkcard.pdf gawk.1.pdf
 TROFF = groff -t -Tps -U
 SEDME = sed -e "s/^level0 restore/level0 restore flashme 100 72 moveto (Copyright `date '+%m-%d-%y %T'`, FSF, Inc. (all)) show/" \
 		-e "s/^\/level0 save def/\/level0 save def 30 -48 translate/"
@@ -476,6 +479,10 @@ $(srcdir)/gawkinet.info: gawkinet.texi
 gawkinet.dvi: gawkinet.texi 
 gawkinet.pdf: gawkinet.texi 
 gawkinet.html: gawkinet.texi 
+$(srcdir)/gawkworkflow.info: gawkworkflow.texi 
+gawkworkflow.dvi: gawkworkflow.texi 
+gawkworkflow.pdf: gawkworkflow.texi 
+gawkworkflow.html: gawkworkflow.texi 
 .dvi.ps:
 	$(AM_V_DVIPS)TEXINPUTS="$(am__TEXINFO_TEX_DIR)$(PATH_SEPARATOR)$$TEXINPUTS" \
 	$(DVIPS) $(AM_V_texinfo) -o $@ $<
@@ -557,13 +564,16 @@ dist-info: $(INFO_DEPS)
 	done
 
 mostlyclean-aminfo:
-	-rm -rf gawk.t2d gawk.t2p gawkinet.t2d gawkinet.t2p
+	-rm -rf gawk.t2d gawk.t2p gawkinet.t2d gawkinet.t2p gawkworkflow.t2d \
+	  gawkworkflow.t2p
 
 clean-aminfo:
 	-test -z "gawk.dvi gawk.pdf gawk.ps gawk.html gawkinet.dvi gawkinet.pdf \
-	  gawkinet.ps gawkinet.html" \
+	  gawkinet.ps gawkinet.html gawkworkflow.dvi gawkworkflow.pdf \
+	  gawkworkflow.ps gawkworkflow.html" \
 	|| rm -rf gawk.dvi gawk.pdf gawk.ps gawk.html gawkinet.dvi gawkinet.pdf \
-	  gawkinet.ps gawkinet.html
+	  gawkinet.ps gawkinet.html gawkworkflow.dvi gawkworkflow.pdf \
+	  gawkworkflow.ps gawkworkflow.html
 
 maintainer-clean-aminfo:
 	@list='$(INFO_DEPS)'; for i in $$list; do \
@@ -882,9 +892,9 @@ uninstall-man: uninstall-man1
 gawk.texi: $(srcdir)/gawktexi.in $(srcdir)/sidebar.awk
 	awk -f $(srcdir)/sidebar.awk < $(srcdir)/gawktexi.in > gawk.texi
 
-postscript: gawk.ps gawkinet.ps gawk.1.ps igawk.1.ps $(AWKCARD)
+postscript: gawk.ps gawkinet.ps gawkworkflow.ps gawk.1.ps $(AWKCARD)
 
-pdf-local: postscript gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf igawk.1.pdf
+pdf-local: postscript gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf
 
 gawk.ps: gawk.dvi
 	TEXINPUTS=$(srcdir): dvips -o gawk.ps gawk.dvi
@@ -892,17 +902,14 @@ gawk.ps: gawk.dvi
 gawkinet.ps: gawkinet.dvi
 	TEXINPUTS=$(srcdir): dvips -o gawkinet.ps gawkinet.dvi
 
+gawkworkflow.ps: gawkworkflow.dvi
+	TEXINPUTS=$(srcdir): dvips -o gawkworkflow.ps gawkworkflow.dvi
+
 gawk.1.ps: gawk.1
 	-groff -man $(srcdir)/gawk.1 > gawk.1.ps
 
 gawk.1.pdf: gawk.1.ps
 	ps2pdf gawk.1.ps gawk.1.pdf
-
-igawk.1.ps: igawk.1
-	-groff -man $(srcdir)/igawk.1 > igawk.1.ps
-
-igawk.1.pdf: igawk.1.ps
-	ps2pdf igawk.1.ps igawk.1.pdf
 
 awkcard.tr: awkcard.in
 	sed 's:SRCDIR:$(srcdir):' < $(srcdir)/awkcard.in > awkcard.tr
@@ -916,9 +923,17 @@ awkcard.nc: $(CARDFILES)
 awkcard.pdf: awkcard.ps
 	ps2pdf awkcard.ps awkcard.pdf
 
-spell:
+spell: spellmanual spellworkflow
+
+spellmanual:
+	@echo ==== gawktexi.in ====;
 	export LC_ALL=C ; spell "$(srcdir)"/gawktexi.in | \
 	sort -u | comm -23 - "$(srcdir)"/wordlist
+
+spellworkflow:
+	@echo ==== gawkworkflow.texi ====
+	export LC_ALL=C ; spell "$(srcdir)"/gawkworkflow.texi | \
+	sort -u | comm -23 - "$(srcdir)"/wordlist2
 
 # Tell versions [3.59,3.63) of GNU make to not export all variables.
 # Otherwise a system limit (for SysV at least) may be exceeded.

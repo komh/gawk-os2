@@ -1,7 +1,7 @@
 dnl
 dnl configure.ac --- autoconf input file for gawk
 dnl
-dnl Copyright (C) 2012-2016 the Free Software Foundation, Inc.
+dnl Copyright (C) 2012-2017 the Free Software Foundation, Inc.
 dnl
 dnl This file is part of GAWK, the GNU implementation of the
 dnl AWK Programming Language.
@@ -23,7 +23,7 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk Bundled Extensions], 4.1.4, bug-gawk@gnu.org, gawk-extensions)
+AC_INIT([GNU Awk Bundled Extensions],[4.2.0],[bug-gawk@gnu.org],[gawk-extensions])
 
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
@@ -42,7 +42,7 @@ AC_CHECK_MEMBERS([struct stat.st_blksize])
 AM_PROG_AR
 AC_SYS_LARGEFILE
 AC_DISABLE_STATIC
-AC_PROG_LIBTOOL
+LT_INIT
 dnl AC_PROG_INSTALL
 
 AC_SUBST([pkgextensiondir], ['${libdir}/gawk'])
@@ -69,8 +69,17 @@ AC_HEADER_DIRENT
 AC_HEADER_MAJOR
 AC_HEADER_TIME
 
-AC_CHECK_FUNCS(fdopendir fnmatch gettimeofday \
-		getdtablesize nanosleep select statvfs GetSystemTimeAsFileTime)
+dnl check for mpfr support
+case `uname -m` in
+*'Power Macintosh'*)
+	: ;;
+*)
+	GNUPG_CHECK_MPFR
+	;;
+esac
+
+AC_CHECK_FUNCS(fdopendir fmod fnmatch getdtablesize \
+		gettimeofday nanosleep select statvfs GetSystemTimeAsFileTime)
 
 GAWK_FUNC_DIRFD
 GAWK_PREREQ_DIRFD

@@ -1,3 +1,11 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-08-21         Daniel Richard G.     <skunk@iSKUNK.ORG>
+
+	* arch.m4: Improvements and enable compiling with unlocked stdio.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -11,6 +19,14 @@
 	* nls.m4: Upgrade to gettext-0.19.7.
 	* po.m4: Upgrade to gettext-0.19.7.
 	* progtest.m4: Upgrade to gettext-0.19.7.
+
+2016-01-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* arch.m4 (GAWK_AC_AIX_TWEAK): Remove definition.
+
+2016-01-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* arch.m4 (GAWK_AC_LINUX_ALPHA): Remove definition.
 
 2015-09-11	Daniel Richard G.	<skunk@iSKUNK.ORG>
 
@@ -50,6 +66,10 @@
 2015-04-29         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.2: Release tar ball made.
+
+2015-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* isc-posix.m4: Removed. No longer needed.
 
 2015-01-24  gettextize  <bug-gnu-gettext@gnu.org>
 

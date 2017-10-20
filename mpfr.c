@@ -2,22 +2,22 @@
  * mpfr.c - routines for arbitrary-precision number support in gawk.
  */
 
-/* 
- * Copyright (C) 2012, 2013, 2015 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 2012, 2013, 2015, 2017, the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -103,28 +103,16 @@ cleanup_mpfr(void)
 /* mpg_node --- allocate a node to store MPFR float or GMP integer */
 
 NODE *
-mpg_node(unsigned int tp)
+mpg_node(unsigned int flags)
 {
-	NODE *r;
-	getnode(r);
-	r->type = Node_val;
+	NODE *r = make_number_node(flags);
 
-	if (tp == MPFN) {
+	if (flags == MPFN)
 		/* Initialize, set precision to the default precision, and value to NaN */
 		mpfr_init(r->mpg_numbr);
-		r->flags = MPFN;
-	} else {
+	else
 		/* Initialize and set value to 0 */
 		mpz_init(r->mpg_i);
-		r->flags = MPZN;
-	}
-	
-	r->valref = 1;
-	r->flags |= MALLOC|NUMBER|NUMCUR;
-	r->stptr = NULL;
-	r->stlen = 0;
-	r->wstptr = NULL;
-	r->wstlen = 0;
 	return r;
 }
 
@@ -151,7 +139,7 @@ mpg_make_number(double x)
 	return r;
 }
 
-/* mpg_strtoui --- assign arbitrary-precision integral value from a string */ 
+/* mpg_strtoui --- assign arbitrary-precision integral value from a string */
 
 int
 mpg_strtoui(mpz_ptr zi, char *str, size_t len, char **end, int base)
@@ -264,7 +252,7 @@ mpg_zero(NODE *n)
 		n->flags &= ~MPFN;
 	}
 	if (! is_mpg_integer(n)) {
-		mpz_init(n->mpg_i);	/* this also sets its value to 0 */ 
+		mpz_init(n->mpg_i);	/* this also sets its value to 0 */
 		n->flags |= MPZN;
 	} else
 		mpz_set_si(n->mpg_i, 0);
@@ -303,7 +291,7 @@ force_mpnum(NODE *n, int do_nondec, int use_locale)
 		cp1 = cp;
 
 	if (do_nondec)
-		base = get_numbase(cp1, use_locale);
+		base = get_numbase(cp1, cpend - cp1, use_locale);
 
 	if (! mpg_maybe_float(cp1, use_locale)) {
 		mpg_zero(n);
@@ -329,13 +317,13 @@ force_mpnum(NODE *n, int do_nondec, int use_locale)
 	IEEE_FMT(n->mpg_numbr, tval);
 done:
 	/* trailing space is OK for NUMBER */
-	while (isspace((unsigned char) *ptr))
+	while (ptr < cpend && isspace((unsigned char) *ptr))
 		ptr++;
 	*cpend = save;
 	if (errno == 0 && ptr == cpend)
 		return true;
 	errno = 0;
-	return false; 
+	return false;
 }
 
 /* mpg_force_number --- force a value to be a multiple-precision number */
@@ -343,20 +331,18 @@ done:
 static NODE *
 mpg_force_number(NODE *n)
 {
-	unsigned int newflags = 0;
-
-	if (is_mpg_number(n) && (n->flags & NUMCUR) != 0)
+	if ((n->flags & NUMCUR) != 0)
 		return n;
-
-	if ((n->flags & MAYBE_NUM) != 0) {
-		n->flags &= ~MAYBE_NUM;
-		newflags = NUMBER;
-	}
+	n->flags |= NUMCUR;
 
 	if (force_mpnum(n, (do_non_decimal_data && ! do_traditional), true)) {
-		n->flags |= newflags;
-		n->flags |= NUMCUR;
-	}
+		if ((n->flags & USER_INPUT) != 0) {
+			/* leave USER_INPUT set to indicate a strnum */
+			n->flags &= ~STRING;
+			n->flags |= NUMBER;
+		}
+	} else
+		n->flags &= ~USER_INPUT;
 	return n;
 }
 
@@ -375,7 +361,7 @@ mpg_format_val(const char *format, int index, NODE *s)
 	if (is_mpg_integer(s) || mpfr_integer_p(s->mpg_numbr)) {
 		/* integral value, use %d */
 		r = format_tree("%d", 2, dummy, 2);
-		s->stfmt = -1;
+		s->stfmt = STFMT_UNUSED;
 	} else {
 		r = format_tree(format, fmt_list[index]->stlen, dummy, 2);
 		assert(r != NULL);
@@ -383,12 +369,11 @@ mpg_format_val(const char *format, int index, NODE *s)
 	}
 	s->flags = oflags;
 	s->stlen = r->stlen;
-	if ((s->flags & STRCUR) != 0)
+	if ((s->flags & (MALLOC|STRCUR)) == (MALLOC|STRCUR))
 		efree(s->stptr);
 	s->stptr = r->stptr;
-	freenode(r);	/* Do not unref(r)! We want to keep s->stptr == r->stpr.  */
- 
 	s->flags |= STRCUR;
+	freenode(r);	/* Do not unref(r)! We want to keep s->stptr == r->stpr.  */
 	free_wstr(s);
 	return s;
 }
@@ -430,8 +415,8 @@ mpg_cmp(const NODE *t1, const NODE *t2)
 
 
 /*
- * mpg_update_var --- update NR or FNR. 
- *	NR_node->var_value(mpz_t) = MNR(mpz_t) * LONG_MAX + NR(long) 
+ * mpg_update_var --- update NR or FNR.
+ *	NR_node->var_value(mpz_t) = MNR(mpz_t) * LONG_MAX + NR(long)
  */
 
 NODE *
@@ -485,7 +470,7 @@ mpg_set_var(NODE *n)
 	if (is_mpg_integer(val))
 		r = val->mpg_i;
 	else {
-		/* convert float to integer */ 
+		/* convert float to integer */
 		mpfr_get_z(mpzval, val->mpg_numbr, MPFR_RNDZ);
 		r = mpzval;
 	}
@@ -506,11 +491,11 @@ set_PREC()
 		mpfr_exp_t emax;
 		mpfr_exp_t emin;
 	} ieee_fmts[] = {
-{ "half",	11,	16,	-23	},	/* binary16 */
-{ "single",	24,	128,	-148	},	/* binary32 */
-{ "double",	53,	1024,	-1073	},	/* binary64 */
-{ "quad",	113,	16384,	-16493	},	/* binary128 */
-{ "oct",	237,	262144,	-262377	},	/* binary256, not in the IEEE 754-2008 standard */
+		{ "half",	11,	16,	-23	},	/* binary16 */
+		{ "single",	24,	128,	-148	},	/* binary32 */
+		{ "double",	53,	1024,	-1073	},	/* binary64 */
+		{ "quad",	113,	16384,	-16493	},	/* binary128 */
+		{ "oct",	237,	262144,	-262377	},	/* binary256, not in the IEEE 754-2008 standard */
 
 		/*
  		 * For any bitwidth = 32 * k ( k >= 4),
@@ -523,11 +508,9 @@ set_PREC()
 	if (! do_mpfr)
 		return;
 
-	val = PREC_node->var_value;
-	if ((val->flags & MAYBE_NUM) != 0)
-		force_number(val);
+	val = fixtype(PREC_node->var_value);
 
-	if ((val->flags & STRCUR) != 0) {
+	if ((val->flags & STRING) != 0) {
 		int i, j;
 
 		/* emulate IEEE-754 binary format */
@@ -553,7 +536,7 @@ set_PREC()
 
 	if (prec <= 0) {
 		force_number(val);
-		prec = get_number_si(val);		
+		prec = get_number_si(val);
 		if (prec < MPFR_PREC_MIN || prec > MPFR_PREC_MAX) {
 			force_string(val);
 			warning(_("PREC value `%.*s' is invalid"), (int) val->stlen, val->stptr);
@@ -677,9 +660,9 @@ do_mpfr_atan2(int nargs)
 	t1 = POP_SCALAR();
 
 	if (do_lint) {
-		if ((t1->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(t1)->flags & NUMBER) == 0)
 			lintwarn(_("atan2: received non-numeric first argument"));
-		if ((t2->flags & (NUMCUR|NUMBER)) == 0)
+		if ((fixtype(t2)->flags & NUMBER) == 0)
 			lintwarn(_("atan2: received non-numeric second argument"));
 	}
 	force_number(t1);
@@ -688,7 +671,7 @@ do_mpfr_atan2(int nargs)
 	p1 = MP_FLOAT(t1);
 	p2 = MP_FLOAT(t2);
 	res = mpg_float();
-	/* See MPFR documentation for handling of special values like +inf as an argument */ 
+	/* See MPFR documentation for handling of special values like +inf as an argument */
 	tval = mpfr_atan2(res->mpg_numbr, p1, p2, ROUND_MODE);
 	IEEE_FMT(res->mpg_numbr, tval);
 
@@ -710,7 +693,7 @@ do_mpfr_func(const char *name,
 	mpfr_prec_t argprec;
 
 	t1 = POP_SCALAR();
-	if (do_lint && (t1->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(t1)->flags & NUMBER) == 0)
 		lintwarn(_("%s: received non-numeric argument"), name);
 
 	force_number(t1);
@@ -777,7 +760,7 @@ do_mpfr_int(int nargs)
 	NODE *tmp, *r;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("int: received non-numeric argument"));
 	force_number(tmp);
 
@@ -807,7 +790,7 @@ do_mpfr_compl(int nargs)
 	mpz_ptr zptr;
 
 	tmp = POP_SCALAR();
-	if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 		lintwarn(_("compl: received non-numeric argument"));
 
 	force_number(tmp);
@@ -818,28 +801,26 @@ do_mpfr_compl(int nargs)
 			/* [+-]inf or NaN */
 			return tmp;
 		}
-		if (do_lint) {
-			if (mpfr_sgn(p) < 0)
-				lintwarn("%s",
-			mpg_fmt(_("compl(%Rg): negative value will give strange results"), p)
+		if (mpfr_sgn(p) < 0)
+			fatal("%s",
+			mpg_fmt(_("compl(%Rg): negative value is not allowed"), p)
 					);
+		if (do_lint) {
 			if (! mpfr_integer_p(p))
 				lintwarn("%s",
 			mpg_fmt(_("comp(%Rg): fractional value will be truncated"), p)
 					);
 		}
-		
+
 		mpfr_get_z(mpzval, p, MPFR_RNDZ);	/* float to integer conversion */
 		zptr = mpzval;
 	} else {
-		/* (tmp->flags & MPZN) != 0 */ 
+		/* (tmp->flags & MPZN) != 0 */
 		zptr = tmp->mpg_i;
-		if (do_lint) {
-			if (mpz_sgn(zptr) < 0)
-				lintwarn("%s",
-			mpg_fmt(_("cmpl(%Zd): negative values will give strange results"), zptr)
+		if (mpz_sgn(zptr) < 0)
+				fatal("%s",
+			mpg_fmt(_("compl(%Zd): negative values are not allowed"), zptr)
 					);
-		}
 	}
 
 	r = mpg_integer();
@@ -855,7 +836,7 @@ get_intval(NODE *t1, int argnum, const char *op)
 {
 	mpz_ptr pz;
 
-	if (do_lint && (t1->flags & (NUMCUR|NUMBER)) == 0)
+	if (do_lint && (fixtype(t1)->flags & NUMBER) == 0)
 		lintwarn(_("%s: received non-numeric argument #%d"), op, argnum);
 
 	(void) force_number(t1);
@@ -875,13 +856,13 @@ get_intval(NODE *t1, int argnum, const char *op)
 			return pz;	/* should be freed */
 		}
 
-		if (do_lint) {
-			if (mpfr_sgn(left) < 0)
-				lintwarn("%s",
-		mpg_fmt(_("%s: argument #%d negative value %Rg will give strange results"),
+		if (mpfr_sgn(left) < 0)
+			fatal("%s",
+		mpg_fmt(_("%s: argument #%d negative value %Rg is not allowed"),
 					op, argnum, left)
 				);
 
+		if (do_lint) {
 			if (! mpfr_integer_p(left))
 				lintwarn("%s",
 		mpg_fmt(_("%s: argument #%d fractional value %Rg will be truncated"),
@@ -893,16 +874,15 @@ get_intval(NODE *t1, int argnum, const char *op)
 		mpz_init(pz);
 		mpfr_get_z(pz, left, MPFR_RNDZ);	/* float to integer conversion */
 		return pz;	/* should be freed */
-	} 
-	/* (t1->flags & MPZN) != 0 */ 
+	}
+	/* (t1->flags & MPZN) != 0 */
 	pz = t1->mpg_i;
-	if (do_lint) {
-		if (mpz_sgn(pz) < 0)
-			lintwarn("%s",
-	mpg_fmt(_("%s: argument #%d negative value %Zd will give strange results"),
+	if (mpz_sgn(pz) < 0)
+		fatal("%s",
+	mpg_fmt(_("%s: argument #%d negative value %Zd is not allowed"),
 					op, argnum, pz)
 				);
-	}
+
 	return pz;	/* must not be freed */
 }
 
@@ -927,7 +907,7 @@ do_mpfr_lshift(int nargs)
 	NODE *t1, *t2, *res;
 	unsigned long shift;
 	mpz_ptr pz1, pz2;
- 
+
 	t2 = POP_SCALAR();
 	t1 = POP_SCALAR();
 
@@ -959,7 +939,7 @@ do_mpfr_rshift(int nargs)
 	NODE *t1, *t2, *res;
 	unsigned long shift;
 	mpz_ptr pz1, pz2;
- 
+
 	t2 = POP_SCALAR();
 	t1 = POP_SCALAR();
 
@@ -969,7 +949,7 @@ do_mpfr_rshift(int nargs)
 	/* N.B: See do_mpfp_lshift. */
 	shift = mpz_get_ui(pz2);	/* GMP integer => unsigned long conversion */
 	res = mpg_integer();
-	mpz_fdiv_q_2exp(res->mpg_i, pz1, shift);	/* res = pz1 / 2^shift, round towards −inf */
+	mpz_fdiv_q_2exp(res->mpg_i, pz1, shift);	/* res = pz1 / 2^shift, round towards -inf */
 
 	free_intval(t1, pz1);
 	free_intval(t2, pz2);
@@ -1080,25 +1060,24 @@ do_mpfr_strtonum(int nargs)
 {
 	NODE *tmp, *r;
 
-	tmp = POP_SCALAR();
-	if ((tmp->flags & (NUMBER|NUMCUR)) == 0) {
+	tmp = fixtype(POP_SCALAR());
+	if ((tmp->flags & NUMBER) == 0) {
 		r = mpg_integer();	/* will be changed to MPFR float if necessary in force_mpnum() */
 		r->stptr = tmp->stptr;
 		r->stlen = tmp->stlen;
 		force_mpnum(r, true, use_lc_numeric);
 		r->stptr = NULL;
 		r->stlen = 0;
+		r->wstptr = NULL;
+		r->wstlen = 0;
+	} else if (is_mpg_float(tmp)) {
+		int tval;
+		r = mpg_float();
+		tval = mpfr_set(r->mpg_numbr, tmp->mpg_numbr, ROUND_MODE);
+		IEEE_FMT(r->mpg_numbr, tval);
 	} else {
-		(void) force_number(tmp);
-		if (is_mpg_float(tmp)) {
-			int tval;
-			r = mpg_float();
-			tval = mpfr_set(r->mpg_numbr, tmp->mpg_numbr, ROUND_MODE);
-			IEEE_FMT(r->mpg_numbr, tval);
-		} else {
-			r = mpg_integer();
-			mpz_set(r->mpg_i, tmp->mpg_i);
-		}
+		r = mpg_integer();
+		mpz_set(r->mpg_i, tmp->mpg_i);
 	}
 
 	DEREF(tmp);
@@ -1176,7 +1155,7 @@ do_mpfr_srand(int nargs)
 	else {
 		NODE *tmp;
 		tmp = POP_SCALAR();
-		if (do_lint && (tmp->flags & (NUMCUR|NUMBER)) == 0)
+		if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
 			lintwarn(_("srand: received non-numeric argument"));
 		force_number(tmp);
 		if (is_mpg_float(tmp))
@@ -1189,6 +1168,102 @@ do_mpfr_srand(int nargs)
 	gmp_randseed(state, seed);
 	return res;
 }
+
+#ifdef SUPPLY_INTDIV
+/* do_mpfr_intdiv --- do integer division, return quotient and remainder in dest array */
+
+/*
+ * We define the semantics as:
+ * 	numerator = int(numerator)
+ *	denominator = int(denonmator)
+ *	quotient = int(numerator / denomator)
+ *	remainder = int(numerator % denomator)
+ */
+
+NODE *
+do_mpfr_intdiv(int nargs)
+{
+	NODE *numerator, *denominator, *result;
+	NODE *num, *denom;
+	NODE *quotient, *remainder;
+	NODE *sub, **lhs;
+
+	result = POP_PARAM();
+	if (result->type != Node_var_array)
+		fatal(_("intdiv: third argument is not an array"));
+	assoc_clear(result);
+
+	denominator = POP_SCALAR();
+	numerator = POP_SCALAR();
+
+	if (do_lint) {
+		if ((fixtype(numerator)->flags & NUMBER) == 0)
+			lintwarn(_("intdiv: received non-numeric first argument"));
+		if ((fixtype(denominator)->flags & NUMBER) == 0)
+			lintwarn(_("intdiv: received non-numeric second argument"));
+	}
+
+	(void) force_number(numerator);
+	(void) force_number(denominator);
+
+	/* convert numerator and denominator to integer */
+	if (is_mpg_integer(numerator)) {
+		num = mpg_integer();
+		mpz_set(num->mpg_i, numerator->mpg_i);
+	} else {
+		if (! mpfr_number_p(numerator->mpg_numbr)) {
+			/* [+-]inf or NaN */
+			unref(numerator);
+			unref(denominator);
+			return make_number((AWKNUM) -1);
+		}
+
+		num = mpg_integer();
+		mpfr_get_z(num->mpg_i, numerator->mpg_numbr, MPFR_RNDZ);
+	}
+
+	if (is_mpg_integer(denominator)) {
+		denom = mpg_integer();
+		mpz_set(denom->mpg_i, denominator->mpg_i);
+	} else {
+		if (! mpfr_number_p(denominator->mpg_numbr)) {
+			/* [+-]inf or NaN */
+			unref(numerator);
+			unref(denominator);
+			unref(num);
+			return make_number((AWKNUM) -1);
+		}
+
+		denom = mpg_integer();
+		mpfr_get_z(denom->mpg_i, denominator->mpg_numbr, MPFR_RNDZ);
+	}
+
+	if (mpz_sgn(denom->mpg_i) == 0)
+		fatal(_("intdiv: division by zero attempted"));
+
+	quotient = mpg_integer();
+	remainder = mpg_integer();
+
+	/* do the division */
+	mpz_tdiv_qr(quotient->mpg_i, remainder->mpg_i, num->mpg_i, denom->mpg_i);
+	unref(num);
+	unref(denom);
+	unref(numerator);
+	unref(denominator);
+
+	sub = make_string("quotient", 8);
+	lhs = assoc_lookup(result, sub);
+	unref(*lhs);
+	*lhs = quotient;
+
+	sub = make_string("remainder", 9);
+	lhs = assoc_lookup(result, sub);
+	unref(*lhs);
+	*lhs = remainder;
+
+	return make_number((AWKNUM) 0.0);
+}
+#endif /* SUPPLY_INTDIV */
 
 /*
  * mpg_tofloat --- convert an arbitrary-precision integer operand to
@@ -1204,13 +1279,13 @@ mpg_tofloat(mpfr_ptr mf, mpz_ptr mz)
 	/*
 	 * When implicitely converting a GMP integer operand to a MPFR float, use
 	 * a precision sufficiently large to hold the converted value exactly.
-	 * 	
+	 *
  	 *	$ ./gawk -M 'BEGIN { print 13 % 2 }'
  	 *	1
  	 * If the user-specified precision is used to convert the integer 13 to a
 	 * float, one will get:
  	 *	$ ./gawk -M 'BEGIN { PREC=2; print 13 % 2.0 }'
- 	 *	0	
+ 	 *	0
  	 */
 
 	prec = mpz_sizeinbase(mz, 2);	/* most significant 1 bit position starting at 1 */
@@ -1224,7 +1299,7 @@ mpg_tofloat(mpfr_ptr mf, mpz_ptr mz)
 	else
 		prec = PRECISION_MIN;
 	/*
-	 * Always set the precision to avoid hysteresis, since do_mpfr_func 
+	 * Always set the precision to avoid hysteresis, since do_mpfr_func
 	 * may copy our precision.
 	 */
 	if (prec != mpfr_get_prec(mf))
@@ -1235,7 +1310,7 @@ mpg_tofloat(mpfr_ptr mf, mpz_ptr mz)
 }
 
 
-/* mpg_add --- add arbitrary-precision numbers */ 
+/* mpg_add --- add arbitrary-precision numbers */
 
 static NODE *
 mpg_add(NODE *t1, NODE *t2)
@@ -1318,7 +1393,7 @@ mpg_mul(NODE *t1, NODE *t2)
 }
 
 
-/* mpg_pow --- exponentiation involving arbitrary-precision numbers */ 
+/* mpg_pow --- exponentiation involving arbitrary-precision numbers */
 
 static NODE *
 mpg_pow(NODE *t1, NODE *t2)
@@ -1417,11 +1492,11 @@ mpg_mod(NODE *t1, NODE *t2)
 	}
 	return r;
 }
-	
+
 /*
  * mpg_interpret --- pre-exec hook in the interpreter. Handles
  *	arithmetic operations with MPFR/GMP numbers.
- */ 
+ */
 
 static int
 mpg_interpret(INSTRUCTION **cp)
@@ -1502,7 +1577,7 @@ quotient:
 		if (op == Op_quotient)
 			DEREF(t2);
 		REPLACE(r);
-		break;		
+		break;
 
 	case Op_mod_i:
 		t2 = force_number(pc->memory);

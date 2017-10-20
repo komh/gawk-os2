@@ -1,3 +1,25 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-10-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* strncasecmp.c: Fix FSF's address.
+
+2017-06-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* getaddrinfo.c (getaddrinfo): Replace malloc+memset with calloc.
+
+2016-10-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* General: Remove trailing whitespace from all relevant files.
+
+2016-09-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* setenv.c: Update license text in setenv.c. Thanks
+	to David Kaspar <dkaspar@redhat.com> for pointing out
+	the necessity.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -9,6 +31,12 @@
 2015-04-29         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.2: Release tar ball made.
+
+2015-02-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* getaddrinfo.h (gai_strerror): Add declaration.
+	* getaddrinfo.c (gai_strerror): New function.
+	(getaddrinfo): Return errno values instead of just -1.
 
 2014-04-08         Arnold D. Robbins     <arnold@skeeve.com>
 

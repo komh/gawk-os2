@@ -1,3 +1,252 @@
+2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.0: Release tar ball made.
+
+2017-09-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.c: Increase the version.
+
+2017-09-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c: Move include of <sys/stat.h> to after include
+	of <sys/sysmacros.h> to (try to) avoid a Fedora compilation
+	warning. Update copyright year.
+
+2017-09-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.c: Update copyright year.
+
+2017-09-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.c: Add support for writing/reading undefined values.
+
+2017-08-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* fnmatch.c: Use the right autoconf goop to get the major
+	and minor macros out of <sys/sysmacros.h>. Thanks to
+	David Kaspar <dkaspar@redhat.com> for the report.
+
+2017-08-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (ntdiv_la_LIBADD): Add -lm for Solaris systems,
+	per report from Nelson H.F. Beebe.
+
+2017-08-21         Daniel Richard G.     <skunk@iSKUNK.ORG>
+
+	* configure: Regenerated after update to m4/arch.m4.
+
+2017-08-19         Eli Zaretskii         <eliz@gnu.org>
+
+	* testext.c (test_get_file): Don't remove outfile from the Gawk
+	script, as that fails on MS-Windows.
+
+2017-08-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Bump associated gawk version.
+
+2017-08-11         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intdiv.c: No need to include <gmp.h> explicitly, since <mpfr.h>
+	does this for us.
+
+2017-08-10         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intdiv.c (init_intdiv): Remove function, since dl_load_func now
+	calls check_mpfr_version automatically.
+	(init_func): Initialize to NULL instead of init_intdiv.
+
+2017-08-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am: Update copyright year.
+
+2017-06-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makfile.am (intdiv_la_LIBADD): Add LIBMPFR for Cygwin.
+	Thanks to Eli Zaretskii for the tip that this is necessary.
+
+2017-06-22         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* rwarray.c (read_value): Use malloc instead of calloc, since
+	we immediately overwrite the buffer with data from the file.
+	* rwarray0.c (read_value): Ditto.
+
+2017-06-22         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* readfile.c (read_file_to_buffer): Use emalloc instead of ezalloc,
+	since there's no need to initialize the memory to zero before 
+	overwriting it with the file's contents.
+
+2017-06-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* filefuncs.c (do_fts): Replace emalloc+memset with ezalloc.
+	* readfile.c (read_file_to_buffer): Ditto.
+	* rwarray.c (read_value): Replace gawk_malloc+memset with gawk_calloc.
+	* gawkfts.c (fts_open): Replace malloc+memset with calloc.
+	* rwarray0.c (read_value): Ditto.
+
+2017-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* intdiv.c (func_table): Function is now named intdiv.
+
+2017-04-14         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intdiv.c (do_intdiv): On division by zero, return -1 and issue a
+	warning instead of throwing a fatal error.
+
+2017-04-13         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intdiv.c (do_intdiv): On a division by zero fatal error, there's
+	no need to clear the numerator and denominator and add a fake return.
+
+2017-04-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Alphabetize function list in AC_CHECK_FUNCS.
+	* intdiv.c: Add descriptive comments to some functions.
+	(do_intdiv): Make division by zero fatal in MPFR case.
+
+2017-04-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* inplace.c (inplace_end): Correct the function name in the
+	wrong argument count error message. Thanks to Dan Neilsen
+	for the report.
+
+2017-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* readdir.c: Minor edits.
+	* readdir_test.c: Same minor edits, update copyright year,
+	bump version of extension in case this ever becomes the real one.
+
+2017-03-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* readdir.c (dir_get_record): Add additional parameter to make types
+	match and remove compiler warning.
+	* readfile.c (readfile_get_record): Ditto.
+	* revtwoway.c (rev2way_get_record): Ditto.
+
+2017-03-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* readdir_test.c (open_directory_t): Replace field_width array
+	with new awk_fieldwidth_info_t structure. Wrap it in a union so
+	we can allocate the proper size.
+	(dir_get_record): Update field_width type from
+	'const awk_input_field_info_t **' to 'const awk_fieldwidth_info_t **'.
+	Update new fieldwidth parsing info appropriately.
+	(dir_take_control_of): Populate new fieldwidth parsing structure
+	with initial values.
+
+2017-03-09         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* readdir_test.c (open_directory_t): Update field_width type from an
+	array of integers to an array of awk_input_field_info_t.
+	(dir_get_record): Ditto.
+	(dir_take_control_of): Ditto.
+
+2017-03-07         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (pkgextension_LTLIBRARIES): Remove testext.la, since it
+	does not make sense to install this library.
+	(noinst_LTLIBRARIES): New variable containing list of libraries to
+	build for testing purposes only. These libraries will not be installed.
+	Initially, it contains only testext.la.
+	(testext_la_LDFLAGS): Add "-rpath /foo" to convince automake/libtool
+	to build a shared version of this library. Since it is not being
+	installed, automake cannot use the final destination directory to
+	determine -rpath by itself. The value doesn't matter.
+
+2017-03-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* readdir_test.c: Test extension using new get_record field_width
+	parsing feature.
+	* Makefile.am (noinst_LTLIBRARIES): Add readdir_test.la.
+	(readdir_test_la_*): Configure building of new extension library.
+
+2017-01-21  Eli Zaretskii  <eliz@gnu.org>
+
+	* testext.c (getuid) [__MINGW32__]: New function, mirrors what
+	pc/getid.c does in Gawk.
+	* rwarray.c [__MINGW32__]: Include stdint.h, otherwise using
+	uint32_t causes compilation errors.
+	* inplace.c (_XOPEN_SOURCE): Define to 1, not to nothing.  MinGW
+	system headers assume that if this is defined, it must have a
+	numeric value.
+
+2017-01-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intdiv.c: New extension to demonstrate how to implement intdiv
+	using the new extended-precision math API.
+	* Makefile.am (pkgextension_LTLIBRARIES): Add intdiv.la.
+	(intdiv_la_SOURCES, intdiv_la_LDFLAGS, intdiv_la_LIBADD): Add support
+	for new intdiv library.
+	* configure.ac (AC_CHECK_FUNCS): Check for fmod needed by intdiv.
+	(GNUPG_CHECK_MPFR): Add check for MPFR support.
+
+2016-12-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* testext.c (valrep2str): Update for new API types.
+
+2016-12-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c: Update func_table again.
+
+2016-12-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c: Update do_xxx to match new API. Update func_table.
+	* fnmatch.c: Ditto.
+	* fork.c: Ditto.
+	* inplace.c: Ditto.
+	* ordchr.c: Ditto.
+	* readdir.c: Ditto.
+	* readfile.c: Ditto.
+	* revoutput.c: Ditto.
+	* revtwoway.c: Ditto.
+	* rwarray.c: Ditto.
+	* rwarray0.c: Ditto.
+	* testext.c: Ditto.
+	* time.c: Ditto.
+
+2016-12-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c (func_table): Adjust ordering of min and max
+	for stat.
+
+2016-12-06         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Add minimum required and maximum expected number of arguments
+	to the API.
+
+	* filefuncs.c: Update with max expected value. Remove lint
+	checks since that's now done by gawk.
+	* fnmatch.c: Ditto.
+	* fork.c: Ditto.
+	* inplace.c: Ditto.
+	* ordchr.c: Ditto.
+	* readdir.c: Ditto.
+	* readfile.c: Ditto.
+	* rwarray.c: Ditto.
+	* rwarray0.c: Ditto.
+	* testext.c: Ditto.
+	* time.c: Ditto.
+
+2016-12-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* rwarray.c: Adjust to read and write strnum values.
+	(write_value): When writing a string value, code should use htonl.
+	There are now 3 string types: string, strnum, and regex.
+	(read_value): Support 3 string types: string, strnum, and regex.
+
+2016-11-30         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.c: Restore read comparion of major and minor versions
+	to use !=.
+
+2016-11-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.c: Adjust to read and write regexes also.
+
+2016-10-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* General: Remove trailing whitespace from all relevant files.
+
 2016-08-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.1.4: Release tar ball made.
@@ -10,6 +259,11 @@
 	(getdtablesize): New macro. Avoids problems on FreeBSD 10
 	where configure didn't work correctly. Thanks to Nelson Beebe.
 	Update copyright year.
+
+2016-05-26         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* filefuncs.c (func_table): Update "stat" to indicate that the
+	max # of expected args is 3, not 2.
 
 2016-01-27         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -81,10 +335,18 @@
 
 	* 4.1.2: Release tar ball made.
 
+2015-04-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Updated by autoupdate.
+
 2015-04-08         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* Makefile.am, filefuncs.c, inplace.3am, inplace.c:
 	Update copyright years.
+
+2015-03-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* testext.c: Move test for deferred variables here.
 
 2015-03-18         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -122,10 +384,85 @@
 
 	* testext.c (var_test): Adjust for PROCINFO now being there.
 
+2015-01-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* testext.c (test_deferred): New function to help with testing
+	of deferred variable instantiation.
+	(do_get_file): Remove unused variable array.
+	(func_table): Add test_deferred.
+
+2015-01-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* testext.c (test_get_file): Fix error message.
+	(do_get_file): Implement new function providing low-level access
+	to the get_file API.
+	(func_table): Add "get_file" -> do_get_file.
+	(init_testext): If TESTEXT_QUIET has been set to a numeric value,
+	return quietly.
+
+2015-01-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* testext.c (test_get_file): The get_file hook no longer takes a
+	typelen argument.
+
+2015-01-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	Remove the select extension, since it will be part of gawkextlib.
+	* select.c, siglist.h: Deleted.
+	* Makefile.am (pkgextension_LTLIBRARIES): Remove select.la.
+	(select_la_SOURCES, select_la_LDFLAGS, select_la_LIBADD): Remove.
+	(EXTRA_DIST): Remove siglist.h.
+	* configure.ac (AC_CHECK_HEADERS): Remove signal.h.
+	(AC_CHECK_FUNCS): Remove fcntl, kill, sigaction, and sigprocmask.
+
+2014-12-14         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	Remove the errno extension, since it is now part of gawkextlib.
+	* errno.c, errlist.h: Deleted.
+	* Makefile.am (pkgextension_LTLIBRARIES): Remove errno.la.
+	(errno_la_SOURCES, errno_la_LDFLAGS, errno_la_LIBADD): Remove.
+	(EXTRA_DIST): Remove errlist.h.
+
+2014-12-14         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* readfile.c (read_file_to_buffer): Do not waste a byte at the end of
+	a string.
+	* rwarray.c (read_value): Ditto.
+	* rwarray0.c (read_value): Ditto.
+
 2014-11-23         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* inplace.c (do_inplace_begin): Jump through hoops to silence
 	GCC warnings about return value of chown.
+
+2014-11-09         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (do_input_fd): New function to return the input file
+	descriptor associated with a file/command.
+	(do_output_fd): New function to return the output file descriptor
+	associated with a file/command.
+	(func_table): Add new functions "input_fd" and "output_fd".
+	* testext.c (test_get_file): Do not use __func__, since it is a C99
+	feature, and gawk does not assume C99.
+
+2014-11-06         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* errno.c (do_errno2name, do_name2errno): Remove unused variable 'str'.
+	* select.c (do_signal): Remove unused variable 'override'.
+	(grabfd): New helper function to map a gawk file to the appropriate
+	fd for use in the arguments to selectd.
+	(do_select): get_file has 3 new arguments and returns info about both
+	the input and output buf.
+	(do_set_non_blocking): Support changes to get_file API.
+	* testext.c (test_get_file): New test function to check that extension
+	file creation via the get_file API is working.
+
+2014-11-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (set_retry): New function to set PROCINFO[<name>, "RETRY"].
+	(do_set_non_blocking): If called with a file name as opposed to a file
+	descriptor, call the set_retry function to configure PROCINFO to tell
+	io.c to retry I/O for temporary failures.
 
 2014-10-12         Arnold D. Robbins     <arnold@skeeve.com>
 
@@ -297,6 +634,108 @@
 
 	* gawkdirfd.h (FAKE_FD_VALUE): Move definition up in the file to give
 	clean compile on MinGW.
+
+2013-07-07         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* configure.ac (AC_CHECK_FUNCS): Check for fcntl.
+	* select.c (set_non_blocking): Check that fcntl and O_NONBLOCK are
+	available.
+
+2013-07-07         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (signal_handler): On platforms lacking sigaction, reset
+	the signal handler each time a signal is trapped to protect in case
+	the system resets it to default.
+
+2013-07-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (signal_result): New function to set result string from
+	signal function and detect when we need to roll back.
+	(do_signal): Now takes an optional 3rd override argument.  Instead
+	of returning -1 or 0, we now return information about the previously
+	installed signal handler: default, ignore, trap, or unknown.  An
+	empty string is returned on error.  If it is an unknown handler,
+	and override is not non-zero, we roll back the handler and return "".
+
+2013-07-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (set_non_blocking): Do not attempt F_SETFL if F_GETFL fails.
+	(do_set_non_blocking): Add support for case when called with a single
+	"" argument.
+
+2013-07-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (do_signal): If sigaction is unavailable, fall back to
+	signal and hope that it does the right thing.
+
+2013-07-05         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* configure.ac (AC_CHECK_FUNCS): Add kill and sigprocmask.
+	* select.c (get_signal_number): Change error messages since now may
+	be called by "kill" as well as "select_signal".
+	(do_signal): Add a lint warning if there are more than 2 args.
+	(do_kill): Add new function to send a signal.
+	(do_select): Support platforms where sigprocmask is not available.
+	There will be a race condition on such platforms, but that is not
+	easily avoided.
+
+2013-07-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (do_select): Now that the API flatten_array call has been
+	patched to ensure that the index values are strings, we can remove
+	the code to check for the AWK_NUMBER case.
+
+2013-07-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (do_select): Do not treat a numeric command value as a
+	file descriptor unless the command type is empty.
+
+2013-07-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add errlist.h and siglist.h.
+
+2013-07-02         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (set_non_blocking): New helper function to call fcntl.
+	(do_set_non_blocking): Add support for the case where there's a single
+	integer fd argument.
+
+2013-07-01         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* select.c (do_set_non_blocking): Implement new set_non_blocking
+	function.
+	(func_table): Add set_non_blocking.
+
+2013-07-01         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* errlist.h: New file containing a list of all the errno values I could
+	find.
+	* errno.c: Implement a new errno extension providing strerror,
+	errno2name, and name2errno.
+	* Makefile.am (pkgextension_LTLIBRARIES): Add errno.la.
+	(errno_la_SOURCES, errno_la_LDFLAGS, errno_la_LIBADD): Build new errno
+	extension.
+	* select.c (ext_version): Fix version string.
+	* siglist.h: Update to newest glibc version.
+
+2013-07-01         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* siglist.h: New file copied from glibc to provide a mapping between
+	signal number and name.
+	* select.c: Add a new "select_signal" function and provide support
+	for trapping signals.
+	(do_select): Add support for a 5th argument to contain an array
+	of returned signals.  Improve the argument processing, and add
+	better warning messages.
+
+2013-06-30         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (pkgextension_LTLIBRARIES): Add select.la.
+	(select_la_SOURCES, select_la_LDFLAGS, select_la_LIBADD): Build new
+	select extension.
+	* configure.ac (AC_CHECK_HEADERS): Add signal.h.
+	(AC_CHECK_FUNCS): Add sigaction.
+	* select.c: Implement the new select extension.
 
 2013-06-10         Arnold D. Robbins     <arnold@skeeve.com>
 

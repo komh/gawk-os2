@@ -8,20 +8,20 @@
 
 /*
  * Copyright (C) 2012-2014, 2016 the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -133,7 +133,8 @@ close_two_proc_data(two_way_proc_data_t *proc_data)
 
 static int
 rev2way_get_record(char **out, awk_input_buf_t *iobuf, int *errcode,
-		char **rt_start, size_t *rt_len)
+		char **rt_start, size_t *rt_len,
+		const awk_fieldwidth_info_t **unused)
 {
 	int len = 0;	/* for now */
 	two_way_proc_data_t *proc_data;
@@ -336,7 +337,7 @@ init_revtwoway()
 }
 
 static awk_ext_func_t func_table[] = {
-	{ NULL, NULL, 0 }
+	{ NULL, NULL, 0, 0, awk_false, NULL }
 };
 
 /* define the dl_load function using the boilerplate macro */

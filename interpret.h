@@ -3,33 +3,39 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2015 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
  */
 
+/*
+ * If "r" is a field, valref should normally be > 1, because the field is
+ * created initially with valref 1, and valref should be bumped when it is
+ * pushed onto the stack by Op_field_spec. On the other hand, if we are
+ * assigning to $n, then Op_store_field calls unref(*lhs) before assigning
+ * the new value, so that decrements valref. So if the RHS is a field with
+ * valref 1, that effectively means that this is an assignment like "$n = $n",
+ * so a no-op, other than triggering $0 reconstitution.
+ */
 #define UNFIELD(l, r) \
 { \
 	/* if was a field, turn it into a var */ \
-	if ((r->flags & FIELD) == 0) { \
-		l = r; \
-	} else if (r->valref == 1) { \
-		r->flags &= ~FIELD; \
+	if ((r->flags & MALLOC) != 0 || r->valref == 1) { \
 		l = r; \
 	} else { \
 		l = dupnode(r); \
@@ -99,7 +105,7 @@ top:
 			/* avoid false source indications */
 			source = NULL;
 			sourceline = 0;
-			(void) nextfile(& curfile, true);	/* close input data file */ 
+			(void) nextfile(& curfile, true);	/* close input data file */
 			/*
 			 * This used to be:
 			 *
@@ -144,6 +150,7 @@ top:
 
 		case Op_push:
 		case Op_push_arg:
+		case Op_push_arg_untyped:
 		{
 			NODE *save_symbol;
 			bool isparam = false;
@@ -160,7 +167,7 @@ top:
 					m = m->orig_array;
 				}
 			}
-				
+
 			switch (m->type) {
 			case Node_var:
 				if (do_lint && var_uninitialized(m))
@@ -175,19 +182,23 @@ top:
 
 			case Node_var_new:
 uninitialized_scalar:
-				m->type = Node_var;
-				m->var_value = dupnode(Nnull_string);
+				if (op != Op_push_arg_untyped) {
+					/* convert untyped to scalar */
+					m->type = Node_var;
+					m->var_value = dupnode(Nnull_string);
+				}
 				if (do_lint)
 					lintwarn(isparam ?
 						_("reference to uninitialized argument `%s'") :
 						_("reference to uninitialized variable `%s'"),
 								save_symbol->vname);
-				m = dupnode(Nnull_string);
+				if (op != Op_push_arg_untyped)
+					m = dupnode(Nnull_string);
 				PUSH(m);
 				break;
 
 			case Node_var_array:
-				if (op == Op_push_arg)
+				if (op == Op_push_arg || op == Op_push_arg_untyped)
 					PUSH(m);
 				else
 					fatal(_("attempt to use array `%s' in a scalar context"),
@@ -198,7 +209,7 @@ uninitialized_scalar:
 				cant_happen();
 			}
 		}
-			break;	
+			break;
 
 		case Op_push_param:		/* function argument */
 			m = pc->memory;
@@ -236,7 +247,7 @@ uninitialized_scalar:
 			/* for FUNCTAB, get the name as the element value */
 			if (t1 == func_table) {
 				static bool warned = false;
-				
+
 				if (do_lint && ! warned) {
 					warned = true;
 					lintwarn(_("FUNCTAB is a gawk extension"));
@@ -254,7 +265,7 @@ uninitialized_scalar:
 			/* for SYMTAB, step through to the actual variable */
 			if (t1 == symbol_table) {
 				static bool warned = false;
-				
+
 				if (do_lint && ! warned) {
 					warned = true;
 					lintwarn(_("SYMTAB is a gawk extension"));
@@ -299,7 +310,7 @@ uninitialized_scalar:
 			t1 = POP_ARRAY();
 			if (do_lint && in_array(t1, t2) == NULL) {
 				t2 = force_string(t2);
-				if (pc->do_reference) 
+				if (pc->do_reference)
 					lintwarn(_("reference to uninitialized element `%s[\"%.*s\"]'"),
 						array_vname(t1), (int) t2->stlen, t2->stptr);
 				if (t2->stlen == 0)
@@ -352,12 +363,8 @@ uninitialized_scalar:
 			lhs = r_get_field(t1, (Func_ptr *) 0, true);
 			decr_sp();
 			DEREF(t1);
-			/* only for $0, up ref count */
-			if (*lhs == fields_arr[0]) {
-				r = *lhs;
-				UPREF(r);
-			} else
-				r = dupnode(*lhs);
+			r = *lhs;
+			UPREF(r);
 			PUSH(r);
 			break;
 
@@ -403,7 +410,7 @@ uninitialized_scalar:
 		case Op_jmp_true:
 			r = POP_SCALAR();
 			di = eval_condition(r);
-			DEREF(r);			
+			DEREF(r);
 			if (di)
 				JUMPTO(pc->target_jmp);
 			break;
@@ -439,37 +446,37 @@ uninitialized_scalar:
 			break;
 
 		case Op_equal:
-			r = node_Boolean[cmp_scalars() == 0];
+			r = node_Boolean[cmp_scalars(SCALAR_EQ_NEQ) == 0];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_notequal:
-			r = node_Boolean[cmp_scalars() != 0];
+			r = node_Boolean[cmp_scalars(SCALAR_EQ_NEQ) != 0];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_less:
-			r = node_Boolean[cmp_scalars() < 0];
+			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) < 0];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_greater:
-			r = node_Boolean[cmp_scalars() > 0];
+			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) > 0];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_leq:
-			r = node_Boolean[cmp_scalars() <= 0];
+			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) <= 0];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_geq:
-			r = node_Boolean[cmp_scalars() >= 0];
+			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) >= 0];
 			UPREF(r);
 			REPLACE(r);
 			break;
@@ -494,7 +501,7 @@ plus:
 		case Op_minus:
 			t2 = POP_NUMBER();
 			x2 = t2->numbr;
-			DEREF(t2);			
+			DEREF(t2);
 minus:
 			t1 = TOP_NUMBER();
 			r = make_number(t1->numbr - x2);
@@ -544,7 +551,7 @@ quotient:
 			r = make_number(t1->numbr / x2);
 			DEREF(t1);
 			REPLACE(r);
-			break;		
+			break;
 
 		case Op_mod_i:
 			x2 = force_number(pc->memory)->numbr;
@@ -611,6 +618,11 @@ mod:
 			REPLACE(r);
 			break;
 
+		case Op_unary_plus:
+			// Force argument to be numeric
+			t1 = TOP_NUMBER();
+			break;
+
 		case Op_store_sub:
 			/*
 			 * array[sub] assignment optimization,
@@ -663,7 +675,7 @@ mod:
 			 * simple variable assignment optimization,
 			 * see awkgram.y (optimize_assignment)
 			 */
-	
+
 			lhs = get_lhs(pc->memory, false);
 			unref(*lhs);
 			r = pc->initval;	/* constant initializer */
@@ -706,35 +718,39 @@ mod:
 				*lhs = dupnode(t1);
 			}
 
-			if (t1 != t2 && t1->valref == 1 && (t1->flags & MPFN) == 0) {
+			if (t1 != t2 && t1->valref == 1 && (t1->flags & (MALLOC|MPFN|MPZN)) == MALLOC) {
 				size_t nlen = t1->stlen + t2->stlen;
 
-				erealloc(t1->stptr, char *, nlen + 2, "r_interpret");
+				erealloc(t1->stptr, char *, nlen + 1, "r_interpret");
 				memcpy(t1->stptr + t1->stlen, t2->stptr, t2->stlen);
 				t1->stlen = nlen;
 				t1->stptr[nlen] = '\0';
-				t1->flags &= ~(NUMCUR|NUMBER|NUMINT);
+				/* clear flags except WSTRCUR (used below) */
+				t1->flags &= WSTRCUR;
+				/* configure as a string as in make_str_node */
+				t1->flags |= (MALLOC|STRING|STRCUR);
+				t1->stfmt = STFMT_UNUSED;
 
 				if ((t1->flags & WSTRCUR) != 0 && (t2->flags & WSTRCUR) != 0) {
 					size_t wlen = t1->wstlen + t2->wstlen;
 
 					erealloc(t1->wstptr, wchar_t *,
-							sizeof(wchar_t) * (wlen + 2), "r_interpret");
-					memcpy(t1->wstptr + t1->wstlen, t2->wstptr, t2->wstlen);
+							sizeof(wchar_t) * (wlen + 1), "r_interpret");
+					memcpy(t1->wstptr + t1->wstlen, t2->wstptr, t2->wstlen * sizeof(wchar_t));
 					t1->wstlen = wlen;
 					t1->wstptr[wlen] = L'\0';
-					t1->flags |= WSTRCUR;
 				} else
 					free_wstr(*lhs);
 			} else {
-				size_t nlen = t1->stlen + t2->stlen;  
+				size_t nlen = t1->stlen + t2->stlen;
 				char *p;
 
-				emalloc(p, char *, nlen + 2, "r_interpret");
+				emalloc(p, char *, nlen + 1, "r_interpret");
 				memcpy(p, t1->stptr, t1->stlen);
 				memcpy(p + t1->stlen, t2->stptr, t2->stlen);
+				/* N.B. No NUL-termination required, since make_str_node will do it. */
 				unref(*lhs);
-				t1 = *lhs = make_str_node(p, nlen, ALREADY_MALLOCED); 
+				t1 = *lhs = make_str_node(p, nlen, ALREADY_MALLOCED);
 			}
 			DEREF(t2);
 			break;
@@ -749,7 +765,7 @@ mod:
 			break;
 
 		case Op_subscript_assign:
-			/* conditionally execute post-assignment routine for an array element */ 
+			/* conditionally execute post-assignment routine for an array element */
 
 			if (set_idx != NULL) {
 				di = true;
@@ -826,12 +842,11 @@ mod:
 				t2 = TOP_SCALAR();	/* switch expression */
 				t2 = force_string(t2);
 				rp = re_update(m);
-				di = (research(rp, t2->stptr, 0, t2->stlen,
-							avoid_dfa(m, t2->stptr, t2->stlen)) >= 0);
+				di = (research(rp, t2->stptr, 0, t2->stlen, RE_NO_FLAGS) >= 0);
 			} else {
 				t1 = POP_SCALAR();	/* case value */
 				t2 = TOP_SCALAR();	/* switch expression */
-				di = (cmp_nodes(t2, t1) == 0);
+				di = (cmp_nodes(t2, t1, true) == 0);
 				DEREF(t1);
 			}
 
@@ -871,6 +886,8 @@ mod:
 			size_t num_elems = 0;
 			static NODE *sorted_in = NULL;
 			const char *how_to_sort = "@unsorted";
+			char save;
+			bool saved_end = false;
 
 			/* get the array */
 			array = POP_ARRAY();
@@ -893,11 +910,16 @@ mod:
 
 			if (sort_str != NULL) {
 				sort_str = force_string(sort_str);
-				if (sort_str->stlen > 0)
+				if (sort_str->stlen > 0) {
 					how_to_sort = sort_str->stptr;
+					str_terminate(sort_str, save);
+					saved_end = true;
+				}
 			}
 
 			list = assoc_list(array, how_to_sort, SORTED_IN);
+			if (saved_end)
+				str_restore(sort_str, save);
 
 arrayfor:
 			getnode(r);
@@ -942,22 +964,34 @@ arrayfor:
 			break;
 
 		case Op_ext_builtin:
-		case Op_old_ext_builtin:
 		{
-			int arg_count = pc->expr_count;
+			size_t arg_count = pc->expr_count;
+			awk_ext_func_t *f = pc[1].c_function;
+			size_t min_req = f->min_required_args;
+			size_t max_expect = f->max_expected_args;
 			awk_value_t result;
 
+			if (arg_count < min_req)
+				fatal(_("%s: called with %lu arguments, expecting at least %lu"),
+						pc[1].func_name,
+						(unsigned long) arg_count,
+						(unsigned long) min_req);
+
+			if (do_lint && ! f->suppress_lint && arg_count > max_expect)
+				lintwarn(_("%s: called with %lu arguments, expecting no more than %lu"),
+						pc[1].func_name,
+						(unsigned long) arg_count,
+						(unsigned long) max_expect);
+
 			PUSH_CODE(pc);
-			if (op == Op_ext_builtin)
-				r = awk_value_to_node(pc->extfunc(arg_count, & result));
-			else
-				r = pc->builtin(arg_count);
+			r = awk_value_to_node(pc->extfunc(arg_count, & result, f));
 			(void) POP_CODE();
 			while (arg_count-- > 0) {
 				t1 = POP();
 				if (t1->type == Node_val)
 					DEREF(t1);
 			}
+			free_api_string_copies();
 			PUSH(r);
 		}
 			break;
@@ -985,29 +1019,19 @@ arrayfor:
 				r = POP_STRING();
 				unref(m->re_exp);
 				m->re_exp = r;
+			} else if (m->type == Node_val) {
+				assert((m->flags & REGEX) != 0);
+				UPREF(m);
 			}
 			PUSH(m);
 			break;
-			
+
 		case Op_match_rec:
 			m = pc->memory;
 			t1 = *get_field(0, (Func_ptr *) 0);
 match_re:
 			rp = re_update(m);
-			/*
-			 * Any place where research() is called with a last parameter of
-			 * zero, we need to use the avoid_dfa test. This appears here and
-			 * in the code for Op_K_case.
-			 *
-			 * A new or improved dfa that distinguishes beginning/end of
-			 * string from beginning/end of line will allow us to get rid of
-			 * this hack.
-			 *
-			 * The avoid_dfa() function is in re.c; it is not very smart.
-			 */
-
-			di = research(rp, t1->stptr, 0, t1->stlen,
-								avoid_dfa(m, t1->stptr, t1->stlen));
+			di = research(rp, t1->stptr, 0, t1->stlen, RE_NO_FLAGS);
 			di = (di == -1) ^ (op != Op_nomatch);
 			if (op != Op_match_rec) {
 				decr_sp();
@@ -1036,6 +1060,7 @@ match_re:
 		{
 			NODE *f = NULL;
 			int arg_count;
+			char save;
 
 			arg_count = (pc + 1)->expr_count;
 			t1 = PEEK(arg_count);	/* indirect var */
@@ -1044,12 +1069,14 @@ match_re:
 				fatal(_("indirect function call requires a simple scalar value"));
 
 			t1 = force_string(t1);
+			str_terminate(t1, save);
 			if (t1->stlen > 0) {
 				/* retrieve function definition node */
 				f = pc->func_body;
 				if (f != NULL && strcmp(f->vname, t1->stptr) == 0) {
 					/* indirect var hasn't been reassigned */
 
+					str_restore(t1, save);
 					ni = setup_frame(pc);
 					JUMPTO(ni);	/* Op_func */
 				}
@@ -1062,7 +1089,7 @@ match_re:
 			} else if (f->type == Node_builtin_func) {
 				int arg_count = (pc + 1)->expr_count;
 				builtin_func_t the_func = lookup_builtin(t1->stptr);
-				
+
 				assert(the_func != NULL);
 
 				/* call it */
@@ -1074,12 +1101,13 @@ match_re:
 					r = call_split_func(t1->stptr, arg_count);
 				else
 					r = the_func(arg_count);
+				str_restore(t1, save);
 
 				PUSH(r);
 				break;
 			} else if (f->type != Node_func) {
-				if (   f->type == Node_ext_func
-				    || f->type == Node_old_ext_func) {
+				str_restore(t1, save);
+				if (f->type == Node_ext_func) {
 					/* code copied from below, keep in sync */
 					INSTRUCTION *bc;
 					char *fname = pc->func_name;
@@ -1090,22 +1118,20 @@ match_re:
 
 					bc = f->code_ptr;
 					assert(bc->opcode == Op_symbol);
-					if (f->type == Node_ext_func)
-						npc[0].opcode = Op_ext_builtin;	/* self modifying code */
-					else
-						npc[0].opcode = Op_old_ext_builtin;	/* self modifying code */
+					npc[0].opcode = Op_ext_builtin;	/* self modifying code */
 					npc[0].extfunc = bc->extfunc;
 					npc[0].expr_count = arg_count;		/* actual argument count */
 					npc[1] = pc[1];
 					npc[1].func_name = fname;	/* name of the builtin */
-					npc[1].expr_count = bc->expr_count;	/* defined max # of arguments */
-					ni = npc; 
+					npc[1].c_function = bc->c_function;
+					ni = npc;
 					JUMPTO(ni);
 				} else
 					fatal(_("function called indirectly through `%s' does not exist"),
-							pc->func_name);	
+							pc->func_name);
 			}
 			pc->func_body = f;     /* save for next call */
+			str_restore(t1, save);
 
 			ni = setup_frame(pc);
 			JUMPTO(ni);	/* Op_func */
@@ -1119,12 +1145,12 @@ match_re:
 			f = pc->func_body;
 			if (f == NULL) {
 				f = lookup(pc->func_name);
-				if (f == NULL || (f->type != Node_func && f->type != Node_ext_func && f->type != Node_old_ext_func))
+				if (f == NULL || (f->type != Node_func && f->type != Node_ext_func))
 					fatal(_("function `%s' not defined"), pc->func_name);
 				pc->func_body = f;     /* save for next call */
 			}
 
-			if (f->type == Node_ext_func || f->type == Node_old_ext_func) {
+			if (f->type == Node_ext_func) {
 				/* keep in sync with indirect call code */
 				INSTRUCTION *bc;
 				char *fname = pc->func_name;
@@ -1132,15 +1158,12 @@ match_re:
 
 				bc = f->code_ptr;
 				assert(bc->opcode == Op_symbol);
-				if (f->type == Node_ext_func)
-					pc->opcode = Op_ext_builtin;	/* self modifying code */
-				else
-					pc->opcode = Op_old_ext_builtin;	/* self modifying code */
+				pc->opcode = Op_ext_builtin;	/* self modifying code */
 				pc->extfunc = bc->extfunc;
-				pc->expr_count = arg_count;		/* actual argument count */
+				pc->expr_count = arg_count;	/* actual argument count */
 				(pc + 1)->func_name = fname;	/* name of the builtin */
-				(pc + 1)->expr_count = bc->expr_count;	/* defined max # of arguments */
-				ni = pc; 
+				(pc + 1)->c_function = bc->c_function;	/* min and max args */
+				ni = pc;
 				JUMPTO(ni);
 			}
 
@@ -1152,7 +1175,7 @@ match_re:
 			m = POP_SCALAR();       /* return value */
 
 			ni = pop_fcall();
-	
+
 			/* put the return value back on stack */
 			PUSH(m);
 
@@ -1177,7 +1200,7 @@ match_re:
 
 					/* Save execution state so that we can return to it
 					 * from Op_after_beginfile or Op_after_endfile.
-					 */ 
+					 */
 
 					push_exec_state(pc, currule, source, stack_ptr);
 
@@ -1235,8 +1258,8 @@ match_re:
 				execute beginfile block */
 		}
 			break;
-			
-		case Op_get_record:		
+
+		case Op_get_record:
 		{
 			int errcode = 0;
 
@@ -1294,13 +1317,13 @@ match_re:
 					JUMPTO(ni);
 				} else {
 					/* do run ENDFILE block(s) first. */
-					
+
 					/* Execution state to return to in Op_after_endfile. */
 					push_exec_state(ni, currule, source, stack_ptr);
 
 					JUMPTO(pc->target_endfile);
-				}				
-			} /* else 
+				}
+			} /* else
 				Start over with the first rule. */
 
 			/* empty the run-time stack to avoid memory leak */
@@ -1391,7 +1414,7 @@ match_re:
 				/* not already triggered and left expression is true */
 				decr_sp();
 				ip->triggered = true;
-				JUMPTO(ip->target_jmp);	/* evaluate right expression */ 
+				JUMPTO(ip->target_jmp);	/* evaluate right expression */
 			}
 
 			result = ip->triggered || di;
@@ -1417,6 +1440,8 @@ match_re:
 		case Op_K_if:
 		case Op_K_else:
 		case Op_cond_exp:
+		case Op_comment:
+		case Op_parens:
 			break;
 
 		default:

@@ -2,22 +2,22 @@
  * gawkapi.c -- Implement the functions defined for gawkapi.h
  */
 
-/* 
- * Copyright (C) 2012-2016 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 2012-2017 the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -25,7 +25,21 @@
 
 #include "awk.h"
 
+#ifdef HAVE_MPFR
+#define getmpfr(n)	getblock(n, BLOCK_MPFR, mpfr_ptr)
+#define freempfr(n)	freeblock(n, BLOCK_MPFR)
+
+#define getmpz(n)	getblock(n, BLOCK_MPZ, mpz_ptr)
+#define freempz(n)	freeblock(n, BLOCK_MPZ)
+#endif
+
+/* Declare some globals used by api_get_file: */
+extern IOBUF *curfile;
+extern INSTRUCTION *main_beginfile;
+extern int currule;
+
 static awk_bool_t node_to_awk_value(NODE *node, awk_value_t *result, awk_valtype_t wanted);
+static char *valtype2str(awk_valtype_t type);
 
 /*
  * api_get_argument --- get the count'th paramater, zero-based.
@@ -71,7 +85,7 @@ api_get_argument(awk_ext_id_t id, size_t count,
 			goto scalar;
 		}
 	}
-	
+
 	/* at this point, we have real type */
 	if (arg->type == Node_var_array || arg->type == Node_array_ref) {
 		if (wanted != AWK_ARRAY && wanted != AWK_UNDEFINED)
@@ -139,7 +153,7 @@ api_set_argument(awk_ext_id_t id,
 NODE *
 awk_value_to_node(const awk_value_t *retval)
 {
-	NODE *ext_ret_val;
+	NODE *ext_ret_val = NULL;
 	NODE *v;
 
 	if (retval == NULL)
@@ -153,11 +167,49 @@ awk_value_to_node(const awk_value_t *retval)
 		ext_ret_val = dupnode(Nnull_string);
 		break;
 	case AWK_NUMBER:
-		ext_ret_val = make_number(retval->num_value);
+		switch (retval->num_type) {
+		case AWK_NUMBER_TYPE_DOUBLE:
+			ext_ret_val = make_number(retval->num_value);
+			break;
+		case AWK_NUMBER_TYPE_MPFR:
+#ifdef HAVE_MPFR
+			if (! do_mpfr)
+				fatal(_("awk_value_to_node: not in MPFR mode"));
+			ext_ret_val = make_number_node(MPFN);
+			memcpy(&ext_ret_val->mpg_numbr, retval->num_ptr, sizeof(ext_ret_val->mpg_numbr));
+			freempfr(retval->num_ptr);
+#else
+			fatal(_("awk_value_to_node: MPFR not supported"));
+#endif
+			break;
+		case AWK_NUMBER_TYPE_MPZ:
+#ifdef HAVE_MPFR
+			if (! do_mpfr)
+				fatal(_("awk_value_to_node: not in MPFR mode"));
+			ext_ret_val = make_number_node(MPZN);
+			memcpy(&ext_ret_val->mpg_i, retval->num_ptr, sizeof(ext_ret_val->mpg_i));
+			freempz(retval->num_ptr);
+#else
+			fatal(_("awk_value_to_node: MPFR not supported"));
+#endif
+			break;
+		default:
+			fatal(_("awk_value_to_node: invalid number type `%d'"), retval->num_type);
+			break;
+		}
 		break;
 	case AWK_STRING:
 		ext_ret_val = make_str_node(retval->str_value.str,
 				retval->str_value.len, ALREADY_MALLOCED);
+		break;
+	case AWK_STRNUM:
+		ext_ret_val = make_str_node(retval->str_value.str,
+				retval->str_value.len, ALREADY_MALLOCED);
+		ext_ret_val->flags |= USER_INPUT;
+		break;
+	case AWK_REGEX:
+		ext_ret_val = make_typed_regex(retval->str_value.str,
+				retval->str_value.len);
 		break;
 	case AWK_SCALAR:
 		v = (NODE *) retval->scalar_cookie;
@@ -190,6 +242,20 @@ api_fatal(awk_ext_id_t id, const char *format, ...)
 
 	va_start(args, format);
 	err(true, _("fatal: "), format, args);
+	va_end(args);
+}
+
+/* api_nonfatal --- print a non fatal error message */
+
+static void
+api_nonfatal(awk_ext_id_t id, const char *format, ...)
+{
+	va_list args;
+
+	(void) id;
+
+	va_start(args, format);
+	err(false, _("error: "), format, args);
 	va_end(args);
 }
 
@@ -238,7 +304,7 @@ api_register_input_parser(awk_ext_id_t id, awk_input_parser_t *input_parser)
 	register_input_parser(input_parser);
 }
 
-/* api_register_output_wrapper --- egister an output wrapper, for writing files / two-way pipes */
+/* api_register_output_wrapper --- register an output wrapper, for writing files / two-way pipes */
 
 static void api_register_output_wrapper(awk_ext_id_t id,
 		awk_output_wrapper_t *output_wrapper)
@@ -307,7 +373,7 @@ api_unset_ERRNO(awk_ext_id_t id)
 static awk_bool_t
 api_add_ext_func(awk_ext_id_t id,
 		const char *namespace,
-		const awk_ext_func_t *func)
+		awk_ext_func_t *func)
 {
 	(void) id;
 	(void) namespace;
@@ -372,6 +438,105 @@ api_awk_atexit(awk_ext_id_t id,
 	list_head = p;
 }
 
+static struct {
+	char **strings;
+	size_t i, size;
+} scopy;
+
+/* free_api_string_copies --- release memory used by string copies */
+
+void
+free_api_string_copies()
+{
+	size_t i;
+
+	for (i = 0; i < scopy.i; i++)
+		free(scopy.strings[i]);
+	scopy.i = 0;
+}
+
+/* assign_string --- return a string node with NUL termination */
+
+static inline void
+assign_string(NODE *node, awk_value_t *val, awk_valtype_t val_type)
+{
+	val->val_type = val_type;
+	if (node->stptr[node->stlen] != '\0') {
+		/*
+		 * This is an unterminated field string, so make a copy.
+		 * This should happen only for $n where n > 0 and n < NF.
+		 */
+		char *s;
+
+		assert((node->flags & MALLOC) == 0);
+		if (scopy.i == scopy.size) {
+			/* expand list */
+			if (scopy.size == 0)
+				scopy.size = 8;	/* initial size */
+			else
+				scopy.size *= 2;
+			erealloc(scopy.strings, char **, scopy.size * sizeof(char *), "assign_string");
+		}
+		emalloc(s, char *, node->stlen + 1, "assign_string");
+		memcpy(s, node->stptr, node->stlen);
+		s[node->stlen] = '\0';
+		val->str_value.str = scopy.strings[scopy.i++] = s;
+	}
+	else
+		val->str_value.str = node->stptr;
+	val->str_value.len = node->stlen;
+}
+
+/* assign_number -- return a number node */
+
+#define assign_double(val) \
+	val->num_value = node->numbr; \
+	val->num_type = AWK_NUMBER_TYPE_DOUBLE; \
+	val->num_ptr = NULL
+
+static inline void
+assign_number(NODE *node, awk_value_t *val)
+{
+	val->val_type = AWK_NUMBER;
+
+#ifndef HAVE_MPFR
+	assign_double(val);
+#else
+	switch (node->flags & (MPFN|MPZN)) {
+	case 0:
+		assign_double(val);
+		break;
+	case MPFN:
+		val->num_value = mpfr_get_d(node->mpg_numbr, ROUND_MODE);
+		val->num_type = AWK_NUMBER_TYPE_MPFR;
+		val->num_ptr = &node->mpg_numbr;
+		break;
+	case MPZN:
+		val->num_value = mpz_get_d(node->mpg_i);
+		val->num_type = AWK_NUMBER_TYPE_MPZ;
+		val->num_ptr = &node->mpg_i;
+		break;
+	default:
+		fatal(_("node_to_awk_value: detected invalid numeric flags combination `%s'; please file a bug report."), flags2str(node->flags));
+		break;
+	}
+#endif
+}
+#undef assign_double
+
+/* assign_regex --- return a regex node */
+
+static inline void
+assign_regex(NODE *node, awk_value_t *val)
+{
+	/* a REGEX node cannot be an unterminated field string */
+	assert((node->flags & MALLOC) != 0);
+	assert(node->stptr[node->stlen] == '\0');
+	val->str_value.str = node->stptr;
+	val->str_value.len = node->stlen;
+	val->val_type = AWK_REGEX;
+}
+
 /* node_to_awk_value --- convert a node into a value for an extension */
 
 static awk_bool_t
@@ -408,52 +573,135 @@ node_to_awk_value(NODE *node, awk_value_t *val, awk_valtype_t wanted)
 		/* a scalar value */
 		switch (wanted) {
 		case AWK_NUMBER:
-			val->val_type = AWK_NUMBER;
-
-			(void) force_number(node);
-			if ((node->flags & NUMCUR) != 0) {
-				val->num_value = get_number_d(node);
+			if (node->flags & REGEX)
+				val->val_type = AWK_REGEX;
+			else {
+				(void) force_number(node);
+				assign_number(node, val);
 				ret = awk_true;
+			}
+			break;
+
+		case AWK_STRNUM:
+			switch (fixtype(node)->flags & (STRING|NUMBER|USER_INPUT|REGEX)) {
+			case STRING:
+				val->val_type = AWK_STRING;
+				break;
+			case NUMBER:
+				(void) force_string(node);
+				/* fall through */
+			case NUMBER|USER_INPUT:
+				assign_string(node, val, AWK_STRNUM);
+				ret = awk_true;
+				break;
+			case REGEX:
+				val->val_type = AWK_REGEX;
+				break;
+			case NUMBER|STRING:
+				if (node == Nnull_string) {
+					val->val_type = AWK_UNDEFINED;
+					break;
+				}
+				/* fall through */
+			default:
+				warning(_("node_to_awk_value detected invalid flags combination `%s'; please file a bug report."), flags2str(node->flags));
+				val->val_type = AWK_UNDEFINED;
+				break;
 			}
 			break;
 
 		case AWK_STRING:
-			val->val_type = AWK_STRING;
-
 			(void) force_string(node);
-			if ((node->flags & STRCUR) != 0) {
-				val->str_value.str = node->stptr;
-				val->str_value.len = node->stlen;
+			assign_string(node, val, AWK_STRING);
+			ret = awk_true;
+			break;
+
+		case AWK_REGEX:
+			switch (fixtype(node)->flags & (STRING|NUMBER|USER_INPUT|REGEX)) {
+			case STRING:
+				val->val_type = AWK_STRING;
+				break;
+			case NUMBER:
+				val->val_type = AWK_NUMBER;
+				break;
+			case NUMBER|USER_INPUT:
+				val->val_type = AWK_STRNUM;
+				break;
+			case REGEX:
+				assign_regex(node, val);
 				ret = awk_true;
+				break;
+			case NUMBER|STRING:
+				if (node == Nnull_string) {
+					val->val_type = AWK_UNDEFINED;
+					break;
+				}
+				/* fall through */
+			default:
+				warning(_("node_to_awk_value detected invalid flags combination `%s'; please file a bug report."), flags2str(node->flags));
+				val->val_type = AWK_UNDEFINED;
+				break;
 			}
 			break;
 
 		case AWK_SCALAR:
-			if ((node->flags & NUMBER) != 0) {
-				val->val_type = AWK_NUMBER;
-			} else if ((node->flags & STRING) != 0) {
+			switch (fixtype(node)->flags & (STRING|NUMBER|USER_INPUT|REGEX)) {
+			case STRING:
 				val->val_type = AWK_STRING;
-			} else
+				break;
+			case NUMBER:
+				val->val_type = AWK_NUMBER;
+				break;
+			case NUMBER|USER_INPUT:
+				val->val_type = AWK_STRNUM;
+				break;
+			case REGEX:
+				val->val_type = AWK_REGEX;
+				break;
+			case NUMBER|STRING:
+				if (node == Nnull_string) {
+					val->val_type = AWK_UNDEFINED;
+					break;
+				}
+				/* fall through */
+			default:
+				warning(_("node_to_awk_value detected invalid flags combination `%s'; please file a bug report."), flags2str(node->flags));
 				val->val_type = AWK_UNDEFINED;
-			ret = awk_false;
+				break;
+			}
 			break;
 
 		case AWK_UNDEFINED:
 			/* return true and actual type for request of undefined */
-			if (node == Nnull_string) {
+			switch (fixtype(node)->flags & (STRING|NUMBER|USER_INPUT|REGEX)) {
+			case STRING:
+				assign_string(node, val, AWK_STRING);
+				ret = awk_true;
+				break;
+			case NUMBER:
+				assign_number(node, val);
+				ret = awk_true;
+				break;
+			case NUMBER|USER_INPUT:
+				assign_string(node, val, AWK_STRNUM);
+				ret = awk_true;
+				break;
+			case REGEX:
+				assign_regex(node, val);
+				ret = awk_true;
+				break;
+			case NUMBER|STRING:
+				if (node == Nnull_string) {
+					val->val_type = AWK_UNDEFINED;
+					ret = awk_true;
+					break;
+				}
+				/* fall through */
+			default:
+				warning(_("node_to_awk_value detected invalid flags combination `%s'; please file a bug report."), flags2str(node->flags));
 				val->val_type = AWK_UNDEFINED;
-				ret = awk_true;
-			} else if ((node->flags & NUMBER) != 0) {
-				val->val_type = AWK_NUMBER;
-				val->num_value = get_number_d(node);
-				ret = awk_true;
-			} else if ((node->flags & STRING) != 0) {
-				val->val_type = AWK_STRING;
-				val->str_value.str = node->stptr;
-				val->str_value.len = node->stlen;
-				ret = awk_true;
-			} else
-				val->val_type = AWK_UNDEFINED;
+				break;
+			}
 			break;
 
 		case AWK_ARRAY:
@@ -485,7 +733,7 @@ node_to_awk_value(NODE *node, awk_value_t *val, awk_valtype_t wanted)
  * 	- No access to special variables (NF, etc.)
  * 	- One special exception: PROCINFO.
  *	- Use sym_update() to change a value, including from UNDEFINED
- *	  to scalar or array. 
+ *	  to scalar or array.
  */
 /*
  * Lookup a variable, fills in value. No messing with the value
@@ -556,7 +804,9 @@ api_sym_update(awk_ext_id_t id,
 
 	switch (value->val_type) {
 	case AWK_NUMBER:
+	case AWK_STRNUM:
 	case AWK_STRING:
+	case AWK_REGEX:
 	case AWK_UNDEFINED:
 	case AWK_ARRAY:
 	case AWK_SCALAR:
@@ -654,7 +904,9 @@ api_sym_update_scalar(awk_ext_id_t id,
 			return awk_true;
 		}
 		break;
+
 	case AWK_STRING:
+	case AWK_STRNUM:
 		if (node->var_value->valref == 1) {
 			NODE *r = node->var_value;
 
@@ -668,16 +920,21 @@ api_sym_update_scalar(awk_ext_id_t id,
 			/* make_str_node(s, l, ALREADY_MALLOCED): */
 			r->numbr = 0;
 			r->flags = (MALLOC|STRING|STRCUR);
-			r->stfmt = -1;
+			if (value->val_type == AWK_STRNUM)
+				r->flags |= USER_INPUT;
+			r->stfmt = STFMT_UNUSED;
 			r->stptr = value->str_value.str;
 			r->stlen = value->str_value.len;
 			return awk_true;
 		}
 		break;
+
+	case AWK_REGEX:
 	case AWK_UNDEFINED:
 	case AWK_SCALAR:
 	case AWK_VALUE_COOKIE:
 		break;
+
 
 	default:	/* AWK_ARRAY or invalid type */
 		return awk_false;
@@ -701,7 +958,9 @@ valid_subscript_type(awk_valtype_t valtype)
 	switch (valtype) {
 	case AWK_UNDEFINED:
 	case AWK_NUMBER:
+	case AWK_STRNUM:
 	case AWK_STRING:
+	case AWK_REGEX:
 	case AWK_SCALAR:
 	case AWK_VALUE_COOKIE:
 		return true;
@@ -782,7 +1041,6 @@ api_set_array_element(awk_ext_id_t id, awk_array_t a_cookie,
 
 	tmp = awk_value_to_node(index);
 	aptr = assoc_lookup(array, tmp);
-	unref(tmp);
 	unref(*aptr);
 	elem = *aptr = awk_value_to_node(value);
 	if (elem->type == Node_var_array) {
@@ -790,12 +1048,15 @@ api_set_array_element(awk_ext_id_t id, awk_array_t a_cookie,
 		elem->vname = estrdup(index->str_value.str,
 					index->str_value.len);
 	}
+	if (array->astore != NULL)
+		(*array->astore)(array, tmp);
+	unref(tmp);
 
 	return awk_true;
 }
 
 /*
- * remove_element --- remove an array element 
+ * remove_element --- remove an array element
  *		common code used by multiple functions
  */
 
@@ -900,12 +1161,13 @@ api_clear_array(awk_ext_id_t id, awk_array_t a_cookie)
 	return awk_true;
 }
 
-/* api_flatten_array --- flatten out an array so that it can be looped over easily. */
+/* api_flatten_array_typed --- flatten out an array so that it can be looped over easily. */
 
 static awk_bool_t
-api_flatten_array(awk_ext_id_t id,
+api_flatten_array_typed(awk_ext_id_t id,
 		awk_array_t a_cookie,
-		awk_flat_array_t **data)
+		awk_flat_array_t **data,
+		awk_valtype_t index_type, awk_valtype_t value_type)
 {
 	NODE **list;
 	size_t i, j;
@@ -921,9 +1183,8 @@ api_flatten_array(awk_ext_id_t id,
 	alloc_size = sizeof(awk_flat_array_t) +
 			(array->table_size - 1) * sizeof(awk_element_t);
 
-	emalloc(*data, awk_flat_array_t *, alloc_size,
-			"api_flatten_array");
-	memset(*data, 0, alloc_size);
+	ezalloc(*data, awk_flat_array_t *, alloc_size,
+			"api_flatten_array_typed");
 
 	list = assoc_list(array, "@unsorted", ASORTI);
 
@@ -937,21 +1198,16 @@ api_flatten_array(awk_ext_id_t id,
 		index = list[i];
 		value = list[i + 1]; /* number or string or subarray */
 
-		/*
-		 * Convert index and value to ext types.  Force the
-		 * index to be a string, since indices are always
-		 * conceptually strings, regardless of internal optimizations
-		 * to treat them as integers in some cases.
-		 */
+		/* Convert index and value to API types. */
 		if (! node_to_awk_value(index,
-				& (*data)->elements[j].index, AWK_STRING)) {
-			fatal(_("api_flatten_array: could not convert index %d\n"),
-						(int) i);
+				& (*data)->elements[j].index, index_type)) {
+			fatal(_("api_flatten_array_typed: could not convert index %d to %s\n"),
+						(int) i, valtype2str(index_type));
 		}
 		if (! node_to_awk_value(value,
-				& (*data)->elements[j].value, AWK_UNDEFINED)) {
-			fatal(_("api_flatten_array: could not convert value %d\n"),
-						(int) i);
+				& (*data)->elements[j].value, value_type)) {
+			fatal(_("api_flatten_array_typed: could not convert value %d to %s\n"),
+						(int) i, valtype2str(value_type));
 		}
 	}
 	return awk_true;
@@ -1009,7 +1265,9 @@ api_create_value(awk_ext_id_t id, awk_value_t *value,
 
 	switch (value->val_type) {
 	case AWK_NUMBER:
+	case AWK_STRNUM:
 	case AWK_STRING:
+	case AWK_REGEX:
 		break;
 	default:
 		/* reject anything other than a simple scalar */
@@ -1030,6 +1288,131 @@ api_release_value(awk_ext_id_t id, awk_value_cookie_t value)
 		return awk_false;
 
 	unref(val);
+	return awk_true;
+}
+
+/* api_get_mpfr --- allocate an mpfr_ptr */
+
+static void *
+api_get_mpfr(awk_ext_id_t id)
+{
+#ifdef HAVE_MPFR
+	mpfr_ptr p;
+	getmpfr(p);
+	mpfr_init(p);
+	return p;
+#else
+	fatal(_("api_get_mpfr: MPFR not supported"));
+	return NULL;	// silence compiler warning
+#endif
+}
+
+/* api_get_mpz --- allocate an mpz_ptr */
+
+static void *
+api_get_mpz(awk_ext_id_t id)
+{
+#ifdef HAVE_MPFR
+	mpz_ptr p;
+	getmpz(p);
+	mpz_init(p);
+	return p;
+#else
+	fatal(_("api_get_mpfr: MPFR not supported"));
+	return NULL;	// silence compiler warning
+#endif
+}
+
+/* api_get_file --- return a handle to an existing or newly opened file */
+
+static awk_bool_t
+api_get_file(awk_ext_id_t id, const char *name, size_t namelen, const char *filetype,
+		int fd, const awk_input_buf_t **ibufp, const awk_output_buf_t **obufp)
+{
+	const struct redirect *f;
+	int flag;	/* not used, sigh */
+	enum redirval redirtype;
+
+	if (name == NULL || namelen == 0) {
+		if (curfile == NULL) {
+			INSTRUCTION *pc;
+			int save_rule;
+			char *save_source;
+
+			if (nextfile(& curfile, false) <= 0)
+				return awk_false;
+
+			pc = main_beginfile;
+			/* save execution state */
+			save_rule = currule;
+			save_source = source;
+
+			for (;;) {
+				if (pc == NULL)
+					fatal(_("cannot find end of BEGINFILE rule"));
+				if (pc->opcode == Op_after_beginfile)
+					break;
+				pc = pc->nexti;
+			}
+			pc->opcode = Op_stop;
+		        (void) (*interpret)(main_beginfile);
+			pc->opcode = Op_after_beginfile;
+			after_beginfile(& curfile);
+			/* restore execution state */
+			currule = save_rule;
+			source = save_source;
+		}
+		*ibufp = &curfile->public;
+		*obufp = NULL;
+
+		return awk_true;
+	}
+
+	redirtype = redirect_none;
+	switch (filetype[0]) {
+	case '<':
+		if (filetype[1] == '\0')
+			redirtype = redirect_input;
+		break;
+	case '>':
+		switch (filetype[1]) {
+		case '\0':
+			redirtype = redirect_output;
+			break;
+		case '>':
+			if (filetype[2] == '\0')
+				redirtype = redirect_append;
+			break;
+		}
+		break;
+	case '|':
+		if (filetype[2] == '\0') {
+			switch (filetype[1]) {
+			case '>':
+				redirtype = redirect_pipe;
+				break;
+			case '<':
+				redirtype = redirect_pipein;
+				break;
+			case '&':
+				redirtype = redirect_twoway;
+				break;
+			}
+		}
+		break;
+	}
+
+	if (redirtype == redirect_none) {
+		warning(_("cannot open unrecognized file type `%s' for `%s'"),
+			filetype, name);
+		return awk_false;
+	}
+
+	if ((f = redirect_string(name, namelen, 0, redirtype, &flag, fd, false)) == NULL)
+		return awk_false;
+
+	*ibufp = f->iop ? & f->iop->public : NULL;
+	*obufp = f->output.fp ? & f->output : NULL;
 	return awk_true;
 }
 
@@ -1067,6 +1450,16 @@ gawk_api_t api_impl = {
 	/* data */
 	GAWK_API_MAJOR_VERSION,	/* major and minor versions */
 	GAWK_API_MINOR_VERSION,
+
+#ifdef HAVE_MPFR
+	__GNU_MP_VERSION,
+	__GNU_MP_VERSION_MINOR,
+	MPFR_VERSION_MAJOR,
+	MPFR_VERSION_MINOR,
+#else
+	0, 0, 0, 0,
+#endif
+
 	{ 0 },			/* do_flags */
 
 	/* registration functions */
@@ -1081,6 +1474,7 @@ gawk_api_t api_impl = {
 	api_fatal,
 	api_warning,
 	api_lintwarn,
+	api_nonfatal,
 
 	/* updating ERRNO */
 	api_update_ERRNO_int,
@@ -1110,7 +1504,7 @@ gawk_api_t api_impl = {
 	api_del_array_element,
 	api_create_array,
 	api_clear_array,
-	api_flatten_array,
+	api_flatten_array_typed,
 	api_release_flattened_array,
 
 	/* Memory allocation */
@@ -1118,6 +1512,11 @@ gawk_api_t api_impl = {
 	calloc,
 	realloc,
 	free,
+	api_get_mpfr,
+	api_get_mpz,
+
+	/* Find/open a file */
+	api_get_file,
 };
 
 /* init_ext_api --- init the extension API */
@@ -1151,4 +1550,31 @@ print_ext_versions(void)
 
 	for (p = vi_head; p != NULL; p = p->next)
 		printf("%s\n", p->version);
+}
+
+/* valtype2str --- return a printable representation of a value type */
+
+static char *
+valtype2str(awk_valtype_t type)
+{
+	static char buf[100];
+
+	// Important: keep in same order as in gawkapi.h!
+	static char *values[] = {
+		"AWK_UNDEFINED",
+		"AWK_NUMBER",
+		"AWK_STRING",
+		"AWK_REGEX",
+		"AWK_STRNUM",
+		"AWK_ARRAY",
+		"AWK_SCALAR",
+		"AWK_VALUE_COOKIE",
+	};
+
+	if (AWK_UNDEFINED <= type && type <= AWK_VALUE_COOKIE)
+		return values[(int) type];
+
+	sprintf(buf, "unknown type! (%d)", (int) type);
+
+	return buf;
 }

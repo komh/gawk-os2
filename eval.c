@@ -1,23 +1,23 @@
 /*
- * eval.c - gawk bytecode interpreter 
+ * eval.c - gawk bytecode interpreter
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2016 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -25,7 +25,6 @@
 
 #include "awk.h"
 
-extern void after_beginfile(IOBUF **curfile);
 extern double pow(double x, double y);
 extern double modf(double x, double *yp);
 extern double fmod(double x, double y);
@@ -54,7 +53,7 @@ static NODE *node_Boolean[2];
 #ifdef C
 #undef C
 #endif
-#define C(c) ((char)c)  
+#define C(c) ((char)c)
 /*
  * This table is used by the regexp routines to do case independent
  * matching. Basically, every ascii character maps to itself, except
@@ -243,7 +242,6 @@ static const char *const nodetypes[] = {
 	"Node_param_list",
 	"Node_func",
 	"Node_ext_func",
-	"Node_old_ext_func",
 	"Node_builtin_func",
 	"Node_array_ref",
 	"Node_array_tree",
@@ -289,6 +287,7 @@ static struct optypetab {
 	{ "Op_postincrement", "++" },
 	{ "Op_postdecrement", "--" },
 	{ "Op_unary_minus", "-" },
+	{ "Op_unary_plus", "+" },
 	{ "Op_field_spec", "$" },
 	{ "Op_not", "! " },
 	{ "Op_assign", " = " },
@@ -315,7 +314,7 @@ static struct optypetab {
 	{ "Op_match", " ~ " },
 	{ "Op_match_rec", NULL },
 	{ "Op_nomatch", " !~ " },
-	{ "Op_rule", NULL }, 
+	{ "Op_rule", NULL },
 	{ "Op_K_case", "case" },
 	{ "Op_K_default", "default" },
 	{ "Op_K_break", "break" },
@@ -334,12 +333,12 @@ static struct optypetab {
 	{ "Op_builtin", NULL },
 	{ "Op_sub_builtin", NULL },
 	{ "Op_ext_builtin", NULL },
-	{ "Op_old_ext_builtin", NULL },	/* temporary */
 	{ "Op_in_array", " in " },
 	{ "Op_func_call", NULL },
 	{ "Op_indirect_func_call", NULL },
 	{ "Op_push", NULL },
 	{ "Op_push_arg", NULL },
+	{ "Op_push_arg_untyped", NULL },
 	{ "Op_push_i", NULL },
 	{ "Op_push_re", NULL },
 	{ "Op_push_array", NULL },
@@ -364,6 +363,7 @@ static struct optypetab {
 	{ "Op_after_beginfile", NULL },
 	{ "Op_after_endfile", NULL },
 	{ "Op_func", NULL },
+	{ "Op_comment", NULL },
 	{ "Op_exec_count", NULL },
 	{ "Op_breakpoint", NULL },
 	{ "Op_lint", NULL },
@@ -381,6 +381,7 @@ static struct optypetab {
 	{ "Op_K_else", "else" },
 	{ "Op_K_function", "function" },
 	{ "Op_cond_exp", NULL },
+	{ "Op_parens", NULL },
 	{ "Op_final --- this should never appear", NULL },
 	{ NULL, NULL },
 };
@@ -436,18 +437,20 @@ flags2str(int flagval)
 		{ STRCUR, "STRCUR" },
 		{ NUMCUR, "NUMCUR" },
 		{ NUMBER, "NUMBER" },
-		{ MAYBE_NUM, "MAYBE_NUM" },
-		{ FIELD, "FIELD" },
+		{ USER_INPUT, "USER_INPUT" },
 		{ INTLSTR, "INTLSTR" },
 		{ NUMINT, "NUMINT" },
 		{ INTIND, "INTIND" },
 		{ WSTRCUR, "WSTRCUR" },
 		{ MPFN,	"MPFN" },
 		{ MPZN,	"MPZN" },
+		{ NO_EXT_SET, "NO_EXT_SET" },
 		{ NULL_FIELD, "NULL_FIELD" },
 		{ ARRAYMAXED, "ARRAYMAXED" },
 		{ HALFHAT, "HALFHAT" },
 		{ XARRAY, "XARRAY" },
+		{ NUMCONSTSTR, "NUMCONSTSTR" },
+		{ REGEX, "REGEX" },
 		{ 0,	NULL },
 	};
 
@@ -575,7 +578,7 @@ posix_compare(NODE *s1, NODE *s2)
 /* cmp_nodes --- compare two nodes, returning negative, 0, positive */
 
 int
-cmp_nodes(NODE *t1, NODE *t2)
+cmp_nodes(NODE *t1, NODE *t2, bool use_strcmp)
 {
 	int ret = 0;
 	size_t len1, len2;
@@ -584,14 +587,8 @@ cmp_nodes(NODE *t1, NODE *t2)
 	if (t1 == t2)
 		return 0;
 
-	if ((t1->flags & MAYBE_NUM) != 0)
-		(void) force_number(t1);
-	if ((t2->flags & MAYBE_NUM) != 0)
-		(void) force_number(t2);
-	if ((t1->flags & INTIND) != 0)
-		t1 = force_string(t1);
-	if ((t2->flags & INTIND) != 0)
-		t2 = force_string(t2);
+	(void) fixtype(t1);
+	(void) fixtype(t2);
 
 	if ((t1->flags & NUMBER) != 0 && (t2->flags & NUMBER) != 0)
 		return cmp_numbers(t1, t2);
@@ -604,17 +601,23 @@ cmp_nodes(NODE *t1, NODE *t2)
 	if (len1 == 0 || len2 == 0)
 		return ldiff;
 
-	if (do_posix)
+	if (do_posix && ! use_strcmp)
 		return posix_compare(t1, t2);
 
 	l = (ldiff <= 0 ? len1 : len2);
 	if (IGNORECASE) {
 		const unsigned char *cp1 = (const unsigned char *) t1->stptr;
 		const unsigned char *cp2 = (const unsigned char *) t2->stptr;
+		char save1 = t1->stptr[t1->stlen];
+		char save2 = t2->stptr[t2->stlen];
+
 
 		if (gawk_mb_cur_max > 1) {
+			t1->stptr[t1->stlen] = t2->stptr[t2->stlen] = '\0';
 			ret = strncasecmpmbs((const unsigned char *) cp1,
 					     (const unsigned char *) cp2, l);
+			t1->stptr[t1->stlen] = save1;
+			t2->stptr[t2->stlen] = save2;
 		} else {
 			/* Could use tolower() here; see discussion above. */
 			for (ret = 0; l-- > 0 && ret == 0; cp1++, cp2++)
@@ -646,7 +649,7 @@ push_frame(NODE *f)
 	}
 
 	if (fcall_count > 1)
-		memmove(fcall_list + 2, fcall_list + 1, (fcall_count - 1) * sizeof(NODE *)); 
+		memmove(fcall_list + 2, fcall_list + 1, (fcall_count - 1) * sizeof(NODE *));
 	fcall_list[1] = f;
 }
 
@@ -657,7 +660,7 @@ static void
 pop_frame()
 {
 	if (fcall_count > 1)
-		memmove(fcall_list + 1, fcall_list + 2, (fcall_count - 1) * sizeof(NODE *)); 
+		memmove(fcall_list + 1, fcall_list + 2, (fcall_count - 1) * sizeof(NODE *));
 	fcall_count--;
 	assert(fcall_count >= 0);
 	if (do_debug)
@@ -700,7 +703,6 @@ void
 set_IGNORECASE()
 {
 	static bool warned = false;
-	NODE *n = IGNORECASE_node->var_value;
 
 	if ((do_lint || do_traditional) && ! warned) {
 		warned = true;
@@ -709,19 +711,8 @@ set_IGNORECASE()
 	load_casetable();
 	if (do_traditional)
 		IGNORECASE = false;
-	else if ((n->flags & (NUMCUR|NUMBER)) != 0)
-		IGNORECASE = ! iszero(n);
-	else if ((n->flags & (STRING|STRCUR)) != 0) {
-		if ((n->flags & MAYBE_NUM) == 0) {
-			(void) force_string(n);
-			IGNORECASE = (n->stlen > 0);
-		} else {
-			(void) force_number(n);
-			IGNORECASE = ! iszero(n);
-		}
-	} else
-		IGNORECASE = false;		/* shouldn't happen */
-                 
+   	else
+		IGNORECASE = boolval(IGNORECASE_node->var_value);
 	set_RS();	/* set_RS() calls set_FS() if need be, for us */
 }
 
@@ -732,7 +723,7 @@ set_BINMODE()
 {
 	static bool warned = false;
 	char *p;
-	NODE *v = BINMODE_node->var_value;
+	NODE *v = fixtype(BINMODE_node->var_value);
 
 	if ((do_lint || do_traditional) && ! warned) {
 		warned = true;
@@ -741,7 +732,6 @@ set_BINMODE()
 	if (do_traditional)
 		BINMODE = TEXT_TRANSLATE;
 	else if ((v->flags & NUMBER) != 0) {
-		(void) force_number(v);
 		BINMODE = get_number_si(v);
 		/* Make sure the value is rational. */
 		if (BINMODE < TEXT_TRANSLATE)
@@ -829,9 +819,9 @@ set_OFS()
 	new_ofs_len = OFS_node->var_value->stlen;
 
 	if (OFS == NULL)
-		emalloc(OFS, char *, new_ofs_len + 2, "set_OFS");
+		emalloc(OFS, char *, new_ofs_len + 1, "set_OFS");
 	else if (OFSlen < new_ofs_len)
-		erealloc(OFS, char *, new_ofs_len + 2, "set_OFS");
+		erealloc(OFS, char *, new_ofs_len + 1, "set_OFS");
 
 	memcpy(OFS, OFS_node->var_value->stptr, OFS_node->var_value->stlen);
 	OFSlen = new_ofs_len;
@@ -846,7 +836,6 @@ set_ORS()
 	ORS_node->var_value = force_string(ORS_node->var_value);
 	ORS = ORS_node->var_value->stptr;
 	ORSlen = ORS_node->var_value->stlen;
-	ORS[ORSlen] = '\0';
 }
 
 /* fmt_ok --- is the conversion format a valid one? */
@@ -871,6 +860,8 @@ fmt_ok(NODE *n)
 #else
 	static const char flags[] = " +-#";
 #endif
+
+	// We rely on the caller to zero-terminate n->stptr.
 
 	if (*p++ != '%')
 		return 0;
@@ -899,22 +890,29 @@ fmt_index(NODE *n)
 	int ix = 0;
 	static int fmt_num = 4;
 	static int fmt_hiwater = 0;
+	char save;
 
 	if (fmt_list == NULL)
 		emalloc(fmt_list, NODE **, fmt_num*sizeof(*fmt_list), "fmt_index");
 	n = force_string(n);
+
+	save = n->stptr[n->stlen];
+	n->stptr[n->stlen] = '\0';
+
 	while (ix < fmt_hiwater) {
-		if (cmp_nodes(fmt_list[ix], n) == 0)
+		if (cmp_nodes(fmt_list[ix], n, true) == 0)
 			return ix;
 		ix++;
 	}
+
 	/* not found */
-	n->stptr[n->stlen] = '\0';
 	if (do_lint && ! fmt_ok(n))
 		lintwarn(_("bad `%sFMT' specification `%s'"),
 			    n == CONVFMT_node->var_value ? "CONV"
 			  : n == OFMT_node->var_value ? "O"
 			  : "", n->stptr);
+
+	n->stptr[n->stlen] = save;
 
 	if (fmt_hiwater >= fmt_num) {
 		fmt_num *= 2;
@@ -949,36 +947,28 @@ set_LINT()
 {
 #ifndef NO_LINT
 	int old_lint = do_lint;
-	NODE *n = LINT_node->var_value;
+	NODE *n = fixtype(LINT_node->var_value);
 
 	/* start with clean defaults */
 	lintfunc = r_warning;
 	do_flags &= ~(DO_LINT_ALL|DO_LINT_INVALID);
 
-	if ((n->flags & (STRING|STRCUR)) != 0) {
-		if ((n->flags & MAYBE_NUM) == 0) {
-			const char *lintval;
-			size_t lintlen;
+	if ((n->flags & STRING) != 0) {
+		const char *lintval;
+		size_t lintlen;
 
-			n = force_string(LINT_node->var_value);
-			lintval = n->stptr;
-			lintlen = n->stlen;
-			if (lintlen > 0) {
-				if (lintlen == 7 && strncmp(lintval, "invalid", 7) == 0)
-					do_flags |= DO_LINT_INVALID;
-				else {
-					do_flags |= DO_LINT_ALL;
-					if (lintlen == 5 && strncmp(lintval, "fatal", 5) == 0)
-						lintfunc = r_fatal;
-				}
-			}
-		} else {
-			(void) force_number(n);
-			if (! iszero(n))
+		lintval = n->stptr;
+		lintlen = n->stlen;
+		if (lintlen > 0) {
+			if (lintlen == 7 && strncmp(lintval, "invalid", 7) == 0)
+				do_flags |= DO_LINT_INVALID;
+			else {
 				do_flags |= DO_LINT_ALL;
+				if (lintlen == 5 && strncmp(lintval, "fatal", 5) == 0)
+					lintfunc = r_fatal;
+			}
 		}
-	} else if ((n->flags & (NUMCUR|NUMBER)) != 0) {
-		(void) force_number(n);
+	} else {
 		if (! iszero(n))
 			do_flags |= DO_LINT_ALL;
 	}
@@ -997,13 +987,10 @@ set_LINT()
 void
 set_TEXTDOMAIN()
 {
-	int len;
 	NODE *tmp;
 
 	tmp = TEXTDOMAIN_node->var_value = force_string(TEXTDOMAIN_node->var_value);
 	TEXTDOMAIN = tmp->stptr;
-	len = tmp->stlen;
-	TEXTDOMAIN[len] = '\0';
 	/*
 	 * Note: don't call textdomain(); this value is for
 	 * the awk program, not for gawk itself.
@@ -1017,6 +1004,7 @@ update_ERRNO_int(int errcode)
 {
 	char *cp;
 
+	update_PROCINFO_num("errno", errcode);
 	if (errcode) {
 		cp = strerror(errcode);
 		cp = gettext(cp);
@@ -1031,6 +1019,7 @@ update_ERRNO_int(int errcode)
 void
 update_ERRNO_string(const char *string)
 {
+	update_PROCINFO_num("errno", 0);
 	unref(ERRNO_node->var_value);
 	ERRNO_node->var_value = make_string(string, strlen(string));
 }
@@ -1040,6 +1029,7 @@ update_ERRNO_string(const char *string)
 void
 unset_ERRNO(void)
 {
+	update_PROCINFO_num("errno", 0);
 	unref(ERRNO_node->var_value);
 	ERRNO_node->var_value = dupnode(Nnull_string);
 }
@@ -1099,7 +1089,7 @@ STACK_ITEM *stack_bottom;
 STACK_ITEM *stack_top;
 static unsigned long STACK_SIZE = 256;    /* initial size of stack */
 int max_args = 0;       /* maximum # of arguments to printf, print, sprintf,
-                         * or # of array subscripts, or adjacent strings     
+                         * or # of array subscripts, or adjacent strings
                          * to be concatenated.
                          */
 NODE **args_array = NULL;
@@ -1171,7 +1161,7 @@ r_get_lhs(NODE *n, bool reference)
 
 
 /* r_get_field --- get the address of a field node */
- 
+
 NODE **
 r_get_field(NODE *n, Func_ptr *assign, bool reference)
 {
@@ -1181,7 +1171,7 @@ r_get_field(NODE *n, Func_ptr *assign, bool reference)
 	if (assign)
 		*assign = NULL;
 	if (do_lint) {
-		if ((n->flags & NUMBER) == 0) {
+		if ((fixtype(n)->flags & NUMBER) == 0) {
 			lintwarn(_("attempt to field reference from non-numeric value"));
 			if (n->stlen == 0)
 				lintwarn(_("attempt to field reference from null string"));
@@ -1243,7 +1233,7 @@ calc_exp(AWKNUM x1, AWKNUM x2)
 }
 
 
-/* setup_frame --- setup new frame for function call */ 
+/* setup_frame --- setup new frame for function call */
 
 static INSTRUCTION *
 setup_frame(INSTRUCTION *pc)
@@ -1280,12 +1270,11 @@ setup_frame(INSTRUCTION *pc)
 		sp = frame_ptr->stack;
 
 	} else if (pcount > 0) {
-		emalloc(sp, NODE **, pcount * sizeof(NODE *), "setup_frame");
-		memset(sp, 0, pcount * sizeof(NODE *));
+		ezalloc(sp, NODE **, pcount * sizeof(NODE *), "setup_frame");
 	}
 
 
-	/* check for extra args */ 
+	/* check for extra args */
 	if (arg_count > pcount) {
 		warning(
 			_("function `%s' called with more arguments than declared"),
@@ -1379,7 +1368,7 @@ setup_frame(INSTRUCTION *pc)
 
 	/* setup new frame */
 	getnode(frame_ptr);
-	frame_ptr->type = Node_frame;	
+	frame_ptr->type = Node_frame;
 	frame_ptr->stack = sp;
 	frame_ptr->prev_frame_size = (stack_ptr - stack_bottom); /* size of the previous stack frame */
 	frame_ptr->func_node = f;
@@ -1497,7 +1486,7 @@ unwind_stack(long n)
 			if (in_main_context() && ! exiting)
 				fatal(_("unwind_stack: unexpected type `%s'"),
 						nodetype2str(r->type));
-			/* else 
+			/* else
 				* Node_var_array,
 				* Node_param_list,
 				* Node_var (e.g: trying to use scalar for array)
@@ -1511,7 +1500,7 @@ unwind_stack(long n)
 			break;
 	}
 	return cp;
-} 
+}
 
 
 /* pop_fcall --- pop off the innermost frame */
@@ -1521,7 +1510,7 @@ unwind_stack(long n)
 #define pop_stack()	(void) unwind_stack(0)
 
 
-static inline int
+static inline bool
 eval_condition(NODE *t)
 {
 	if (t == node_Boolean[false])
@@ -1530,21 +1519,18 @@ eval_condition(NODE *t)
 	if (t == node_Boolean[true])
 		return true;
 
-	if ((t->flags & MAYBE_NUM) != 0)
-		force_number(t);
-	else if ((t->flags & INTIND) != 0)
-		force_string(t);
-
-	if ((t->flags & NUMBER) != 0)
-		return ! iszero(t);
-
-	return (t->stlen != 0);
+	return boolval(t);
 }
+
+typedef enum {
+	SCALAR_EQ_NEQ,
+	SCALAR_RELATIONAL
+} scalar_cmp_t;
 
 /* cmp_scalars -- compare two nodes on the stack */
 
 static inline int
-cmp_scalars()
+cmp_scalars(scalar_cmp_t comparison_type)
 {
 	NODE *t1, *t2;
 	int di;
@@ -1555,14 +1541,14 @@ cmp_scalars()
 		DEREF(t2);
 		fatal(_("attempt to use array `%s' in a scalar context"), array_vname(t1));
 	}
-	di = cmp_nodes(t1, t2);
+	di = cmp_nodes(t1, t2, comparison_type == SCALAR_EQ_NEQ);
 	DEREF(t1);
 	DEREF(t2);
 	return di;
 }
 
 /* op_assign --- assignment operators excluding = */
- 
+
 static void
 op_assign(OPCODE op)
 {
@@ -1664,9 +1650,9 @@ POP_CODE()
 typedef struct exec_state {
 	struct exec_state *next;
 
-	INSTRUCTION *cptr;  /* either getline (Op_K_getline) or the 
+	INSTRUCTION *cptr;  /* either getline (Op_K_getline) or the
 	                     * implicit "open-file, read-record" loop (Op_newfile).
-	                     */ 
+	                     */
 
 	int rule;           /* rule for the INSTRUCTION */
 
@@ -1732,7 +1718,7 @@ register_exec_hook(Func_pre_exec preh, Func_post_exec posth)
 	/*
 	 * multiple post-exec hooks aren't supported. post-exec hook is mainly
 	 * for use by the debugger.
-	 */ 
+	 */
 
 	if (! preh || (post_execute && posth))
 		return false;
@@ -1760,7 +1746,7 @@ register_exec_hook(Func_pre_exec preh, Func_post_exec posth)
 }
 
 
-/* interpreter routine when not debugging */ 
+/* interpreter routine when not debugging */
 #include "interpret.h"
 
 /* interpreter routine with exec hook(s). Used when debugging and/or with MPFR. */
@@ -1808,6 +1794,6 @@ init_interpret()
 	if (num_exec_hook > 0)
 		interpret = h_interpret;
 	else
-		interpret = r_interpret; 
+		interpret = r_interpret;
 }
 

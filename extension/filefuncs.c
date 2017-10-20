@@ -10,22 +10,22 @@
  */
 
 /*
- * Copyright (C) 2001, 2004, 2005, 2010-2016
+ * Copyright (C) 2001, 2004, 2005, 2010-2017
  * the Free Software Foundation, Inc.
- * 
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
- * 
+ *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 3 of the License, or
  * (at your option) any later version.
- * 
+ *
  * GAWK is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
  * GNU General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA
@@ -73,7 +73,6 @@
 #include <unistd.h>
 
 #include <sys/types.h>
-#include <sys/stat.h>
 
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
@@ -84,6 +83,8 @@
 #elif defined(MAJOR_IN_SYSMACROS)
 #include <sys/sysmacros.h>
 #endif
+
+#include <sys/stat.h>
 
 #if defined(HAVE_SYS_STATVFS_H) && defined(HAVE_STATVFS)
 #include <sys/statvfs.h>
@@ -153,15 +154,12 @@ int plugin_is_GPL_compatible;
 /*  do_chdir --- provide dynamically loaded chdir() function for gawk */
 
 static awk_value_t *
-do_chdir(int nargs, awk_value_t *result)
+do_chdir(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t newdir;
 	int ret = -1;
 
 	assert(result != NULL);
-
-	if (do_lint && nargs != 1)
-		lintwarn(ext_id, _("chdir: called with incorrect number of arguments, expecting 1"));
 
 	if (get_argument(0, AWK_STRING, & newdir)) {
 		ret = chdir(newdir.str_value.str);
@@ -461,7 +459,7 @@ fill_stat_array(const char *name, awk_array_t array, struct stat *sbuf)
 /* do_stat --- provide a stat() function for gawk */
 
 static awk_value_t *
-do_stat(int nargs, awk_value_t *result)
+do_stat(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t file_param, array_param;
 	char *name;
@@ -472,19 +470,13 @@ do_stat(int nargs, awk_value_t *result)
 
 	assert(result != NULL);
 
-	if (nargs != 2 && nargs != 3) {
-		if (do_lint)
-			lintwarn(ext_id, _("stat: called with wrong number of arguments"));
-		return make_number(-1, result);
-	}
-
 	/* file is first arg, array to hold results is second */
 	if (   ! get_argument(0, AWK_STRING, & file_param)
 	    || ! get_argument(1, AWK_ARRAY, & array_param)) {
 		warning(ext_id, _("stat: bad parameters"));
 		return make_number(-1, result);
 	}
-	
+
 	if (nargs == 3) {
 		statfunc = stat;
 	}
@@ -512,7 +504,7 @@ do_stat(int nargs, awk_value_t *result)
 /* do_statvfs --- provide a statvfs() function for gawk */
 
 static awk_value_t *
-do_statvfs(int nargs, awk_value_t *result)
+do_statvfs(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t file_param, array_param;
 	char *name;
@@ -521,12 +513,6 @@ do_statvfs(int nargs, awk_value_t *result)
 	struct statvfs vfsbuf;
 
 	assert(result != NULL);
-
-	if (nargs != 2) {
-		if (do_lint)
-			lintwarn(ext_id, _("statvfs: called with wrong number of arguments"));
-		return make_number(-1, result);
-	}
 
 	/* file is first arg, array to hold results is second */
 	if (   ! get_argument(0, AWK_STRING, & file_param)
@@ -561,7 +547,7 @@ do_statvfs(int nargs, awk_value_t *result)
 #endif
 	array_set_numeric(array, "flag", vfsbuf.f_flag);	/* mount flags */
 	array_set_numeric(array, "namemax", vfsbuf.f_namemax);	/* maximum filename length */
-	
+
 
 	return make_number(ret, result);
 }
@@ -614,7 +600,7 @@ init_filefuncs(void)
  */
 
 static awk_value_t *
-do_fts(int nargs, awk_value_t *result)
+do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	fatal(ext_id, _("fts is not supported on this system"));
 
@@ -829,7 +815,7 @@ process(FTS *heirarchy, awk_array_t destarray, int seedot)
  */
 
 static awk_value_t *
-do_fts(int nargs, awk_value_t *result)
+do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t pathlist, flagval, dest;
 	awk_flat_array_t *path_array = NULL;
@@ -845,7 +831,7 @@ do_fts(int nargs, awk_value_t *result)
 	assert(result != NULL);
 	fts_errors = 0;		/* ensure a fresh start */
 
-	if (do_lint && nargs != 3)
+	if (nargs > 3)
 		lintwarn(ext_id, _("fts: called with incorrect number of arguments, expecting 3"));
 
 	if (! get_argument(0, AWK_ARRAY, & pathlist)) {
@@ -892,8 +878,7 @@ do_fts(int nargs, awk_value_t *result)
 
 	/* make pathvector */
 	count = path_array->count + 1;
-	emalloc(pathvector, char **, count * sizeof(char *), "do_fts");
-	memset(pathvector, 0, count * sizeof(char *));
+	ezalloc(pathvector, char **, count * sizeof(char *), "do_fts");
 
 	/* fill it in */
 	count--;	/* ignore final NULL at end of vector */
@@ -928,13 +913,13 @@ out:
 #endif	/* ! __MINGW32__ */
 
 static awk_ext_func_t func_table[] = {
-	{ "chdir",	do_chdir, 1 },
-	{ "stat",	do_stat, 2 },
+	{ "chdir",	do_chdir, 1, 1, awk_false, NULL },
+	{ "stat",	do_stat, 3, 2, awk_false, NULL },
 #ifndef __MINGW32__
-	{ "fts",	do_fts, 3 },
+	{ "fts",	do_fts, 3, 3, awk_false, NULL },
 #endif
 #if defined(HAVE_SYS_STATVFS_H) && defined(HAVE_STATVFS)
-	{ "statvfs",	do_statvfs, 2 },
+	{ "statvfs",	do_statvfs, 2, 2, awk_false, NULL },
 #endif
 };
 

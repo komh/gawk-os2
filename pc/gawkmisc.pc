@@ -1,6 +1,4 @@
-/*
- * gawkmisc.c --- miscellaneous gawk routines that are OS specific.
- */
+/* gawkmisc.c --- miscellaneous gawk routines that are OS specific. -*-C-*- */
 
 /* 
  * Copyright (C) 1986, 1988, 1989, 1991 - 2003, 2012, 2016
@@ -301,6 +299,7 @@ os_is_setuid()
 
 #ifdef __DJGPP__
 #include <sys/exceptn.h>
+#include <io.h>
 #endif
 static int orig_tty_mode = -1;
 
@@ -621,6 +620,64 @@ wctob (wint_t wc)
   return EOF;
 }
 
+
+#undef setlocale
+#include <locale.h>
+
+/* On Posix systems, 'setlocale' looks at LC_* variables in the
+   environment, and Gawk users might expect that on Windows as well.
+   The replacement implementation below does that, and also fixes a
+   few additional quirks with locales on Windows.  */
+static const char *
+lc_var (int category)
+{
+  static const char *loc_name[LC_MAX - LC_MIN + 1] = {
+    "LC_ALL", "LC_COLLATE", "LC_CTYPE", "LC_MONETARY", "LC_NUMERIC", "LC_TIME"
+  };
+
+  /* This function assumes LC_* categories are small numbers between 0
+     and 5, as shown above, so if that changes at some point, complain
+     vociferously.  */
+  if (LC_ALL != 0 || LC_CTYPE != 2 || LC_TIME != 5)
+    abort ();
+  /* Ensured by the caller, so should never happen.  */
+  if (category < LC_MIN || category > LC_MAX)
+    return "????";
+  return loc_name[category];
+}
+
+char *
+w32_setlocale (int category, const char *value)
+{
+  const char *new_locale = value;
+
+  if (LC_MIN <= category && category <= LC_MAX
+      && value && *value == '\0')
+    {
+      const char *lc_val = getenv ("LC_ALL");
+
+      if (!lc_val)
+	lc_val = getenv (lc_var (category));
+      if (!lc_val)
+	lc_val = getenv ("LANG");
+      if (lc_val)
+	new_locale = lc_val;
+    }
+
+  /* If VALUE includes a codeset, i.e. a Windows codepage number, we
+     must also set the LC_CTYPE locale to the same value, because
+     LC_CTYPE is the only category which is documented to be able to
+     change the codepage.  */
+  if (category != LC_ALL && category != LC_CTYPE)
+    {
+      const char *p = strchr (new_locale, '.');
+
+      if (p && isdigit (p[1]))
+	setlocale (LC_CTYPE, new_locale);
+    }
+  return setlocale (category, new_locale);
+}
+
 /*
  * On MS-Windows with MinGW, execvp causes the shell and the re-exec'ed
  * dgawk to compete for the keyboard input.
@@ -897,6 +954,28 @@ w32_status_to_termsig (unsigned status)
   return SIGTERM;
 }
 
+void
+w32_maybe_set_errno (void)
+{
+  DWORD w32err = GetLastError ();
+
+  switch (w32err)
+    {
+      /* When stdout is redirected to a pipe, and the program that
+	 reads the pipe (e.g., a pager) exits, Windows doesn't set
+	 errno to a useful value.  Help it DTRT.  */
+      case ERROR_BAD_PIPE:
+      case ERROR_PIPE_BUSY:
+      case ERROR_NO_DATA:
+      case ERROR_PIPE_NOT_CONNECTED:
+	errno = EPIPE;
+	break;
+      default:
+	errno = EINVAL;
+	break;
+    }
+}
+
 #endif	/* __MINGW32__ */
 
 #if defined(__DJGPP__) || defined(__MINGW32__) || defined(__EMX__)
@@ -918,6 +997,7 @@ init_sockets(void)
 
 #ifdef __DJGPP__
 
+# if __DJGPP__ == 2 && __DJGPP_MINOR__ < 4 
 int
 unsetenv (const char *name)
 {
@@ -926,6 +1006,7 @@ unsetenv (const char *name)
 
   return putenv (name);
 }
+#endif
 
 /* This is needed to defeat too-clever GCC warnings in dfa.c about
    comparison being always false due to limited range of data type.  */
@@ -933,6 +1014,13 @@ wint_t
 btowc (int c)
 {
   return c;
+}
+
+wint_t
+putwc(wchar_t wc, FILE *stream)
+{
+  return MB_CUR_MAX == 1 && wc > 0 && wc <= UCHAR_MAX
+         && putc((unsigned char)wc, stream) != EOF ? (wint_t)wc : WEOF;
 }
 
 #endif /* __DJGPP__ */
