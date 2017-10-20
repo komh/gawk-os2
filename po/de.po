@@ -8,7 +8,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gawk 4.1.64\n"
 "Report-Msgid-Bugs-To: bug-gawk@gnu.org\n"
-"POT-Creation-Date: 2017-10-19 21:28+0300\n"
+"POT-Creation-Date: 2017-10-20 22:05+0900\n"
 "PO-Revision-Date: 2017-09-18 09:08+0200\n"
 "Last-Translator: Philipp Thomas <pth@suse.de>\n"
 "Language-Team: German <translation-team-de@lists.sourceforge.net>\n"
@@ -2932,67 +2932,67 @@ msgstr ""
 "getline: es wird versucht, vom geschlossenen lesenden Ende einer "
 "bidirektionalen Pipe zu lesen"
 
-#: io.c:3013
+#: io.c:3019
 msgid "register_input_parser: received NULL pointer"
 msgstr "register_input_parser: NULL-Zeiger erhalten"
 
-#: io.c:3041
+#: io.c:3047
 #, c-format
 msgid "input parser `%s' conflicts with previously installed input parser `%s'"
 msgstr ""
 "Eingabeparser „%s“ steht im Konflikt mit dem vorher installierten "
 "Eingabeparser „%s“"
 
-#: io.c:3048
+#: io.c:3054
 #, c-format
 msgid "input parser `%s' failed to open `%s'"
 msgstr "Eingabeparser „%s“ konnte „%s“ nicht öffnen"
 
-#: io.c:3068
+#: io.c:3074
 msgid "register_output_wrapper: received NULL pointer"
 msgstr "register_output_wrapper: NULL-Zeiger erhalten"
 
-#: io.c:3096
+#: io.c:3102
 #, c-format
 msgid ""
 "output wrapper `%s' conflicts with previously installed output wrapper `%s'"
 msgstr "Ausgabeverpackung „%s“ steht im Konflikt mit Ausgabeverpackung „%s“"
 
-#: io.c:3103
+#: io.c:3109
 #, c-format
 msgid "output wrapper `%s' failed to open `%s'"
 msgstr "Ausgabeverpackung „%s“ konnte „%s“ nicht öffnen"
 
-#: io.c:3124
+#: io.c:3130
 msgid "register_output_processor: received NULL pointer"
 msgstr "register_output_processor: NULL-Zeiger erhalten"
 
-#: io.c:3153
+#: io.c:3159
 #, c-format
 msgid ""
 "two-way processor `%s' conflicts with previously installed two-way processor "
 "`%s'"
 msgstr "Zweiwegeprozessor „%s“ steht im Konflikt mit Zweiwegeprozessor „%s“"
 
-#: io.c:3162
+#: io.c:3168
 #, c-format
 msgid "two way processor `%s' failed to open `%s'"
 msgstr "Zweiwegeprozessor „%s“ konnte „%s“ nicht öffnen"
 
-#: io.c:3286
+#: io.c:3292
 #, c-format
 msgid "data file `%s' is empty"
 msgstr "Die Datei „%s“ ist leer"
 
-#: io.c:3328 io.c:3336
+#: io.c:3334 io.c:3342
 msgid "could not allocate more input memory"
 msgstr "Es konnte kein weiterer Speicher für die Eingabe beschafft werden"
 
-#: io.c:3954
+#: io.c:3960
 msgid "multicharacter value of `RS' is a gawk extension"
 msgstr "Multicharacter-Wert von »RS« ist eine gawk-Erweiterung"
 
-#: io.c:4108
+#: io.c:4114
 msgid "IPv6 communication is not supported"
 msgstr "IPv6-Verbindungen werden nicht unterstützt"
 

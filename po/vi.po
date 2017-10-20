@@ -9,7 +9,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gawk 4.1.64\n"
 "Report-Msgid-Bugs-To: bug-gawk@gnu.org\n"
-"POT-Creation-Date: 2017-10-19 21:28+0300\n"
+"POT-Creation-Date: 2017-10-20 22:05+0900\n"
 "PO-Revision-Date: 2017-09-16 08:30+0700\n"
 "Last-Translator: Trần Ngọc Quân <vnwildman@gmail.com>\n"
 "Language-Team: Vietnamese <translation-team-vi@lists.sourceforge.net>\n"
@@ -2870,43 +2870,43 @@ msgstr "không thể tạo tiến trình con cho “%s” (fork: %s)"
 msgid "getline: attempt to read from closed read end of two-way pipe"
 msgstr "getline: cố ghi vào một đường ống hai chiều mà chiều ghi đã đóng"
 
-#: io.c:3013
+#: io.c:3019
 msgid "register_input_parser: received NULL pointer"
 msgstr "register_input_parser: nhận được con trỏ NULL"
 
-#: io.c:3041
+#: io.c:3047
 #, c-format
 msgid "input parser `%s' conflicts with previously installed input parser `%s'"
 msgstr ""
 "bộ phân tích đầu vào “%s” xung đột với bộ phân tích đầu vào được cài đặt "
 "trước đó “%s”"
 
-#: io.c:3048
+#: io.c:3054
 #, c-format
 msgid "input parser `%s' failed to open `%s'"
 msgstr "bộ phân tích đầu vào “%s” gặp lỗi khi mở “%s”"
 
-#: io.c:3068
+#: io.c:3074
 msgid "register_output_wrapper: received NULL pointer"
 msgstr "register_output_wrapper: nhận được con trỏ NULL"
 
-#: io.c:3096
+#: io.c:3102
 #, c-format
 msgid ""
 "output wrapper `%s' conflicts with previously installed output wrapper `%s'"
 msgstr ""
 "bộ bao kết xuất “%s” xung đột với bộ bao kết xuất được cài đặt trước đó “%s”"
 
-#: io.c:3103
+#: io.c:3109
 #, c-format
 msgid "output wrapper `%s' failed to open `%s'"
 msgstr "bộ bao kết xuất “%s” gặp lỗi khi mở “%s”"
 
-#: io.c:3124
+#: io.c:3130
 msgid "register_output_processor: received NULL pointer"
 msgstr "register_output_processor: nhận được con trỏ NULL"
 
-#: io.c:3153
+#: io.c:3159
 #, c-format
 msgid ""
 "two-way processor `%s' conflicts with previously installed two-way processor "
@@ -2915,25 +2915,25 @@ msgstr ""
 "bộ xử lý hai hướng “%s” xung đột với bộ xử lý hai hướng đã được cài đặt "
 "trước đó “%s”"
 
-#: io.c:3162
+#: io.c:3168
 #, c-format
 msgid "two way processor `%s' failed to open `%s'"
 msgstr "bộ xử lý hai hướng “%s” gặp lỗi khi mở “%s”"
 
-#: io.c:3286
+#: io.c:3292
 #, c-format
 msgid "data file `%s' is empty"
 msgstr "tập tin dữ liệu “%s” là rỗng"
 
-#: io.c:3328 io.c:3336
+#: io.c:3334 io.c:3342
 msgid "could not allocate more input memory"
 msgstr "không thể cấp phát bộ nhớ nhập thêm nữa"
 
-#: io.c:3954
+#: io.c:3960
 msgid "multicharacter value of `RS' is a gawk extension"
 msgstr "giá trị đa ký tự của “RS” là phần mở rộng gawk"
 
-#: io.c:4108
+#: io.c:4114
 msgid "IPv6 communication is not supported"
 msgstr "Truyền thông trên IPv6 không được hỗ trợ"
 

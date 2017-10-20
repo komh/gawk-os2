@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gawk 4.1.3h\n"
 "Report-Msgid-Bugs-To: bug-gawk@gnu.org\n"
-"POT-Creation-Date: 2017-10-19 21:28+0300\n"
+"POT-Creation-Date: 2017-10-20 22:05+0900\n"
 "PO-Revision-Date: 2016-12-18 19:51+0100\n"
 "Last-Translator: Walter Garcia-Fontes <walter.garcia@upf.edu>\n"
 "Language-Team: Catalan <ca@dodds.net>\n"
@@ -2909,27 +2909,27 @@ msgstr ""
 "getline: s'ha intentat llegir d'un final de lectura tancada d'una canonada "
 "de doble via"
 
-#: io.c:3013
+#: io.c:3019
 msgid "register_input_parser: received NULL pointer"
 msgstr "register_input_parser: s'ha rebut un punter nul"
 
-#: io.c:3041
+#: io.c:3047
 #, c-format
 msgid "input parser `%s' conflicts with previously installed input parser `%s'"
 msgstr ""
 "l'analitzador d'entrades `%s' està en conflicte amb analitzador d'entrades `"
 "%s' instal·lat prèviament"
 
-#: io.c:3048
+#: io.c:3054
 #, c-format
 msgid "input parser `%s' failed to open `%s'"
 msgstr "l'analitzador d'entrada `%s' no ha pogut obrir `%s'"
 
-#: io.c:3068
+#: io.c:3074
 msgid "register_output_wrapper: received NULL pointer"
 msgstr "register_output_wrapper: s'ha rebut un punter nul"
 
-#: io.c:3096
+#: io.c:3102
 #, c-format
 msgid ""
 "output wrapper `%s' conflicts with previously installed output wrapper `%s'"
@@ -2937,16 +2937,16 @@ msgstr ""
 "l'embolcall de sortida `%s' està en conflicte amb l'embolcall de sortida `"
 "%s' instal·lat prèviament"
 
-#: io.c:3103
+#: io.c:3109
 #, c-format
 msgid "output wrapper `%s' failed to open `%s'"
 msgstr "l'embolcall de sortida `%s' no ha pogut obrir `%s'"
 
-#: io.c:3124
+#: io.c:3130
 msgid "register_output_processor: received NULL pointer"
 msgstr "register_output_processor: s'ha rebut un punter nul"
 
-#: io.c:3153
+#: io.c:3159
 #, c-format
 msgid ""
 "two-way processor `%s' conflicts with previously installed two-way processor "
@@ -2955,25 +2955,25 @@ msgstr ""
 "el processsador de dues vies `%s' està en conflicte amb el processador de "
 "dues vies `%s' instal·lat prèviament"
 
-#: io.c:3162
+#: io.c:3168
 #, c-format
 msgid "two way processor `%s' failed to open `%s'"
 msgstr "el processador de dues vies `%s' no ha pogut obrir `%s'"
 
-#: io.c:3286
+#: io.c:3292
 #, c-format
 msgid "data file `%s' is empty"
 msgstr "el fitxer de dades `%s' està buit"
 
-#: io.c:3328 io.c:3336
+#: io.c:3334 io.c:3342
 msgid "could not allocate more input memory"
 msgstr "no s'ha pogut assignar més memòria d'entrada"
 
-#: io.c:3954
+#: io.c:3960
 msgid "multicharacter value of `RS' is a gawk extension"
 msgstr "el valor multicaràcter de `RS' és una extensió de gawk"
 
-#: io.c:4108
+#: io.c:4114
 msgid "IPv6 communication is not supported"
 msgstr "la comunicació IPv6 no està suportada"
 

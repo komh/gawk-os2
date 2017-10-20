@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: gawk 4.1.62\n"
 "Report-Msgid-Bugs-To: bug-gawk@gnu.org\n"
-"POT-Creation-Date: 2017-10-19 21:28+0300\n"
+"POT-Creation-Date: 2017-10-20 22:05+0900\n"
 "PO-Revision-Date: 2017-08-19 12:18+0300\n"
 "Last-Translator: Jorma Karvonen <karvonen.jorma@gmail.com>\n"
 "Language-Team: Finnish <translation-team-fi@lists.sourceforge.net>\n"
@@ -2877,27 +2877,27 @@ msgstr "lapsiprosessin luominen komennolle ”%s” (fork: %s) epäonnistui"
 msgid "getline: attempt to read from closed read end of two-way pipe"
 msgstr "getline: yritys lukea kaksisuuntaisen putken suljetusta lukupäästä"
 
-#: io.c:3013
+#: io.c:3019
 msgid "register_input_parser: received NULL pointer"
 msgstr "register_input_parser: vastaanotettiin NULL-osoitin"
 
-#: io.c:3041
+#: io.c:3047
 #, c-format
 msgid "input parser `%s' conflicts with previously installed input parser `%s'"
 msgstr ""
 "syötejäsennin ”%s” on ristiriidassa aiemmin asennetun syötejäsentimen ”%s” "
 "kanssa"
 
-#: io.c:3048
+#: io.c:3054
 #, c-format
 msgid "input parser `%s' failed to open `%s'"
 msgstr "syötejäsentäjä ”%s” epäonnistui kohteen ”%s” avaamisessa"
 
-#: io.c:3068
+#: io.c:3074
 msgid "register_output_wrapper: received NULL pointer"
 msgstr "register_output_wrapper: vastaanotti NULL-osoittimen"
 
-#: io.c:3096
+#: io.c:3102
 #, c-format
 msgid ""
 "output wrapper `%s' conflicts with previously installed output wrapper `%s'"
@@ -2905,16 +2905,16 @@ msgstr ""
 "tulostekäärin ”%s” on ristiriidassa aiemmin asennetun tulostekäärimen ”%s” "
 "kanssa"
 
-#: io.c:3103
+#: io.c:3109
 #, c-format
 msgid "output wrapper `%s' failed to open `%s'"
 msgstr "tulostekäärin ”%s” epäonnistui avaamaan ”%s”"
 
-#: io.c:3124
+#: io.c:3130
 msgid "register_output_processor: received NULL pointer"
 msgstr "register_output_processor: vastaanotti NULL-osoittimen"
 
-#: io.c:3153
+#: io.c:3159
 #, c-format
 msgid ""
 "two-way processor `%s' conflicts with previously installed two-way processor "
@@ -2923,25 +2923,25 @@ msgstr ""
 "kaksisuuntainen prosessori ”%s” on ristiriidassa aiemmin asennetun "
 "kaksisuuntaisen prosessorin ”%s” kanssa"
 
-#: io.c:3162
+#: io.c:3168
 #, c-format
 msgid "two way processor `%s' failed to open `%s'"
 msgstr "kaksisuuntainen prosessori ”%s” epäonnistui avaamaan ”%s”"
 
-#: io.c:3286
+#: io.c:3292
 #, c-format
 msgid "data file `%s' is empty"
 msgstr "data-tiedosto ”%s” on tyhjä"
 
-#: io.c:3328 io.c:3336
+#: io.c:3334 io.c:3342
 msgid "could not allocate more input memory"
 msgstr "lisäsyötemuistin varaus epäonnistui"
 
-#: io.c:3954
+#: io.c:3960
 msgid "multicharacter value of `RS' is a gawk extension"
 msgstr "”RS”-monimerkkiarvo on gawk-laajennus"
 
-#: io.c:4108
+#: io.c:4114
 msgid "IPv6 communication is not supported"
 msgstr "IPv6-viestintää ei tueta"
 
