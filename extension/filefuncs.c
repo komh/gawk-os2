@@ -72,17 +72,17 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/types.h>
-
 #ifdef HAVE_SYS_PARAM_H
 #include <sys/param.h>
 #endif /* HAVE_SYS_PARAM_H */
 
-#ifdef MAJOR_IN_MKDEV
-#include <sys/mkdev.h>
-#elif defined(MAJOR_IN_SYSMACROS)
+#if HAVE_SYS_SYSMACROS_H
 #include <sys/sysmacros.h>
-#endif
+#elif HAVE_SYS_MKDEV_H
+#include <sys/mkdev.h>
+#endif /* HAVE_SYS_MKDEV_H */
+
+#include <sys/types.h>
 
 #include <sys/stat.h>
 
@@ -144,7 +144,7 @@ get_inode(const char *fname)
 #endif
 
 static const gawk_api_t *api;	/* for convenience macros to work */
-static awk_ext_id_t *ext_id;
+static awk_ext_id_t ext_id;
 static awk_bool_t init_filefuncs(void);
 static awk_bool_t (*init_func)(void) = init_filefuncs;
 static const char *ext_version = "filefuncs extension: version 1.0";
@@ -591,7 +591,7 @@ init_filefuncs(void)
 }
 
 #ifdef __MINGW32__
-/*  do_fts --- walk a heirarchy and fill in an array */
+/*  do_fts --- walk a hierarchy and fill in an array */
 
 /*
  * Usage from awk:
@@ -687,10 +687,10 @@ fill_default_elements(awk_array_t element_array, const FTSENT *const fentry, awk
 	}
 }
 
-/* process --- process the heirarchy */
+/* process --- process the hierarchy */
 
 static void
-process(FTS *heirarchy, awk_array_t destarray, int seedot)
+process(FTS *hierarchy, awk_array_t destarray, int seedot)
 {
 	FTSENT *fentry;
 	awk_value_t index, value;
@@ -699,7 +699,7 @@ process(FTS *heirarchy, awk_array_t destarray, int seedot)
 
 	/* path is full path,  pathlen is length thereof */
 	/* name is name in directory, namelen is length thereof */
-	while ((fentry = fts_read(heirarchy)) != NULL) {
+	while ((fentry = fts_read(hierarchy)) != NULL) {
 		bad_ret = awk_false;
 
 		switch (fentry->fts_info) {
@@ -806,7 +806,7 @@ process(FTS *heirarchy, awk_array_t destarray, int seedot)
 	}
 }
 
-/*  do_fts --- walk a heirarchy and fill in an array */
+/*  do_fts --- walk a hierarchy and fill in an array */
 
 /*
  * Usage from awk:
@@ -820,7 +820,7 @@ do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	awk_value_t pathlist, flagval, dest;
 	awk_flat_array_t *path_array = NULL;
 	char **pathvector = NULL;
-	FTS *heirarchy;
+	FTS *hierarchy;
 	int flags;
 	size_t i, count;
 	int ret = -1;
@@ -893,9 +893,9 @@ do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	}
 
 	/* let's do it! */
-	if ((heirarchy = fts_open(pathvector, flags, NULL)) != NULL) {
-		process(heirarchy, dest.array_cookie, (flags & FTS_SEEDOT) != 0);
-		fts_close(heirarchy);
+	if ((hierarchy = fts_open(pathvector, flags, NULL)) != NULL) {
+		process(hierarchy, dest.array_cookie, (flags & FTS_SEEDOT) != 0);
+		fts_close(hierarchy);
 
 		if (fts_errors == 0)
 			ret = 0;

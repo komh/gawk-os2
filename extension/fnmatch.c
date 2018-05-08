@@ -36,14 +36,15 @@
 #include <string.h>
 #include <unistd.h>
 
-#include <sys/types.h>
 #include <sys/stat.h>
 
-#ifdef MAJOR_IN_MKDEV
-#include <sys/mkdev.h>
-#elif defined(MAJOR_IN_SYSMACROS)
+#if HAVE_SYS_SYSMACROS_H
 #include <sys/sysmacros.h>
-#endif
+#elif HAVE_SYS_MKDEV_H
+#include <sys/mkdev.h>
+#endif /* HAVE_SYS_MKDEV_H */
+
+#include <sys/types.h>
 
 #include "gawkapi.h"
 
@@ -89,7 +90,7 @@
 #endif
 
 static const gawk_api_t *api;	/* for convenience macros to work */
-static awk_ext_id_t *ext_id;
+static awk_ext_id_t ext_id;
 static const char *ext_version = "fnmatch extension: version 1.0";
 
 static awk_bool_t init_fnmatch(void);

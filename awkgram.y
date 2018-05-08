@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -1589,7 +1589,8 @@ common_exp
 
 			// 1.5 ""   # can't fold this if program mucks with CONVFMT.
 			// See test #12 in test/posix.awk.
-			if ((n1->flags & (NUMBER|NUMINT)) != 0 || (n2->flags & (NUMBER|NUMINT)) != 0)
+			// Also can't fold if one or the other is translatable.
+			if ((n1->flags & (NUMBER|NUMINT|INTLSTR)) != 0 || (n2->flags & (NUMBER|NUMINT|INTLSTR)) != 0)
 				goto plain_concat;
 
 			n1 = force_string(n1);
@@ -1716,7 +1717,7 @@ non_post_simp_exp
 		} else {
 			if (do_optimize && $2->nexti == $2->lasti
 					&& $2->nexti->opcode == Op_push_i
-					&& ($2->nexti->memory->flags & (MPFN|MPZN)) == 0
+					&& ($2->nexti->memory->flags & (MPFN|MPZN|INTLSTR)) == 0
 			) {
 				NODE *n = $2->nexti->memory;
 				if ((n->flags & STRING) != 0) {
@@ -6350,6 +6351,9 @@ set_profile_text(NODE *n, const char *str, size_t len)
 		// Thanks and a tip of the hatlo to valgrind.
 		n->flags |= (NUMCONSTSTR|STRCUR);
 		n->stfmt = STFMT_UNUSED;
+#ifdef HAVE_MPFR
+		n->strndmode = MPFR_round_mode;
+#endif
 	}
 
 	return n;

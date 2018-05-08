@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -24,7 +24,7 @@
  */
 
 /* FIX THIS BEFORE EVERY RELEASE: */
-#define UPDATE_YEAR	2017
+#define UPDATE_YEAR	2018
 
 #include "awk.h"
 #include "getopt.h"
@@ -245,6 +245,17 @@ main(int argc, char **argv)
 
 	if ((cp = getenv("GAWK_LOCALE_DIR")) != NULL)
 		locale_dir = cp;
+
+#if defined(F_GETFL) && defined(O_APPEND)
+	// 1/2018: This is needed on modern BSD systems so that the
+	// inplace tests pass. I think it's a bug in those kernels
+	// but let's just work around it anyway.
+	int flags = fcntl(fileno(stderr), F_GETFL, NULL);
+	if (flags >= 0 && (flags & O_APPEND) == 0) {
+		flags |= O_APPEND;
+		(void) fcntl(fileno(stderr), F_SETFL, flags);
+	}
+#endif
 
 #if defined(LOCALEDEBUG)
 	initial_locale = locale;
@@ -616,7 +627,8 @@ usage(int exitval, FILE *fp)
 	fputs(_("\nTo report bugs, see node `Bugs' in `gawk.info'\n\
 which is section `Reporting Problems and Bugs' in the\n\
 printed version.  This same information may be found at\n\
-https://www.gnu.org/software/gawk/manual/html_node/Bugs.html.\n\n"), fp);
+https://www.gnu.org/software/gawk/manual/html_node/Bugs.html.\n\
+PLEASE do NOT try to report bugs by posting in comp.lang.awk.\n\n"), fp);
 
 	/* ditto */
 	fputs(_("gawk is a pattern scanning and processing language.\n\
@@ -1214,6 +1226,8 @@ catchsig(int sig)
 		set_loc(__FILE__, __LINE__);
 		msg(_("fatal error: internal error"));
 		/* fatal won't abort() if not compiled for debugging */
+		// GLIBC 2.27 doesn't necessarily flush on abort. Sigh.
+		fflush(NULL);
 		abort();
 	} else
 		cant_happen();
@@ -1228,6 +1242,7 @@ catchsegv(void *fault_address, int serious)
 {
 	set_loc(__FILE__, __LINE__);
 	msg(_("fatal error: internal error: segfault"));
+	fflush(NULL);
 	abort();
 	/*NOTREACHED*/
 	return 0;
@@ -1240,6 +1255,7 @@ catchstackoverflow(int emergency, stackoverflow_context_t scp)
 {
 	set_loc(__FILE__, __LINE__);
 	msg(_("fatal error: internal error: stack overflow"));
+	fflush(NULL);
 	abort();
 	/*NOTREACHED*/
 	return;
@@ -1442,7 +1458,7 @@ parse_args(int argc, char **argv)
 	/*
 	 * The + on the front tells GNU getopt not to rearrange argv.
 	 */
-	const char *optlist = "+F:f:v:W;bcCd::D::e:E:ghi:l:L:nNo::Op::MPrSstVYZ:";
+	const char *optlist = "+F:f:v:W;bcCd::D::e:E:ghi:l:L::nNo::Op::MPrSstVYZ:";
 	int old_optind;
 	int c;
 	char *scan;

@@ -1,3 +1,24 @@
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.1: Release tar ball made.
+
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated.
+
+2018-01-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated.
+
+2018-01-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated.
+
+2017-12-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub, depcomp, install-sh: Updated
+	from GNULIB.
+
 2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.0: Release tar ball made.

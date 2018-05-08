@@ -1,3 +1,95 @@
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.1: Release tar ball made.
+
+2018-02-17  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (BASIC_TESTS): Add uplus.
+	(mpfruplus, uplus): New tests.
+
+2018-02-10  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (MPFR_TESTS): Update to match test/Makefile.in.
+
+2018-02-03  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (BASIC_TESTS): Add numstr1.
+	(numindex): New test.  Reported by Scott Deifik
+	<scottd.mail@sbcglobal.net>.
+
+2018-01-26  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (nlstringtest): Expected failure on MinGW when not
+	built with gettext.
+
+2018-01-22         Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* pc/Makefile.tst (nlstringtest): Update the expected failure
+	messages for DJGPP.
+
+2018-01-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.tst (pty2): Sync against test/Makefile.in.
+	Really for real this time.
+
+2018-01-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.tst: Sync against test/Makefile.in.
+	For real this time.
+
+2018-01-20  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile.tst (sigpipe1): Fix syntax for non-DJGPP ports.
+
+2018-01-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.tst: Sync against test/Makefile.in.
+
+2018-01-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.tst: Initial sync against test/Makefile.in.
+
+2017-11-19  Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* pc/Makefile (default): Add lines for the djgpp-readline-mpfr
+	and the djgpp-readline targets.
+	(djgpp-readline): New target, passes -DHAVE_LIBREADLINE to the
+	compiler and adds -lreadline to the linker command line.
+	(djgpp-readline-mpfr): New target, passes -DHAVE_LIBREADLINE and
+	-DHAVE_MPFR to the compiler and adds -lreadline -lmpfr -lgmp to
+	the linker command line.
+
+2017-11-13  Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* Makefile (default): Add a line for the djgpp-mpfr target.
+	(djgpp-mpfr): New target, passes -DHAVE_MPFR to the
+	compiler and adds -lmpfr -lgmp to the linker command line.
+
+2017-11-11  Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* pc/Makefile.tst (sigpipe1): Exclude DJGPP from the sigpipe1 test.
+
+2017-11-03  Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* Makefile (install1): Copy gawk.exe to awk.exe before copying
+	*awk.exe.
+
+2017-11-03  Scott Deifik  <scottd.mail@sbcglobal.net>
+
+	* Makefile.tst (readdir): Make the message identical with
+	test/Makefile.in.
+
+2017-10-21  KO Myung-Hun <komh78@gmail.com>
+
+	* gawkmisc.pc (os2_dlsym, os2_fixdllname, os2_dlopen) [__KLIBC__]:
+	New functions.
+
+2017-10-21  Eli Zaretskii  <eliz@gnu.org>
+
+	* Makefile (install1): Create include/ at desctination, and copy
+	there gawkapi.h.  Also copy *.png image files to share/info, as
+	those are required for the Info readers.
+
 2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.0: Release tar ball made.
@@ -210,7 +302,7 @@
 	* gawkmisc.pc (usleep): Condition on MinGW runtime version older
 	than 3.21, which defines 'usleep' as an inline function in
 	unistd.h, and thus causes compilation errors due to conflicting
-	definitions.  Reported by Ivan Suchý <suchy.ivan@gmail.com>.
+	definitions.  Reported by Ivan SuchÃ½ <suchy.ivan@gmail.com>.
 
 	* Makefile (mingw32, mingw32-readline, mingw32-mpfr)
 	(mingw32-readline-mpfr): Use -Wno-deprecated-declarations, to

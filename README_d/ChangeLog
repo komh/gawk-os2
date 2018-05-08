@@ -1,3 +1,36 @@
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.1: Release tar ball made.
+
+2018-02-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.macosx: Updated.
+
+2018-02-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.macosx: Updated.
+
+2018-02-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.macosx: Updated.
+
+2018-01-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.macosx: Updated.
+
+2017-11-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.mpfr: Make separate sections for different ports and
+	update some of the info.
+
+2017-11-13  Juan Manuel Guerrero  <juan.guerrero@gmx.de>
+
+	* README.mpfr: Add info that DJGPP port compiles with MPFR support.
+
+2017-10-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* README.os2: Updated with email from Andreas.
+
 2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.0: Release tar ball made.

@@ -21,6 +21,11 @@ default:
 	@echo "Enter $(MAK) target "
 	@echo " where 'target' is chosen from                          "
 	@echo "  djgpp ... DOS 32-bit exe [GNU C, Delorie, v2]         "
+	@echo "  djgpp-mpfr . Like djgpp, but with MPFR                "
+	@echo "   [You will need to have GNU MPFR library installed.]  "
+	@echo "  djgpp-readline . Like djgpp, but with readline        "
+	@echo "   [You will need to have GNU readline library installed.] "
+	@echo "  djgpp-readline-mpfr . djgpp with readline and MPFR    "
 	@echo "  emx ..... OS/2 32-bit exe [emx/gcc; uses emxlibc.dll] "
 	@echo "  emxnt ... NT exe [emx/gcc with RSXNT]                 "
 	@echo "  emxbnd .. OS/2 and DOS 32-bit exe [emx/gcc]           "
@@ -123,6 +128,24 @@ djgpp-debug:
 	$(MAK) all \
 	CC=gcc O=.o CF='-O2 -g' \
 	LNK=LDJG LF2=-lm \
+	BIND=BDJG
+
+djgpp-mpfr:
+	$(MAK) all \
+	CC=gcc O=.o CF='-O2 -DHAVE_MPFR' \
+	LNK=LDJG LF=-s LF2="-lmpfr -lgmp -lm" \
+	BIND=BDJG
+
+djgpp-readline:
+	$(MAK) all \
+	CC=gcc O=.o CF='-O2 -DHAVE_LIBREADLINE' \
+	LNK=LDJG LF=-s LF2="-lreadline -lm" \
+	BIND=BDJG
+
+djgpp-readline-mpfr:
+	$(MAK) all \
+	CC=gcc O=.o CF='-O2 -DHAVE_LIBREADLINE -DHAVE_MPFR' \
+	LNK=LDJG LF=-s LF2="-lreadline -lmpfr -lgmp -lm" \
 	BIND=BDJG
 
 #========================================================================
@@ -288,21 +311,28 @@ popen$O:	popen.h
 install: install$(install)
 	-$(MAKE) -C extension install-extensions
 
+# Note: The line that copies gawk.exe into awk.exe should come before
+# the line after it, which copies *awk.exe, to support the DJGPP "hard
+# link to executables" feature, whereby awk.exe is actually a small
+# stub that invokes gawk.exe.
 install1:
 	echo extproc sh $(prefix)/bin/igawk.cmd > igawk.cmd
 	echo shift >> igawk.cmd
 	cat pc/awklib/igawk >> igawk.cmd
 	cat pc/awklib/igawk.bat > igawk.bat
 	-mkdir "$(prefix)"
+	-mkdir "$(prefix)/include"
 	-mkdir "$(prefix)/bin"
 	-mkdir "$(prefix)/share"
 	-mkdir "$(prefix)/share/man"
 	-mkdir "$(pkgdatadir)" "$(prefix)/share/man/man1" "$(prefix)/share/info"
-	cp *awk.exe igawk.bat igawk.cmd pc/awklib/igawk $(prefix)/bin
 	cp gawk.exe $(prefix)/bin/awk.exe
+	cp *awk.exe igawk.bat igawk.cmd pc/awklib/igawk $(prefix)/bin
+	cp gawkapi.h $(prefix)/include
 	cp awklib/eg/lib/* pc/awklib/igawk.awk $(pkgdatadir)
 	cp doc/*.1 $(prefix)/share/man/man1
 	cp doc/*.info $(prefix)/share/info
+	cp doc/*.png $(prefix)/share/info
 
 # install2 is equivalent to install1, but doesn't require cp, sed, etc.
 install2:

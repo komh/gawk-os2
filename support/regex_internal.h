@@ -47,7 +47,6 @@
 #if defined _LIBC
 # include <libc-lock.h>
 #else
-# define __libc_lock_define(CLASS,NAME)
 # define __libc_lock_init(NAME) do { } while (0)
 # define __libc_lock_lock(NAME) do { } while (0)
 # define __libc_lock_unlock(NAME) do { } while (0)
@@ -404,28 +403,17 @@ typedef struct re_string_t re_string_t;
 struct re_dfa_t;
 typedef struct re_dfa_t re_dfa_t;
 
-#ifndef _LIBC
-# if defined( __i386__ ) && !defined(__EMX__)
-#  define internal_function   __attribute__ ((regparm (3), stdcall))
-# else
-#  define internal_function
-# endif
-#endif
-
 #ifndef NOT_IN_libc
 static reg_errcode_t re_string_realloc_buffers (re_string_t *pstr,
-						int new_buf_len)
-     internal_function;
+						int new_buf_len);
 # ifdef RE_ENABLE_I18N
-static void build_wcs_buffer (re_string_t *pstr) internal_function;
-static reg_errcode_t build_wcs_upper_buffer (re_string_t *pstr)
-  internal_function;
+static void build_wcs_buffer (re_string_t *pstr);
+static reg_errcode_t build_wcs_upper_buffer (re_string_t *pstr);
 # endif /* RE_ENABLE_I18N */
-static void build_upper_buffer (re_string_t *pstr) internal_function;
-static void re_string_translate_buffer (re_string_t *pstr) internal_function;
+static void build_upper_buffer (re_string_t *pstr);
+static void re_string_translate_buffer (re_string_t *pstr);
 static unsigned int re_string_context_at (const re_string_t *input, int idx,
-					  int eflags)
-     internal_function __attribute__ ((pure));
+					  int eflags) __attribute__ ((pure));
 #endif
 #define re_string_peek_byte(pstr, offset) \
   ((pstr)->mbs[(pstr)->cur_idx + offset])
@@ -711,7 +699,7 @@ struct re_dfa_t
 #ifdef DEBUG
   char* re_str;
 #endif
-#if defined _LIBC
+#ifdef _LIBC
   __libc_lock_define (, lock)
 #endif
 };
@@ -772,7 +760,7 @@ bitset_mask (bitset_t dest, const bitset_t src)
 #ifdef RE_ENABLE_I18N
 /* Inline functions for re_string.  */
 static int
-internal_function __attribute__ ((pure, unused))
+__attribute__ ((pure, unused))
 re_string_char_size_at (const re_string_t *pstr, int idx)
 {
   int byte_idx;
@@ -785,7 +773,7 @@ re_string_char_size_at (const re_string_t *pstr, int idx)
 }
 
 static wint_t
-internal_function __attribute__ ((pure, unused))
+__attribute__ ((pure, unused))
 re_string_wchar_at (const re_string_t *pstr, int idx)
 {
   if (pstr->mb_cur_max == 1)
@@ -799,7 +787,7 @@ re_string_wchar_at (const re_string_t *pstr, int idx)
 #  endif
 
 static int
-internal_function __attribute__ ((pure, unused))
+__attribute__ ((pure, unused))
 re_string_elem_size_at (const re_string_t *pstr, int idx)
 {
 #  ifdef _LIBC

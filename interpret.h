@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -621,6 +621,9 @@ mod:
 		case Op_unary_plus:
 			// Force argument to be numeric
 			t1 = TOP_NUMBER();
+			r = make_number(t1->numbr);
+			DEREF(t1);
+			REPLACE(r);
 			break;
 
 		case Op_store_sub:
@@ -699,11 +702,16 @@ mod:
 			lhs = r_get_field(t1, & assign, false);
 			decr_sp();
 			DEREF(t1);
+			/*
+			 * N.B. We must call assign() before unref, since
+			 * we may need to copy $n values before freeing the
+			 * $0 buffer.
+			 */
+			assert(assign != NULL);
+			assign();
 			unref(*lhs);
 			r = POP_SCALAR();
 			UNFIELD(*lhs, r);
-			assert(assign != NULL);
-			assign();
 		}
 			break;
 
@@ -730,6 +738,9 @@ mod:
 				/* configure as a string as in make_str_node */
 				t1->flags |= (MALLOC|STRING|STRCUR);
 				t1->stfmt = STFMT_UNUSED;
+#ifdef HAVE_MPFR
+				t1->strndmode = MPFR_round_mode;
+#endif
 
 				if ((t1->flags & WSTRCUR) != 0 && (t2->flags & WSTRCUR) != 0) {
 					size_t wlen = t1->wstlen + t2->wstlen;

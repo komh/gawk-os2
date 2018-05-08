@@ -15,7 +15,12 @@
 #include "gawkapi.h"
 
 #ifdef HAVE_MPFR
+#include <gmp.h>
 #include <mpfr.h>
+#ifndef MPFR_RNDZ
+/* for compatibility with MPFR 2.X */
+#define MPFR_RNDZ GMP_RNDZ
+#endif
 #endif
 
 #include "gettext.h"
@@ -23,7 +28,7 @@
 #define N_(msgid) msgid
 
 static const gawk_api_t *api;	/* for convenience macros to work */
-static awk_ext_id_t *ext_id;
+static awk_ext_id_t ext_id;
 static const char *ext_version = "intdiv extension: version 1.0";
 static awk_bool_t (*init_func)(void) = NULL;
 
@@ -121,11 +126,21 @@ do_intdiv(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	clear_array(array);
 
 #ifdef HAVE_MPFR
-	if (nv.num_type == AWK_NUMBER_TYPE_DOUBLE && dv.num_type == AWK_NUMBER_TYPE_DOUBLE) {
+	if (nv.num_type == AWK_NUMBER_TYPE_DOUBLE && dv.num_type == AWK_NUMBER_TYPE_DOUBLE)
 #endif
+	{
 		/* regular precision */
 		double num, denom, quotient, remainder;
 
+#ifndef HAVE_MPFR
+		if (nv.num_type != AWK_NUMBER_TYPE_DOUBLE || dv.num_type != AWK_NUMBER_TYPE_DOUBLE) {
+			static int warned = 0;
+			if (!warned) {
+				warning(ext_id, _("intdiv: MPFR arguments converted to IEEE because this extension was not compiled with MPFR support; loss of precision may occur"));
+				warned = 1;
+			}
+		}
+#endif
 		num = double_to_int(nv.num_value);
 		denom = double_to_int(dv.num_value);
 
@@ -145,8 +160,9 @@ do_intdiv(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 
 		array_set_number(array, "quotient", 8, quotient);
 		array_set_number(array, "remainder", 9, remainder);
+	}
 #ifdef HAVE_MPFR
-	} else {
+	else {
 		/* extended precision */
 		mpz_ptr numer, denom;
 		mpz_t numer_tmp, denom_tmp;

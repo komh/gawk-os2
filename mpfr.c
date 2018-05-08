@@ -3,7 +3,8 @@
  */
 
 /*
- * Copyright (C) 2012, 2013, 2015, 2017, the Free Software Foundation, Inc.
+ * Copyright (C) 2012, 2013, 2015, 2017, 2018,
+ * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -26,6 +27,8 @@
 #include "awk.h"
 
 #ifdef HAVE_MPFR
+
+int MPFR_round_mode = 'N';	// default value
 
 #if !defined(MPFR_VERSION_MAJOR) || MPFR_VERSION_MAJOR < 3
 typedef mp_exp_t mpfr_exp_t;
@@ -373,6 +376,7 @@ mpg_format_val(const char *format, int index, NODE *s)
 		efree(s->stptr);
 	s->stptr = r->stptr;
 	s->flags |= STRCUR;
+	s->strndmode = MPFR_round_mode;
 	freenode(r);	/* Do not unref(r)! We want to keep s->stptr == r->stpr.  */
 	free_wstr(s);
 	return s;
@@ -571,7 +575,7 @@ get_rnd_mode(const char rmode)
 #if defined(MPFR_VERSION_MAJOR) && MPFR_VERSION_MAJOR > 2
 	case 'A':
 	case 'a':
-		return MPFR_RNDA;	/* round away from zero (IEEE-754 roundTiesToAway) */
+		return MPFR_RNDA;	/* round away from zero */
 #endif
 	default:
 		break;
@@ -596,6 +600,7 @@ set_ROUNDMODE()
 		if (rndm != -1) {
 			mpfr_set_default_rounding_mode(rndm);
 			ROUND_MODE = rndm;
+			MPFR_round_mode = n->stptr[0];
 		} else
 			warning(_("RNDMODE value `%.*s' is invalid"), (int) n->stlen, n->stptr);
 	}
@@ -1672,6 +1677,20 @@ mod:
 		} else {
 			r = mpg_integer();
 			mpz_neg(r->mpg_i, t1->mpg_i);
+		}
+		DEREF(t1);
+		REPLACE(r);
+		break;
+
+	case Op_unary_plus:
+		t1 = TOP_NUMBER();
+		if (is_mpg_float(t1)) {
+			r = mpg_float();
+			tval = mpfr_set(r->mpg_numbr, t1->mpg_numbr, ROUND_MODE);
+			IEEE_FMT(r->mpg_numbr, tval);
+		} else {
+			r = mpg_integer();
+			mpz_set(r->mpg_i, t1->mpg_i);
 		}
 		DEREF(t1);
 		REPLACE(r);

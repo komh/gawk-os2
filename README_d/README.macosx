@@ -1,30 +1,25 @@
-Fri Dec 23 13:42:58 IST 2016
+Fri Feb 23 10:38:05 IST 2018
 ============================
 
-If anyone besides me still has a PowerPC Macintosh, it's no longer
-possible to build gawk using MPFR. C99 and the last version of MPFR
-that works on that platform don't get along, and I could not solve
-the problem. So I simply disabled the MPFR check in configure.ac on
-that platform.
+On PowerPC Macintosh, things are just weird.
 
-Wed Aug 24 21:54:13 IDT 2016
+* Using the stock compiler, you can't build gawk (c99 mode) against MPFR;
+there is an issue with duplicate inline functions from GMP.  By default,
+I have disabled this compilation.
+
+* If you build GCC 4.2.4 and use that version of GCC, you can compile gawk
+with MPFR and the C99 settings.  But then the two readfile tests fail.
+The call to read(2) simply returns zero. I have no idea why.
+
+Since nobody but me has one of these left, I'm not going to mess
+with it anymore right now.
+
+Thu Jan 25 20:07:56 IST 2018
 ============================
 
-From: Pat Rankin <r.pat.rankin@gmail.com>
-Date: Tue, 23 Aug 2016 18:37:26 -0700
-Subject: Re: [gawk-devel] one last prerelease tarball
-To: Aharon Robbins <arnold@skeeve.com>
-
-> http://www.skeeve.com/gawk/gawk-4.1.3j.tar.gz
-
-     On OSX 10.11.6, I still get warnings that left-shifting a negative value
-is undefined when handling TYPE_MINIMUM(time_t) in builtin.c.  time_t
-is a signed 64-bit integer.  'TYPE_MINIMUM(char)' triggers warnings too,
-so the size isn't an issue, just the signedness.
-
-     Despite the warnings, the build finishes successfully and the test suite
-passes without any failures now that igncas3 is skipped by 'make check'.
-I don't have MPFR so those tests aren't being run.
+You may need to explicitly tell configure where to find the GNU gettext
+header file and library with --with-libintl-prefix=...'. Otherwise,
+the nlstringtest test will fail.
 
 Mon Apr 13 09:49:40 IDT 2015
 ============================

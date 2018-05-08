@@ -64,9 +64,9 @@
 @c applies to and all the info about who's publishing this edition
 
 @c These apply across the board.
-@set UPDATE-MONTH October, 2017
+@set UPDATE-MONTH February, 2018
 @set VERSION 4.2
-@set PATCHLEVEL 0
+@set PATCHLEVEL 1
 
 @set GAWKINETTITLE TCP/IP Internetworking with @command{gawk}
 @ifset FOR_PRINT
@@ -284,13 +284,13 @@ Fax: +1-617-542-2652
 Email: <email>gnu@@gnu.org</email>
 URL: <ulink url="https://www.gnu.org">https://www.gnu.org/</ulink></literallayout>
 
-<literallayout class="normal">Copyright &copy; 1989, 1991, 1992, 1993, 1996&ndash;2005, 2007, 2009&ndash;2017
+<literallayout class="normal">Copyright &copy; 1989, 1991, 1992, 1993, 1996&ndash;2005, 2007, 2009&ndash;2018
 Free Software Foundation, Inc.
 All Rights Reserved.</literallayout>
 @end docbook
 
 @ifnotdocbook
-Copyright @copyright{} 1989, 1991, 1992, 1993, 1996--2005, 2007, 2009--2017 @*
+Copyright @copyright{} 1989, 1991, 1992, 1993, 1996--2005, 2007, 2009--2018 @*
 Free Software Foundation, Inc.
 @end ifnotdocbook
 @sp 2
@@ -1527,9 +1527,11 @@ default @command{awk} utility. A more modern @command{awk} lives in
 if you try the test program:
 
 @example
+@group
 $ @kbd{awk 1 /dev/null}
 @error{} awk: syntax error near line 1
 @error{} awk: bailing out near line 1
+@end group
 @end example
 
 @noindent
@@ -2077,35 +2079,16 @@ helps keep the @command{gawk} distribution down to manageable size.
 The initial collection of material, such as it is, is still available
 at @uref{ftp://ftp.freefriends.org/arnold/Awkstuff}.
 
-If you are @emph{seriously} interested in helping set up a website
-for @command{awk}-language related things, please contact me.
+In the hopes of doing something more broad, I acquired the
+@code{awklang.org} domain.  Late in 2017, a volunteer took on the task
+of managing it.
 
-@ignore
-In the hopes of
-doing something more broad, I acquired the @code{awk.info} domain.
+If you have written an interesting @command{awk} program, that
+you would like to share with the rest of the world, please see
+@uref{http://www.awklang.org} and use the ``Contact'' link.
 
-However, I found that I could not dedicate enough time to managing
-contributed code: the archive did not grow and the domain went unused
-for several years.
-
-Late in 2008, a volunteer took on the task of setting up
-an @command{awk}-related website---@uref{http://awk.info}---and did a very
-nice job.
-
-If you have written an interesting @command{awk} program, or have written
-a @command{gawk} extension that you would like to share with the rest
-of the world, please see @uref{http://awk.info/?contribute} for how to
-contribute it to the website.
-
-As of this writing, this website is in search of a maintainer; please
-contact me if you are interested.
-@end ignore
-
-@ignore
-Other links:
-
-https://www.reddit.com/r/linux/comments/dtect/composing_music_in_awk/
-@end ignore
+If you have written a @command{gawk} extension, please see
+@ref{gawkextlib}.
 @end ifclear
 
 @node Acknowledgments
@@ -2690,6 +2673,7 @@ of some sort from @command{awk}.
 
 @cindex @code{ARGC}/@code{ARGV} variables, portability and
 @cindex portability, @code{ARGV} variable
+@cindex dark corner, @code{ARGV} variable, value of
 Finally, the value of @code{ARGV[0]}
 (@pxref{Built-in Variables})
 varies depending upon your operating system.
@@ -2740,6 +2724,7 @@ of some sort from @command{awk}.
 
 @cindex @code{ARGC}/@code{ARGV} variables, portability and
 @cindex portability, @code{ARGV} variable
+@cindex dark corner, @code{ARGV} variable, value of
 Finally, the value of @code{ARGV[0]}
 (@pxref{Built-in Variables})
 varies depending upon your operating system.
@@ -2989,10 +2974,12 @@ for the
 single- and double-quote characters, like so:
 
 @example
+@group
 $ @kbd{awk 'BEGIN @{ print "Here is a single quote <\47>" @}'}
 @print{} Here is a single quote <'>
 $ @kbd{awk 'BEGIN @{ print "Here is a double quote <\42>" @}'}
 @print{} Here is a double quote <">
+@end group
 @end example
 
 @noindent
@@ -3264,8 +3251,10 @@ action---so it uses the default action, printing the record.
 Print the length of the longest input line:
 
 @example
+@group
 awk '@{ if (length($0) > max) max = length($0) @}
      END @{ print max @}' data
+@end group
 @end example
 
 The code associated with @code{END} executes after all
@@ -3582,11 +3571,13 @@ starts a comment, it ignores @emph{everything} on the rest of the
 line. For example:
 
 @example
+@group
 $ @kbd{gawk 'BEGIN @{ print "dont panic" # a friendly \}
 > @kbd{                                   BEGIN rule}
 > @kbd{@}'}
 @error{} gawk: cmd. line:2:                BEGIN rule
 @error{} gawk: cmd. line:2:                ^ syntax error
+@end group
 @end example
 
 @noindent
@@ -3780,6 +3771,7 @@ awk '' datafile1 datafile2
 @end example
 
 @cindex @option{--lint} option
+@cindex dark corner, empty programs
 @noindent
 Doing so makes little sense, though; @command{awk} exits
 silently when given an empty program.
@@ -4602,6 +4594,14 @@ manipulate the @env{AWKLIBPATH} variable.
 @code{ENVIRON["AWKLIBPATH"]}. This provides access to the actual search
 path value from within an @command{awk} program.
 
+Although you can change @code{ENVIRON["AWKLIBPATH"]} within your
+@command{awk} program, this has no effect on the running program's
+behavior.  This makes sense: the @env{AWKLIBPATH} environment variable
+is used to find any requested extensions, and they are loaded before
+the program starts to run.  Once your program is running, all the
+extensions have been found, and @command{gawk} no longer needs to use
+@env{AWKLIBPATH}.
+
 @node Other Environment Variables
 @subsection Other Environment Variables
 
@@ -4782,10 +4782,12 @@ The files to be included may be nested; e.g., given a third
 script, namely @file{test3}:
 
 @example
+@group
 @@include "test2"
 BEGIN @{
     print "This is script test3."
 @}
+@end group
 @end example
 
 @noindent
@@ -4872,8 +4874,10 @@ $ @kbd{gawk '@@load "ordchr"; BEGIN @{print chr(65)@}'}
 This is equivalent to the following example:
 
 @example
+@group
 $ @kbd{gawk -lordchr 'BEGIN @{print chr(65)@}'}
 @print{} A
+@end group
 @end example
 
 @noindent
@@ -6496,8 +6500,10 @@ with each @samp{u} changed to a newline.  Here are the results of running
 the program on @file{mail-list}:
 
 @example
+@group
 $ @kbd{awk 'BEGIN @{ RS = "u" @}}
 >      @kbd{@{ print $0 @}' mail-list}
+@end group
 @print{} Amelia       555-5553     amelia.zodiac
 @print{} sq
 @print{} e@@gmail.com    F
@@ -6654,9 +6660,11 @@ matches either a newline or a series of one or more uppercase letters
 with optional leading and/or trailing whitespace:
 
 @example
+@group
 $ @kbd{echo record 1 AAAA record 2 BBBB record 3 |}
 > @kbd{gawk 'BEGIN @{ RS = "\n|( *[[:upper:]]+ *)" @}}
 >             @kbd{@{ print "Record =", $0,"and RT = [" RT "]" @}'}
+@end group
 @print{} Record = record 1 and RT = [ AAAA ]
 @print{} Record = record 2 and RT = [ BBBB ]
 @print{} Record = record 3 and RT = [
@@ -7097,8 +7105,10 @@ values of the fields and @code{OFS}.  To do this, use the
 seemingly innocuous assignment:
 
 @example
+@group
 $1 = $1   # force record to be reconstituted
 print $0  # or whatever else with $0
+@end group
 @end example
 
 @noindent
@@ -7994,16 +8004,20 @@ Putting this to use, here is a simple program to parse the data:
 
 @example
 @c file eg/misc/simple-csv.awk
+@group
 BEGIN @{
     FPAT = "([^,]+)|(\"[^\"]+\")"
 @}
+@end group
 
+@group
 @{
     print "NF = ", NF
     for (i = 1; i <= NF; i++) @{
         printf("$%d = <%s>\n", i, $i)
     @}
 @}
+@end group
 @c endfile
 @end example
 
@@ -8444,6 +8458,7 @@ read-a-line-and-check-each-rule loop of @command{awk} never sees it.
 The following example swaps every two lines of input:
 
 @example
+@group
 @{
      if ((getline tmp) > 0) @{
           print tmp
@@ -8451,6 +8466,7 @@ The following example swaps every two lines of input:
      @} else
           print $0
 @}
+@end group
 @end example
 
 @noindent
@@ -8593,6 +8609,7 @@ lines that begin with @samp{@@execute}, which are replaced by the output
 produced by running the rest of the line as a shell command:
 
 @example
+@group
 @{
      if ($1 == "@@execute") @{
           tmp = substr($0, 10)        # Remove "@@execute"
@@ -8602,6 +8619,7 @@ produced by running the rest of the line as a shell command:
      @} else
           print
 @}
+@end group
 @end example
 
 @noindent
@@ -8905,12 +8923,14 @@ For example, a TCP client can decide to give up on receiving
 any response from the server after a certain amount of time:
 
 @example
+@group
 Service = "/inet/tcp/0/localhost/daytime"
 PROCINFO[Service, "READ_TIMEOUT"] = 100
 if ((Service |& getline) > 0)
     print $0
 else if (ERRNO != "")
     print ERRNO
+@end group
 @end example
 
 Here is how to read interactively from the user@footnote{This assumes
@@ -9252,10 +9272,12 @@ newlines:
 @end ifnotinfo
 
 @example
+@group
 $ @kbd{awk 'BEGIN @{ print "line one\nline two\nline three" @}'}
 @print{} line one
 @print{} line two
 @print{} line three
+@end group
 @end example
 
 @cindex fields, printing
@@ -9507,12 +9529,14 @@ The output separator variables @code{OFS} and @code{ORS} have no effect
 on @code{printf} statements. For example:
 
 @example
+@group
 $ @kbd{awk 'BEGIN @{}
 >    @kbd{ORS = "\nOUCH!\n"; OFS = "+"}
 >    @kbd{msg = "Don\47t Panic!"}
 >    @kbd{printf "%s\n", msg}
 > @kbd{@}'}
 @print{} Don't Panic!
+@end group
 @end example
 
 @noindent
@@ -9554,6 +9578,7 @@ uses the low eight bits of the value as the character to print.
 Other @command{awk} versions generally restrict themselves to printing
 the first byte of a string or to numeric values within the range of
 a single byte (0--255).
+@value{DARKCORNER}
 @end quotation
 
 
@@ -10034,9 +10059,11 @@ alone for now and let's hope no-one notices.
 @end ignore
 
 @example
+@group
 awk '@{ print $1 > "names.unsorted"
        command = "sort -r > names.sorted"
        print $1 | command @}' mail-list
+@end group
 @end example
 
 The unsorted list is written with an ordinary redirection, while
@@ -10371,7 +10398,7 @@ The @var{protocol} is one of @samp{tcp} or @samp{udp},
 and the other fields represent the other essential pieces of information
 for making a networking connection.
 These @value{FN}s are used with the @samp{|&} operator for communicating
-with a coprocess
+with @w{a coprocess}
 (@pxref{Two-way I/O}).
 This is an advanced feature, mentioned here only for completeness.
 Full discussion is delayed until
@@ -10470,10 +10497,14 @@ it is good practice to use a variable to store the @value{FN} or command.
 The previous example becomes the following:
 
 @example
+@group
 sortcom = "sort -r names"
 sortcom | getline foo
+@end group
+@group
 @dots{}
 close(sortcom)
+@end group
 @end example
 
 @noindent
@@ -10621,7 +10652,7 @@ if it fails.
 
 @float Table,table-close-pipe-return-values
 @caption{Return values from @code{close()} of a pipe}
-@multitable @columnfractions .40 .60
+@multitable @columnfractions .50 .50
 @headitem Situation @tab Return value from @code{close()}
 @item Normal exit of command @tab Command's exit status
 @item Death by signal of command @tab 256 + number of murderous signal
@@ -10687,7 +10718,7 @@ if it fails.
 
 @float Table,table-close-pipe-return-values
 @caption{Return values from @code{close()} of a pipe}
-@multitable @columnfractions .40 .60
+@multitable @columnfractions .50 .50
 @headitem Situation @tab Return value from @code{close()}
 @item Normal exit of command @tab Command's exit status
 @item Death by signal of command @tab 256 + number of murderous signal
@@ -10717,7 +10748,8 @@ disk) is a fatal error.
 
 @example
 $ @kbd{gawk 'BEGIN @{ print "hi" > "/no/such/file" @}'}
-@error{} gawk: cmd. line:1: fatal: can't redirect to `/no/such/file' (No such file or directory)
+@error{} gawk: cmd. line:1: fatal: can't redirect to `/no/such/file' (No
+@error{} such file or directory)
 @end example
 
 @command{gawk} makes it possible to detect that an error has
@@ -11177,6 +11209,7 @@ confusion can arise when attempting to use regexp constants as arguments
 to user-defined functions (@pxref{User-defined}).  For example:
 
 @example
+@group
 function mysub(pat, repl, str, global)
 @{
     if (global)
@@ -11185,13 +11218,16 @@ function mysub(pat, repl, str, global)
         sub(pat, repl, str)
     return str
 @}
+@end group
 
+@group
 @{
     @dots{}
     text = "hi! hi yourself!"
     mysub(/hi/, "howdy", text, 1)
     @dots{}
 @}
+@end group
 @end example
 
 @c @cindex automatic warnings
@@ -11439,8 +11475,10 @@ is performed.  If numeric values appear in string concatenation, they
 are converted to strings.  Consider the following:
 
 @example
+@group
 two = 2; three = 3
 print (two three) + 4
+@end group
 @end example
 
 @noindent
@@ -11942,10 +11980,14 @@ to it.  In the following program fragment, the variable
 @code{foo} has a numeric value at first, and a string value later on:
 
 @example
+@group
 foo = 1
 print foo
+@end group
+@group
 foo = "bar"
 print foo
+@end group
 @end example
 
 @noindent
@@ -12017,16 +12059,20 @@ righthand expression.  For example:
 
 @cindex Rankin, Pat
 @example
+@group
 # Thanks to Pat Rankin for this example
 BEGIN  @{
     foo[rand()] += 5
     for (x in foo)
        print x, foo[x]
+@end group
 
+@group
     bar[rand()] = bar[rand()] + 5
     for (x in bar)
        print x, bar[x]
 @}
+@end group
 @end example
 
 @cindex operators, assignment, evaluation order
@@ -12812,10 +12858,12 @@ leave off one of the @samp{=} characters.  The result is still valid
 @command{awk} code, but the program does not do what is intended:
 
 @example
+@group
 if (a = b)   # oops! should be a == b
    @dots{}
 else
    @dots{}
+@end group
 @end example
 
 @noindent
@@ -13767,8 +13815,10 @@ $ @kbd{awk '! /li/' mail-list}
 @print{} Bill         555-1675     bill.drowning@@hotmail.com       A
 @print{} Camilla      555-2912     camilla.infusarum@@skynet.be     R
 @print{} Fabius       555-1234     fabius.undevicesimus@@ucb.edu    F
+@group
 @print{} Martin       555-6480     martin.codicibus@@hotmail.com    A
 @print{} Jean-Paul    555-2127     jeanpaul.campanorum@@nyu.edu     R
+@end group
 @end example
 
 @cindex @code{BEGIN} pattern, Boolean patterns and
@@ -13873,6 +13923,7 @@ $ @kbd{echo Yes | gawk '(/1/,/2/) || /Yes/'}
 @end example
 
 @cindex range patterns, line continuation and
+@cindex dark corner, range patterns, line continuation and
 As a minor point of interest, although it is poor style,
 POSIX allows you to put a newline after the comma in
 a range pattern.  @value{DARKCORNER}
@@ -14158,10 +14209,12 @@ the variable's value into the program inside the script.
 For example, consider the following program:
 
 @example
+@group
 printf "Enter search pattern: "
 read pattern
 awk "/$pattern/ "'@{ nmatches++ @}
      END @{ print nmatches, "found" @}' /path/to/data
+@end group
 @end example
 
 @noindent
@@ -14350,10 +14403,12 @@ the null string; otherwise, the condition is true.
 Refer to the following:
 
 @example
+@group
 if (x % 2 == 0)
     print "x is even"
 else
     print "x is odd"
+@end group
 @end example
 
 In this example, if the expression @samp{x % 2 == 0} is true (i.e.,
@@ -14521,8 +14576,8 @@ awk '
 @end example
 
 @noindent
-This prints the first three fields of each input record, with one field per
-line.
+This prints the first three fields of each input record, with one
+input field per output line.
 
 It isn't possible to
 set more than one variable in the
@@ -14675,6 +14730,7 @@ finds the smallest divisor of any integer, and also identifies prime
 numbers:
 
 @example
+@group
 # find smallest divisor of num
 @{
     num = $1
@@ -14682,11 +14738,14 @@ numbers:
         if (num % divisor == 0)
             break
     @}
+@end group
+@group
     if (num % divisor == 0)
         printf "Smallest divisor of %d is %d\n", num, divisor
     else
         printf "%d is prime\n", num
 @}
+@end group
 @end example
 
 When the remainder is zero in the first @code{if} statement, @command{awk}
@@ -14994,14 +15053,18 @@ using an @code{exit} statement with a nonzero argument, as shown
 in the following example:
 
 @example
+@group
 BEGIN @{
     if (("date" | getline date_now) <= 0) @{
         print "Can't get system date" > "/dev/stderr"
         exit 1
     @}
+@end group
+@group
     print "current date is", date_now
     close("date")
 @}
+@end group
 @end example
 
 @quotation NOTE
@@ -15299,6 +15362,7 @@ Unlike most @command{awk} arrays,
 In the following example:
 
 @example
+@group
 $ @kbd{awk 'BEGIN @{}
 >         @kbd{for (i = 0; i < ARGC; i++)}
 >             @kbd{print ARGV[i]}
@@ -15306,6 +15370,7 @@ $ @kbd{awk 'BEGIN @{}
 @print{} awk
 @print{} inventory-shipped
 @print{} mail-list
+@end group
 @end example
 
 @noindent
@@ -15627,11 +15692,11 @@ The following elements allow you to change @command{gawk}'s behavior:
 
 @table @code
 @item PROCINFO["NONFATAL"]
-If this element exists, then I/O errors for all output redirections become nonfatal.
+If this element exists, then I/O errors for all redirections become nonfatal.
 @xref{Nonfatal}.
 
-@item PROCINFO["@var{output_name}", "NONFATAL"]
-Make output errors for @var{output_name} be nonfatal.
+@item PROCINFO["@var{name}", "NONFATAL"]
+Make I/O errors for @var{name} be nonfatal.
 @xref{Nonfatal}.
 
 @item PROCINFO["@var{command}", "pty"]
@@ -15730,12 +15795,14 @@ points out that it effectively gives @command{awk} data pointers. Consider his
 example:
 
 @example
+@group
 # Indirect multiply of any variable by amount, return result
 
 function multiply(variable, amount)
 @{
     return SYMTAB[variable] *= amount
 @}
+@end group
 @end example
 
 @noindent
@@ -15853,6 +15920,7 @@ presented the following program describing the information contained in @code{AR
 and @code{ARGV}:
 
 @example
+@group
 $ @kbd{awk 'BEGIN @{}
 >        @kbd{for (i = 0; i < ARGC; i++)}
 >            @kbd{print ARGV[i]}
@@ -15860,6 +15928,7 @@ $ @kbd{awk 'BEGIN @{}
 @print{} awk
 @print{} inventory-shipped
 @print{} mail-list
+@end group
 @end example
 
 @noindent
@@ -16456,8 +16525,10 @@ For example, this statement tests whether the array @code{frequencies}
 contains the index @samp{2}:
 
 @example
+@group
 if (2 in frequencies)
     print "Subscript 2 is present."
+@end group
 @end example
 
 Note that this is @emph{not} a test of whether the array
@@ -16467,8 +16538,10 @@ There is no way to do that except to scan all the elements.  Also, this
 (incorrect) alternative does:
 
 @example
+@group
 if (frequencies[2] != "")
     print "Subscript 2 is present."
+@end group
 @end example
 
 @node Assigning Elements
@@ -16525,6 +16598,7 @@ all the lines.
 When this program is run with the following input:
 
 @example
+@group
 @c file eg/misc/arraymax.data
 5  I am the Five man
 2  Who are you?  The new number two!
@@ -16532,17 +16606,20 @@ When this program is run with the following input:
 1  Who is number one?
 3  I three you.
 @c endfile
+@end group
 @end example
 
 @noindent
 Its output is:
 
 @example
+@group
 1  Who is number one?
 2  Who are you?  The new number two!
 3  I three you.
 4  . . . And four on the floor
 5  I am the Five man
+@end group
 @end example
 
 If a line number is repeated, the last line with a given number overrides
@@ -16551,11 +16628,13 @@ Gaps in the line numbers can be handled with an easy improvement to the
 program's @code{END} rule, as follows:
 
 @example
+@group
 END @{
     for (x = 1; x <= max; x++)
         if (x in arr)
             print arr[x]
 @}
+@end group
 @end example
 
 @node Scanning an Array
@@ -16575,8 +16654,10 @@ So @command{awk} has a special kind of @code{for} statement for scanning
 an array:
 
 @example
+@group
 for (@var{var} in @var{array})
     @var{body}
+@end group
 @end example
 
 @noindent
@@ -16597,12 +16678,15 @@ such words.
 for more information on the built-in function @code{length()}.
 
 @example
+@group
 # Record a 1 for each word that is used at least once
 @{
     for (i = 1; i <= NF; i++)
         used[$i] = 1
 @}
+@end group
 
+@group
 # Find number of distinct words more than 10 characters long
 END @{
     for (x in used) @{
@@ -16613,6 +16697,7 @@ END @{
     @}
     print num_long_words, "words longer than 10 characters"
 @}
+@end group
 @end example
 
 @noindent
@@ -17000,9 +17085,11 @@ same as assigning it a null value (the empty string, @code{""}).
 For example:
 
 @example
+@group
 foo[4] = ""
 if (4 in foo)
   print "This is printed, even though foo[4] is empty"
+@end group
 @end example
 
 @cindex lint checking, array elements
@@ -17157,22 +17244,26 @@ END @{
 When given the input:
 
 @example
+@group
 1 2 3 4 5 6
 2 3 4 5 6 1
 3 4 5 6 1 2
 4 5 6 1 2 3
+@end group
 @end example
 
 @noindent
 the program produces the following output:
 
 @example
+@group
 4 3 2 1
 5 4 3 2
 6 5 4 3
 1 6 5 4
 2 1 6 5
 3 2 1 6
+@end group
 @end example
 
 @node Multiscanning
@@ -17352,15 +17443,19 @@ you can often devise workarounds using control statements. For example,
 the following code prints the elements of our main array @code{a}:
 
 @example
+@group
 for (i in a) @{
     for (j in a[i]) @{
         if (j == 3) @{
             for (k in a[i][j])
                 print a[i][j][k]
+@end group
+@group
         @} else
             print a[i][j]
     @}
 @}
+@end group
 @end example
 
 @noindent
@@ -17810,9 +17905,11 @@ asort(a)
 results in the following contents of @code{a}:
 
 @example
+@group
 a[1] = "cul"
 a[2] = "de"
 a[3] = "sac"
+@end group
 @end example
 
 The @code{asorti()} function works similarly to @code{asort()}; however,
@@ -18901,6 +18998,9 @@ a file or pipe that was opened for reading (such as with @code{getline}),
 or if @var{filename} is not an open file, pipe, or coprocess.
 In such a case, @code{fflush()} returns @minus{}1, as well.
 
+@c end the table to let the sidebar take up the full width of the page.
+@end table
+
 @cindex sidebar, Interactive Versus Noninteractive Buffering
 @ifdocbook
 @docbook
@@ -19001,6 +19101,7 @@ it is all buffered and sent down the pipe to @command{cat} in one shot.
 @end cartouche
 @end ifnotdocbook
 
+@table @asis
 @item @code{system(@var{command})}
 @cindexawkfunc{system}
 @cindex invoke shell command
@@ -19793,7 +19894,7 @@ that illustrates the use of these functions:
 @example
 @group
 @c file eg/lib/bits2str.awk
-# bits2str --- turn a byte into readable ones and zeros
+# bits2str --- turn an integer into readable ones and zeros
 
 function bits2str(bits,        data, mask)
 @{
@@ -19815,7 +19916,7 @@ function bits2str(bits,        data, mask)
 @c this is a hack to make testbits.awk self-contained
 @ignore
 @c file eg/prog/testbits.awk
-# bits2str --- turn a byte into readable 1's and 0's
+# bits2str --- turn an integer into readable ones and zeros
 
 function bits2str(bits,        data, mask)
 @{
@@ -19856,7 +19957,8 @@ $ @kbd{gawk -f testbits.awk}
 @print{} 123 = 01111011
 @print{} 0123 = 01010011
 @print{} 0x99 = 10011001
-@print{} compl(0x99) = 0x3fffffffffff66 = 00111111111111111111111111111111111111111111111101100110
+@print{} compl(0x99) = 0x3fffffffffff66 =
+@print{} 00111111111111111111111111111111111111111111111101100110
 @print{} lshift(0x99, 2) = 0x264 = 0000001001100100
 @print{} rshift(0x99, 2) = 0x26 = 00100110
 @end example
@@ -20195,10 +20297,12 @@ entire program before starting to execute any of it.
 The definition of a function named @var{name} looks like this:
 
 @display
+@group
 @code{function} @var{name}@code{(}[@var{parameter-list}]@code{)}
 @code{@{}
      @var{body-of-function}
 @code{@}}
+@end group
 @end display
 
 @cindex names, functions
@@ -20366,11 +20470,13 @@ This function deletes all the elements in an array (recall that the
 extra whitespace signifies the start of the local variable list):
 
 @example
+@group
 function delarray(a,    i)
 @{
     for (i in a)
         delete a[i]
 @}
+@end group
 @end example
 
 When working with arrays, it is often necessary to delete all the elements
@@ -20577,10 +20683,12 @@ In addition, recursive calls create new arrays.
 Consider this example:
 
 @example
+@group
 function some_func(p1,      a)
 @{
     if (p1++ > 3)
         return
+@end group
 
     a[p1] = p1
 
@@ -20644,12 +20752,14 @@ this has no effect on any other variables.  Thus, if @code{myfunc()}
 does this:
 
 @example
+@group
 function myfunc(str)
 @{
    print str
    str = "zzz"
    print str
 @}
+@end group
 @end example
 
 @noindent
@@ -20805,11 +20915,13 @@ function maxelt(vec,   i, ret)
      return ret
 @}
 
+@group
 # Load all fields of each record into nums.
 @{
      for(i = 1; i <= NF; i++)
           nums[NR, i] = $i
 @}
+@end group
 
 END @{
      print maxelt(nums)
@@ -21103,12 +21215,14 @@ first thing to do is write some comparison functions:
 
 @example
 @c file eg/prog/indirectcall.awk
+@group
 # num_lt --- do a numeric less than comparison
 
 function num_lt(left, right)
 @{
     return ((left + 0) < (right + 0))
 @}
+@end group
 
 # num_ge --- do a numeric greater than or equal to comparison
 
@@ -21157,19 +21271,23 @@ names of the two comparison functions:
 
 @example
 @c file eg/prog/indirectcall.awk
+@group
 # sort --- sort the data in ascending order and return it as a string
 
 function sort(first, last)
 @{
     return do_sort(first, last, "num_lt")
 @}
+@end group
 
+@group
 # rsort --- sort the data in descending order and return it as a string
 
 function rsort(first, last)
 @{
     return do_sort(first, last, "num_ge")
 @}
+@end group
 @c endfile
 @end example
 
@@ -21669,6 +21787,7 @@ been true but was not, and then it kills the program.  In C, using
 @code{assert()} looks this:
 
 @example
+@group
 #include <assert.h>
 
 int myfunc(int a, double b)
@@ -21676,6 +21795,7 @@ int myfunc(int a, double b)
      assert(a <= 5 && b >= 17.1);
      @dots{}
 @}
+@end group
 @end example
 
 If the assertion fails, the program prints a message similar to this:
@@ -21833,9 +21953,10 @@ function round(x,   ival, aval, fraction)
 @}
 @c endfile
 @c don't include test harness in the file that gets installed
-
+@group
 # test harness
 # @{ print $0, round($0) @}
+@end group
 @end example
 
 @node Cliff Random Function
@@ -22241,7 +22362,7 @@ if (length(contents) == 0)
 @end example
 
 This tests the result to see if it is empty or not. An equivalent
-test would be @samp{contents == ""}.
+test would be @samp{@w{contents == ""}}.
 
 @xref{Extension Sample Readfile} for an extension function that
 also reads an entire file into memory.
@@ -22572,8 +22693,10 @@ $ @kbd{gawk -f rewind.awk -f test.awk data }
 @print{} data 1 a
 @print{} data 2 b
 @print{} data 3 c
+@group
 @print{} data 4 d
 @print{} data 5 e
+@end group
 @end example
 
 @node File Checking
@@ -23788,8 +23911,10 @@ function getgrent()
     _gr_init()
     if (++_gr_count in _gr_bycount)
         return _gr_bycount[_gr_count]
+@group
     return ""
 @}
+@end group
 @c endfile
 @end example
 
@@ -24319,10 +24444,12 @@ list of fields or characters:
     if (by_fields == 0 && by_chars == 0)
         by_fields = 1    # default
 
+@group
     if (fieldlist == "") @{
         print "cut: needs list for -c or -f" > "/dev/stderr"
         exit 1
     @}
+@end group
 
     if (by_fields)
         set_fieldlist()
@@ -24663,8 +24790,10 @@ function endfile(file)
             print fcount
     @}
 
+@group
     total += fcount
 @}
+@end group
 @c endfile
 @end example
 
@@ -24821,11 +24950,15 @@ BEGIN @{
     pw = getpwuid(uid)
     pr_first_field(pw)
 
+@group
     if (euid != uid) @{
         printf(" euid=%d", euid)
         pw = getpwuid(euid)
+@end group
+@group
         pr_first_field(pw)
     @}
+@end group
 
     printf(" gid=%d", gid)
     pw = getgrgid(gid)
@@ -24953,14 +25086,17 @@ BEGIN @{
     # test argv in case reading from stdin instead of file
     if (i in ARGV)
         i++    # skip datafile name
+@group
     if (i in ARGV) @{
         outfile = ARGV[i]
         ARGV[i] = ""
     @}
-
+@end group
+@group
     s1 = s2 = "a"
     out = (outfile s1 s2)
 @}
+@end group
 @c endfile
 @end example
 
@@ -25116,11 +25252,15 @@ line into each file on the command line, and then to the standard output:
 It is also possible to write the loop this way:
 
 @example
+@group
 for (i in copy)
     if (append)
         print >> copy[i]
+@end group
+@group
     else
         print > copy[i]
+@end group
 @end example
 
 @noindent
@@ -25271,10 +25411,12 @@ BEGIN @{
             usage()
     @}
 
+@group
     if (ARGV[Optind] ~ /^\+[[:digit:]]+$/) @{
         charcount = substr(ARGV[Optind], 2) + 0
         Optind++
     @}
+@end group
 
     for (i = 1; i < Optind; i++)
         ARGV[i] = ""
@@ -25308,10 +25450,12 @@ strings are then compared and @code{are_equal()} returns the result:
 
 @example
 @c file eg/prog/uniq.awk
+@group
 function are_equal(    n, m, clast, cline, alast, aline)
 @{
     if (fcount == 0 && charcount == 0)
         return (last == $0)
+@end group
 
     if (fcount > 0) @{
         n = split(last, alast)
@@ -25326,9 +25470,11 @@ function are_equal(    n, m, clast, cline, alast, aline)
         clast = substr(clast, charcount + 1)
         cline = substr(cline, charcount + 1)
     @}
+@group
 
     return (clast == cline)
 @}
+@end group
 @c endfile
 @end example
 
@@ -25387,11 +25533,13 @@ NR == 1 @{
 END @{
     if (do_count)
         printf("%4d %s\n", count, last) > outputfile
+@group
     else if ((repeated_only && count > 1) ||
             (non_repeated_only && count == 1))
         print last > outputfile
     close(outputfile)
 @}
+@end group
 @c endfile
 @end example
 
@@ -26186,10 +26334,12 @@ At first glance, a program like this would seem to do the job:
         freq[$i]++
 @}
 
+@group
 END @{
     for (word in freq)
         printf "%s\t%d\n", word, freq[word]
 @}
+@end group
 @end example
 
 The program relies on @command{awk}'s default field-splitting
@@ -26579,9 +26729,11 @@ line.  That line is then printed to the output file:
                     i++
             @}
         @}
+@group
         print join(a, 1, n, SUBSEP) > curfile
     @}
 @}
+@end group
 @c endfile
 @end example
 
@@ -26667,10 +26819,12 @@ function usage()
     exit 1
 @}
 
+@group
 BEGIN @{
     # validate arguments
     if (ARGC < 3)
         usage()
+@end group
 
     RS = ARGV[1]
     ORS = ARGV[2]
@@ -27064,13 +27218,11 @@ the program is done:
                 continue
             @}
             fpath = pathto($2)
-@group
             if (fpath == "") @{
                 printf("igawk: %s:%d: cannot find %s\n",
                     input[stackptr], FNR, $2) > "/dev/stderr"
                 continue
             @}
-@end group
             if (! (fpath in processed)) @{
                 processed[fpath] = input[stackptr]
                 input[++stackptr] = fpath  # push onto stack
@@ -27327,10 +27479,12 @@ notice and this notice are preserved.
 Here is the program:
 
 @example
+@group
 awk 'BEGIN@{O="~"~"~";o="=="=="==";o+=+o;x=O""O;while(X++<=x+o+o)c=c"%c";
 printf c,(x-O)*(x-O),x*(x-o)-o,x*(x-O)+x-O-o,+x*(x-O)-x+o,X*(o*o+O)+x-O,
 X*(X-x)-o*o,(x+X)*o*o+o,x*(X-x)-O-O,x-O+(O+o+X+x)*(o+O),X*X-X*(x-O)-x+O,
 O+X*(o*(o+O)+O),+x+O+X*o,x*(x-o),(o+X+x)*o*o-(x-O-O),O+(X-x)*(X+O),x-O@}'
+@end group
 @end example
 
 @cindex Johansen, Chris
@@ -27818,11 +27972,13 @@ Our first comparison function can be used to scan an array in
 numerical order of the indices:
 
 @example
+@group
 function cmp_num_idx(i1, v1, i2, v2)
 @{
      # numerical index comparison, ascending order
      return (i1 - i2)
 @}
+@end group
 @end example
 
 Our second function traverses an array based on the string order of
@@ -27927,10 +28083,13 @@ function cmp_field(i1, v1, i2, v2)
         a[NR][i] = $i
 @}
 
+@group
 END @{
     PROCINFO["sorted_in"] = "cmp_field"
+@end group
     if (POS < 1 || POS > NF)
         POS = 1
+
     for (i in a) @{
         for (j = 1; j <= NF; j++)
             printf("%s%c", a[i][j], j < NF ? ":" : "")
@@ -27987,6 +28146,7 @@ function cmp_numeric(i1, v1, i2, v2)
     return (v1 != v2) ? (v2 - v1) : (i2 - i1)
 @}
 
+@group
 function cmp_string(i1, v1, i2, v2)
 @{
     # string value (and index) comparison, descending order
@@ -27994,6 +28154,7 @@ function cmp_string(i1, v1, i2, v2)
     v2 = v2 i2
     return (v1 > v2) ? -1 : (v1 != v2)
 @}
+@end group
 @end example
 
 @c Avoid using the term ``stable'' when describing the unpredictable behavior
@@ -28147,11 +28308,13 @@ The following example demonstrates the use of a comparison function with
 both values to lowercase in order to compare them ignoring case.
 
 @example
+@group
 # case_fold_compare --- compare as strings, ignoring case
 
 function case_fold_compare(i1, v1, i2, v2,    l, r)
 @{
     l = tolower(v1)
+@end group
     r = tolower(v2)
 
     if (l < r)
@@ -29508,8 +29671,10 @@ This is somewhat counterintuitive.
 and those with positional specifiers in the same string:
 
 @example
+@group
 $ @kbd{gawk 'BEGIN @{ printf "%d %3$s\n", 1, 2, "hi" @}'}
 @error{} gawk: cmd. line:1: fatal: must use `count$' on all formats or none
+@end group
 @end example
 
 @quotation NOTE
@@ -30134,8 +30299,10 @@ be inside this function.  To investigate further, we must begin
 @samp{n} (for ``next''):
 
 @example
+@group
 gawk> @kbd{n}
 @print{} 66          if (fcount > 0) @{
+@end group
 @end example
 
 This tells us that @command{gawk} is now ready to execute line 66, which
@@ -30904,10 +31071,12 @@ partial dump of Davide Brini's obfuscated code
 
 @c FIXME: This will need updating if num-handler branch is ever merged in.
 @smallexample
+@group
 gawk> @kbd{dump}
 @print{}        # BEGIN
 @print{}
 @print{} [  1:0xfcd340] Op_rule           : [in_rule = BEGIN] [source_file = brini.awk]
+@end group
 @print{} [  1:0xfcc240] Op_push_i         : "~" [MALLOC|STRING|STRCUR]
 @print{} [  1:0xfcc2a0] Op_push_i         : "~" [MALLOC|STRING|STRCUR]
 @print{} [  1:0xfcc280] Op_match          :
@@ -30940,18 +31109,18 @@ gawk> @kbd{dump}
 @print{} [   :0xfcc660] Op_no_op          :
 @print{} [  1:0xfcc520] Op_assign_concat  : c
 @print{} [   :0xfcc620] Op_jmp            : [target_jmp = 0xfcc440]
-@print{}
 @dots{}
-@print{}
 @print{} [     2:0xfcc5a0] Op_K_printf         : [expr_count = 17] [redir_type = ""]
 @print{} [      :0xfcc140] Op_no_op            :
 @print{} [      :0xfcc1c0] Op_atexit           :
 @print{} [      :0xfcc640] Op_stop             :
 @print{} [      :0xfcc180] Op_no_op            :
 @print{} [      :0xfcd150] Op_after_beginfile  :
+@group
 @print{} [      :0xfcc160] Op_no_op            :
 @print{} [      :0xfcc1a0] Op_after_endfile    :
 gawk>
+@end group
 @end smallexample
 
 @cindex @code{exit} debugger command
@@ -31306,6 +31475,7 @@ In computer systems, integer arithmetic is exact, but the possible
 range of values is limited.  Integer arithmetic is generally faster than
 floating-point arithmetic.
 
+@cindex floating-point, numbers
 @item Floating-point arithmetic
 Floating-point numbers represent what were called in school ``real''
 numbers (i.e., those that have a fractional part, such as 3.1415927).
@@ -31317,6 +31487,12 @@ Modern systems support floating-point arithmetic in hardware, with a
 limited range of values.  There are software libraries that allow
 the use of arbitrary-precision floating-point calculations.
 
+@cindex floating-point, numbers@comma{} single-precision
+@cindex floating-point, numbers@comma{} double-precision
+@cindex floating-point, numbers@comma{} arbitrary-precision
+@cindex single-precision
+@cindex double-precision
+@cindex arbitrary-precision
 POSIX @command{awk} uses @dfn{double-precision} floating-point numbers, which
 can hold more digits than @dfn{single-precision} floating-point numbers.
 @command{gawk} has facilities for performing arbitrary-precision
@@ -31326,29 +31502,48 @@ floating-point arithmetic, which we describe in more detail shortly.
 Computers work with integer and floating-point values of different
 ranges. Integer values are usually either 32 or 64 bits in size.
 Single-precision floating-point values occupy 32 bits, whereas double-precision
-floating-point values occupy 64 bits.  Floating-point values are always
-signed. The possible ranges of values are shown in @ref{table-numeric-ranges}.
+floating-point values occupy 64 bits.
+(Quadruple-precision floating point values also exist. They occupy 128 bits,
+but such numbers are not available in @command{awk}.)
+Floating-point values are always
+signed. The possible ranges of values are shown in @ref{table-numeric-ranges}
+and @ref{table-floating-point-ranges}.
 
 @float Table,table-numeric-ranges
-@caption{Value ranges for different numeric representations}
+@caption{Value ranges for integer representations}
 @multitable @columnfractions .34 .33 .33
-@headitem Numeric representation @tab Minimum value @tab Maximum value
+@headitem Representation @tab Minimum value @tab Maximum value
 @item 32-bit signed integer @tab @minus{}2,147,483,648 @tab 2,147,483,647
 @item 32-bit unsigned integer @tab 0 @tab 4,294,967,295
 @item 64-bit signed integer @tab @minus{}9,223,372,036,854,775,808 @tab 9,223,372,036,854,775,807
 @item 64-bit unsigned integer @tab 0 @tab 18,446,744,073,709,551,615
+@end multitable
+@end float
+
+@float Table,table-floating-point-ranges
+@caption{Approximate value ranges for floating-point number representations}
+@multitable @columnfractions .38 .22 .22 .23
 @iftex
-@item Single-precision floating point (approximate) @tab @math{1.175494^{-38}} @tab @math{3.402823^{38}}
-@item Double-precision floating point (approximate) @tab @math{2.225074^{-308}} @tab @math{1.797693^{308}}
+@headitem Representation @tab @w{Minimum positive} @w{nonzero value} @tab Minimum @w{finite value} @tab Maximum @w{finite value}
+@end iftex
+@ifnottex
+@headitem Representation @tab Minimum positive nonzero value @tab Minimum finite value @tab Maximum finite value
+@end ifnottex
+@iftex
+@item @w{Single-precision floating-point} @tab @math{1.175494 @cdot 10^{-38}} @tab @math{-3.402823 @cdot 10^{38}} @tab @math{3.402823 @cdot 10^{38}}
+@item @w{Double-precision floating-point} @tab @math{2.225074 @cdot 10^{-308}} @tab @math{-1.797693 @cdot 10^{308}} @tab @math{1.797693 @cdot 10^{308}}
+@item @w{Quadruple-precision floating-point} @tab @math{3.362103 @cdot 10^{-4932}} @tab @math{-1.189731 @cdot 10^{4932}} @tab @math{1.189731 @cdot 10^{4932}}
 @end iftex
 @ifinfo
-@item Single-precision floating point (approximate) @tab 1.175494e-38 @tab 3.402823e38
-@item Double-precision floating point (approximate) @tab 2.225074e-308 @tab 1.797693e308
+@item Single-precision floating-point @tab 1.175494e-38 @tab -3.402823e+38 @tab 3.402823e+38
+@item Double-precision floating-point @tab 2.225074e-308 @tab -1.797693e+308 @tab 1.797693e+308
+@item Quadruple-precision floating-point @tab 3.362103e-4932 @tab -1.189731e+4932 @tab 1.189731e+4932
 @end ifinfo
 @ifnottex
 @ifnotinfo
-@item Single-precision floating point (approximate) @tab 1.175494@sup{-38} @tab 3.402823@sup{38}
-@item Double-precision floating point (approximate) @tab 2.225074@sup{-308} @tab 1.797693@sup{308}
+@item Single-precision floating-point @tab 1.175494*10@sup{-38} @tab -3.402823*10@sup{38} @tab 3.402823*10@sup{38}
+@item Double-precision floating-point @tab 2.225074*10@sup{-308} @tab -1.797693*10@sup{308} @tab 1.797693*10@sup{308}
+@item Quadruple-precision floating-point @tab 3.362103*10@sup{-4932} @tab -1.189731*10@sup{4932} @tab 1.189731*10@sup{4932}
 @end ifnotinfo
 @end ifnottex
 @end multitable
@@ -31617,12 +31812,14 @@ You have to decide how small a delta is important to you. Code to do
 this looks something like the following:
 
 @example
+@group
 delta = 0.00001                 # for example
 difference = abs(a) - abs(b)    # subtract the two values
 if (difference < delta)
     # all ok
 else
     # not ok
+@end group
 @end example
 
 @noindent
@@ -31839,6 +32036,7 @@ $ @kbd{gawk -M 'BEGIN @{ PREC = 113; printf("%0.25f\n", 1/10) @}'}
 @node Setting the rounding mode
 @subsection Setting the Rounding Mode
 
+@cindex @code{ROUNDMODE} variable
 The @code{ROUNDMODE} variable provides
 program-level control over the rounding mode.
 The correspondence between @code{ROUNDMODE} and the IEEE
@@ -31852,14 +32050,14 @@ rounding modes is shown in @ref{table-gawk-rounding-modes}.
 @item Round toward positive infinity @tab @code{roundTowardPositive} @tab @code{"U"} or @code{"u"}
 @item Round toward negative infinity @tab @code{roundTowardNegative} @tab @code{"D"} or @code{"d"}
 @item Round toward zero @tab @code{roundTowardZero} @tab @code{"Z"} or @code{"z"}
-@item Round to nearest, ties away from zero @tab @code{roundTiesToAway} @tab @code{"A"} or @code{"a"}
+@item Round away from zero @tab @tab @code{"A"} or @code{"a"}
 @end multitable
 @end float
 
 @code{ROUNDMODE} has the default value @code{"N"}, which
 selects the IEEE 754 rounding mode @code{roundTiesToEven}.
 In @ref{table-gawk-rounding-modes}, the value @code{"A"} selects
-@code{roundTiesToAway}.  This is only available if your version of the
+rounding away from zero. This is only available if your version of the
 MPFR library supports it; otherwise, setting @code{ROUNDMODE} to @code{"A"}
 has no effect.
 
@@ -31911,14 +32109,79 @@ distributes upward and downward rounds of exact halves, which might
 cause any accumulating round-off error to cancel itself out. This is the
 default rounding mode for IEEE 754 computing functions and operators.
 
+@c January 2018. Thanks to nethox@gmail.com for the example.
+@cindex sidebar, Rounding Modes and Conversion
+@ifdocbook
+@docbook
+<sidebar><title>Rounding Modes and Conversion</title>
+@end docbook
+
+It's important to understand that, along with @code{CONVFMT} and
+@code{OFMT}, the rounding mode affects how numbers are converted to strings.
+For example, consider the following program:
+
+@example
+BEGIN @{
+    pi = 3.1416
+    OFMT = "%.f"        # Print value as integer
+    print pi            # ROUNDMODE = "N" by default.
+    ROUNDMODE = "U"     # Now change ROUNDMODE
+    print pi
+@}
+@end example
+
+@noindent
+Running this program produces this output:
+
+@example
+$ @kbd{gawk -M -f roundmode.awk}
+@print{} 3
+@print{} 4
+@end example
+
+@docbook
+</sidebar>
+@end docbook
+@end ifdocbook
+
+@ifnotdocbook
+@cartouche
+@center @b{Rounding Modes and Conversion}
+
+
+It's important to understand that, along with @code{CONVFMT} and
+@code{OFMT}, the rounding mode affects how numbers are converted to strings.
+For example, consider the following program:
+
+@example
+BEGIN @{
+    pi = 3.1416
+    OFMT = "%.f"        # Print value as integer
+    print pi            # ROUNDMODE = "N" by default.
+    ROUNDMODE = "U"     # Now change ROUNDMODE
+    print pi
+@}
+@end example
+
+@noindent
+Running this program produces this output:
+
+@example
+$ @kbd{gawk -M -f roundmode.awk}
+@print{} 3
+@print{} 4
+@end example
+@end cartouche
+@end ifnotdocbook
+
 The other rounding modes are rarely used.  Rounding toward positive infinity
 (@code{roundTowardPositive}) and toward negative infinity
 (@code{roundTowardNegative}) are often used to implement interval
 arithmetic, where you adjust the rounding mode to calculate upper and
 lower bounds for the range of output. The @code{roundTowardZero} mode can
-be used for converting floating-point numbers to integers.  The rounding
-mode @code{roundTiesToAway} rounds the result to the nearest number and
-selects the number with the larger magnitude if a tie occurs.
+be used for converting floating-point numbers to integers.  When rounding
+away from zero, the nearest number with magnitude greater than or equal to
+the value is selected.
 
 Some numerical analysts will tell you that your choice of rounding
 style has tremendous impact on the final outcome, and advise you to
@@ -32092,6 +32355,7 @@ choose to set:
 
 @example
 @c file eg/prog/pi.awk
+@group
 # pi.awk --- compute the digits of pi
 @c endfile
 @c endfile
@@ -32107,6 +32371,7 @@ choose to set:
 BEGIN @{
     digits = 100000
     two = 2 * 10 ^ digits
+@end group
     pi = two
     for (m = digits * 4; m > 0; --m) @{
         d = m * 2 + 1
@@ -32207,10 +32472,13 @@ BEGIN @{
     if (! adequate_math_precision(fpbits)) @{
         print("Error: insufficient computation precision available.\n" \
               "Try again with the -M argument?") > "/dev/stderr"
+        # Note: you may need to set a flag here to bail out of END rules
         exit 1
     @}
 @}
 @end example
+
+Please be aware that @code{exit} will jump to the @code{END} rules, if present (@pxref{Exit Statement}).
 
 @node POSIX Floating Point Problems
 @section Standards Versus Existing Practice
@@ -32888,13 +33156,18 @@ The @code{val_type} member indicates what kind of value the
 Using these macros makes accessing the fields of the @code{awk_value_t} more
 readable.
 
+@item enum AWK_NUMBER_TYPE @{
+@itemx @ @ @ @ AWK_NUMBER_TYPE_DOUBLE,
+@itemx @ @ @ @ AWK_NUMBER_TYPE_MPFR,
+@itemx @ @ @ @ AWK_NUMBER_TYPE_MPZ
+@itemx @};
+This @code{enum} is used in the following structure for defining the
+type of numeric value that is being worked with.  It is declared at the
+top level of the file so that it works correctly for C++ as well as for C.
+
 @item typedef struct awk_number @{
 @itemx @ @ @ @ double d;
-@itemx @ @ @ @ enum AWK_NUMBER_TYPE @{
-@itemx @ @ @ @ @ @ @ @ AWK_NUMBER_TYPE_DOUBLE,
-@itemx @ @ @ @ @ @ @ @ AWK_NUMBER_TYPE_MPFR,
-@itemx @ @ @ @ @ @ @ @ AWK_NUMBER_TYPE_MPZ
-@itemx @ @ @ @ @} type;
+@itemx @ @ @ @ enum AWK_NUMBER_TYPE type;
 @itemx @ @ @ @ void *ptr;
 @itemx @} awk_number_t;
 This represents a numeric value.  Internally, @command{gawk} stores
@@ -32908,7 +33181,6 @@ in data received from @command{gawk}. In addition, by examining the
 @code{type} member, an extension can determine if the @code{ptr}
 member is either a GMP integer (type @code{mpz_ptr}), or an MPFR
 floating-point value (type @code{mpfr_ptr_t}), and cast it appropriately.
-
 
 @item typedef void *awk_scalar_t;
 Scalars can be represented as an opaque type. These values are obtained
@@ -33069,6 +33341,7 @@ of the function using the macro.
 For example, you might allocate a string value like so:
 
 @example
+@group
 awk_value_t result;
 char *message;
 const char greet[] = "Don't Panic!";
@@ -33076,8 +33349,10 @@ const char greet[] = "Don't Panic!";
 emalloc(message, char *, sizeof(greet), "myfunc");
 strcpy(message, greet);
 make_malloced_string(message, strlen(message), & result);
+@end group
 @end example
 
+@sp 2
 @item #define ezalloc(pointer, type, size, message) @dots{}
 This is like @code{emalloc()}, but it calls @code{gawk_calloc()}
 instead of @code{gawk_malloc()}.
@@ -33213,6 +33488,7 @@ registering parts of your extension with @command{gawk}.
 Extension functions are described by the following record:
 
 @example
+@group
 typedef struct awk_ext_func @{
 @ @ @ @ const char *name;
 @ @ @ @ awk_value_t *(*const function)(int num_actual_args,
@@ -33223,6 +33499,7 @@ typedef struct awk_ext_func @{
 @ @ @ @ awk_bool_t suppress_lint;
 @ @ @ @ void *data;        /* opaque pointer to any extra state */
 @} awk_ext_func_t;
+@end group
 @end example
 
 The fields are:
@@ -33418,12 +33695,14 @@ Your extension should package these functions inside an
 @code{awk_input_parser_t}, which looks like this:
 
 @example
+@group
 typedef struct awk_input_parser @{
     const char *name;   /* name of parser */
     awk_bool_t (*can_take_file)(const awk_input_buf_t *iobuf);
     awk_bool_t (*take_control_of)(awk_input_buf_t *iobuf);
     awk_const struct awk_input_parser *awk_const next;   /* for gawk */
 @} awk_input_parser_t;
+@end group
 @end example
 
 The fields are:
@@ -34176,6 +34455,7 @@ to a global variable or array. It is an optimization that
 avoids looking up variables in @command{gawk}'s symbol table every time
 access is needed. This was discussed earlier, in @ref{General Data Types}.
 
+@need 1500
 The following functions let you work with scalar cookies:
 
 @table @code
@@ -34238,12 +34518,14 @@ your extension's variable in @command{gawk}'s symbol table using
 using @code{sym_lookup()}:
 
 @example
+@group
 static awk_scalar_t magic_var_cookie;    /* cookie for MAGIC_VAR */
 
 static void
 my_extension_init()
 @{
     awk_value_t value;
+@end group
 
     /* install initial value */
     sym_update("MAGIC_VAR", make_number(42.0, & value));
@@ -34747,10 +35029,12 @@ Finally, because everything was successful, the function sets the
 return value to success, and returns:
 
 @example
+@group
     make_number(1.0, result);
 out:
     return result;
 @}
+@end group
 @end example
 
 Here is the output from running this part of the test:
@@ -34849,7 +35133,7 @@ in the symbol table:
 #include "gawkapi.h"
 
 static const gawk_api_t *api;   /* for convenience macros to work */
-static awk_ext_id_t *ext_id;
+static awk_ext_id_t ext_id;
 static const char *ext_version = "testarray extension: version 1.0";
 
 int plugin_is_GPL_compatible;
@@ -34962,7 +35246,7 @@ BEGIN @{
 Here is the result of running the script:
 
 @example
-$ @kbd{AWKLIBPATH=$PWD ./gawk -f subarray.awk}
+$ @kbd{AWKLIBPATH=$PWD gawk -f subarray.awk}
 @print{} new_array["subarray"]["foo"] = bar
 @print{} new_array["hello"] = world
 @print{} new_array["answer"] = 42
@@ -35101,7 +35385,7 @@ It is up to the extension to decide if there are API incompatibilities.
 Typically, a check like this is enough:
 
 @example
-if (api->major_version != GAWK_API_MAJOR_VERSION
+if (   api->major_version != GAWK_API_MAJOR_VERSION
     || api->minor_version < GAWK_API_MINOR_VERSION) @{
         fprintf(stderr, "foo_extension: version mismatch with gawk!\n");
         fprintf(stderr, "\tmy version (%d, %d), gawk version (%d, %d)\n",
@@ -35202,10 +35486,12 @@ as described here.  The boilerplate needed is also provided in comments
 in the @file{gawkapi.h} header file:
 
 @example
+@group
 /* Boilerplate code: */
 int plugin_is_GPL_compatible;
 
 static gawk_api_t *const api;
+@end group
 static awk_ext_id_t ext_id;
 static const char *ext_version = NULL; /* or @dots{} = "some string" */
 
@@ -35326,7 +35612,48 @@ the current version of @command{gawk}.
 Fortunately, at the possible expense of some compile-time warnings, the API remains
 source-code--compatible with the previous API. The major differences are
 the additional members in the @code{awk_ext_func_t} structure, and the
-addition of the third argument to the C implementation function.
+addition of the third argument to the C implementation function
+(@pxref{Extension Functions}).
+
+Here is a list of individual features that changed from version 1 to
+version 2 of the API:
+
+@itemize @bullet
+
+@item
+Numeric values can now have MPFR/MPZ variants
+(@pxref{General Data Types}).
+
+@item
+There are new string types: @code{AWK_REGEX} and @code{AWK_STRNUM}
+(@pxref{General Data Types}).
+
+@item
+The @code{ezalloc()} macro is new
+(@pxref{Memory Allocation Functions}).
+
+@item
+The @code{awk_ext_func_t} structure changed. Instead of
+@code{num_expected_args}, it now has @code{max_expected} and
+@code{min_required}
+(@pxref{Extension Functions}).
+
+@item
+For @code{get_record()}, an input parser can now specify field widths
+(@pxref{Input Parsers}).
+
+@item
+Extensions can now produce nonfatal error messages
+(@pxref{Printing Messages}).
+
+@item
+When flattening an array, you can now specify the index and value types
+(@pxref{Array Functions}).
+
+@item
+The @code{get_file()} API is new
+(@pxref{Redirection API}).
+@end itemize
 
 @node Finding Extensions
 @section How @command{gawk} Finds Extensions
@@ -35548,7 +35875,7 @@ to make use of the API macros and boilerplate code
 #include "stack.h"
 
 static const gawk_api_t *api;    /* for convenience macros to work */
-static awk_ext_id_t *ext_id;
+static awk_ext_id_t ext_id;
 static awk_bool_t init_filefuncs(void);
 static awk_bool_t (*init_func)(void) = init_filefuncs;
 static const char *ext_version = "filefuncs extension: version 1.0";
@@ -35565,10 +35892,12 @@ The second is a pointer to an @code{awk_value_t} structure, usually named
 @code{result}:
 
 @example
+@group
 /*  do_chdir --- provide dynamically loaded chdir() function for gawk */
 
 static awk_value_t *
 do_chdir(int nargs, awk_value_t *result, struct awk_ext_func *unused)
+@end group
 @{
     awk_value_t newdir;
     int ret = -1;
@@ -35695,7 +36024,7 @@ fill_stat_array(const char *name, awk_array_t array, struct stat *sbuf)
 #endif
 #ifdef S_IFDOOR /* Solaris weirdness */
         @{ S_IFDOOR, "door" @},
-#endif /* S_IFDOOR */
+#endif
     @};
     int j, k;
 @end example
@@ -35738,9 +36067,11 @@ certain members and/or the type of the file. It then returns zero,
 for success:
 
 @example
+@group
 #ifdef HAVE_STRUCT_STAT_ST_BLKSIZE
     array_set_numeric(array, "blksize", sbuf->st_blksize);
-#endif /* HAVE_STRUCT_STAT_ST_BLKSIZE */
+#endif
+@end group
 
     pmode = format_mode(sbuf->st_mode);
     array_set(array, "pmode", make_const_string(pmode, strlen(pmode),
@@ -35829,20 +36160,24 @@ Next, it gets the information for the file.  If the called function
 
     /* stat the file; if error, set ERRNO and return */
     ret = statfunc(name, & sbuf);
+@group
     if (ret < 0) @{
         update_ERRNO_int(errno);
         return make_number(ret, result);
     @}
+@end group
 @end example
 
 The tedious work is done by @code{fill_stat_array()}, shown
 earlier.  When done, the function returns the result from @code{fill_stat_array()}:
 
 @example
+@group
     ret = fill_stat_array(name, array, & sbuf);
 
     return make_number(ret, result);
 @}
+@end group
 @end example
 
 Finally, it's necessary to provide the ``glue'' that loads the
@@ -36676,31 +37011,27 @@ project provides a number of @command{gawk} extensions, including one for
 processing XML files.  This is the evolution of the original @command{xgawk}
 (XML @command{gawk}) project.
 
-As of this writing, there are seven extensions:
+There are a number of extensions. Some of the more interesting ones are:
 
 @itemize @value{BULLET}
 @item
-@code{errno} extension
+@code{abort} extension. It allows you to exit immediately from your
+@command{awk} program without running the @code{END} rules.
 
 @item
-GD graphics library extension
+@code{json} extension.
+This serializes a multidimensional array into a JSON string, and
+can deserialize a JSON string into a @command{gawk} array.
+This extension is interesting since it is written in C++ instead of C.
 
 @item
-MPFR library extension
-(this provides access to a number of MPFR functions that @command{gawk}'s
-native MPFR support does not)
+MPFR library extension.
+This provides access to a number of MPFR functions that @command{gawk}'s
+native MPFR support does not.
 
 @item
-PDF extension
-
-@item
-PostgreSQL extension
-
-@item
-Redis extension
-
-@item
-Select extension
+Select extension. It provides functionality based on the
+@code{select()} system call.
 
 @item
 XML parser extension, using the @uref{https://expat.sourceforge.net, Expat}
@@ -36715,6 +37046,10 @@ code control system.  The command is as follows:
 @example
 git clone git://git.code.sf.net/p/gawkextlib/code gawkextlib-code
 @end example
+
+@cindex RapidJson JSON parser library
+You will need to have the @uref{http://www.rapidjson.org, RapidJson}
+JSON parser library installed in order to build and use the @code{json} extension.
 
 @cindex Expat XML parser library
 You will need to have the @uref{https://expat.sourceforge.net, Expat}
@@ -39275,6 +39610,14 @@ Disable all message-translation facilities.
 This is usually not desirable, but it may bring you some slight performance
 improvement.
 
+@cindex @option{--enable-versioned-extension-dir} configuration option
+@cindex configuration option, @code{--enable-versioned-extension-dir}
+@item --enable-versioned-extension-dir
+Use a versioned directory for extensions.  The directory name will
+include the major and minor API versions in it. This makes it possible
+to keep extensions for different API versions on the same system
+without their conflicting with one another.
+
 @cindex @option{--with-whiny-user-strftime} configuration option
 @cindex configuration option, @code{--with-whiny-user-strftime}
 @item  --with-whiny-user-strftime
@@ -39402,9 +39745,14 @@ type @samp{make mingw32}.
 @cindex operating systems, PC, @command{gawk} on
 @cindex PC operating systems, @command{gawk} on
 
-Under MS-Windows, the Cygwin and MinGW environments support
+Information in this section applies to the MinGW and
+DJGPP ports of @command{gawk}. @xref{Cygwin} for information
+about the Cygwin port.
+
+Under MS-Windows, the MinGW environment supports
 both the @samp{|&} operator and TCP/IP networking
 (@pxref{TCP/IP Networking}).
+The DJGPP environment does not support @samp{|&}.
 
 @cindex search paths
 @cindex search paths, for source files
@@ -39529,6 +39877,15 @@ make && make check
 When compared to GNU/Linux on the same system, the @samp{configure}
 step on Cygwin takes considerably longer.  However, it does finish,
 and then the @samp{make} proceeds as usual.
+
+Recent versions of Cygwin open all files in binary mode. This means
+that you should use @samp{RS = "\r?\n"} in order to be able to
+handle standard MS-Windows text files with carriage-return plus
+line-feed line endings.
+
+The Cygwin environment supports
+both the @samp{|&} operator and TCP/IP networking
+(@pxref{TCP/IP Networking}).
 
 @node MSYS
 @appendixsubsubsec Using @command{gawk} In The MSYS Environment
@@ -40074,13 +40431,6 @@ The people maintaining the various @command{gawk} ports are:
 
 If your bug is also reproducible under Unix, send a copy of your
 report to the @EMAIL{bug-gawk@@gnu.org,bug-gawk at gnu dot org} email list as well.
-
-@c 7/2017, Juan Guerrero has taken over the DJGPP port.
-@ignore
-The DJGPP port is no longer supported; it will remain in the code base
-for a while in case a volunteer wishes to take it over. If this does
-not happen, then eventually code for this port will be removed.
-@end ignore
 
 @node Other Versions
 @appendixsec Other Freely Available @command{awk} Implementations
@@ -41536,14 +41886,24 @@ like this: @code{""}.
 
 Humans are used to working in decimal; i.e., base 10.  In base 10,
 numbers go from 0 to 9, and then ``roll over'' into the next
+@iftex
+column.  (Remember grade school? @math{42 = 4\times 10 + 2}.)
+@end iftex
+@ifnottex
 column.  (Remember grade school? 42 = 4 x 10 + 2.)
+@end ifnottex
 
 There are other number bases though.  Computers commonly use base 2
 or @dfn{binary}, base 8 or @dfn{octal}, and base 16 or @dfn{hexadecimal}.
 In binary, each column represents two times the value in the column to
 its right. Each column may contain either a 0 or a 1.
+@iftex
+Thus, binary 1010 represents @math{(1\times 8) + (0\times 4) + (1\times 2) + (0\times 1)}, or decimal 10.
+@end iftex
+@ifnottex
 Thus, binary 1010 represents (1 x 8) + (0 x 4) + (1 x 2)
 + (0 x 1), or decimal 10.
+@end ifnottex
 Octal and hexadecimal are discussed more in
 @ref{Nondecimal-numbers}.
 
@@ -41683,7 +42043,12 @@ electronic circuitry works ``naturally'' in base 2 (just think of Off/On),
 everything inside a computer is calculated using base 2. Each digit
 represents the presence (or absence) of a power of 2 and is called a
 @dfn{bit}. So, for example, the base-two number @code{10101} is
+@iftex
+the same as decimal 21, (@math{(1\times 16) + (1\times 4) + (1\times 1)}).
+@end iftex
+@ifnottex
 the same as decimal 21, ((1 x 16) + (1 x 4) + (1 x 1)).
+@end ifnottex
 
 Since base-two numbers quickly become
 very long to read and write, they are usually grouped by 3 (i.e., they are
@@ -41854,7 +42219,7 @@ See also ``Interpreter.''
 @item Complemented Bracket Expression
 The negation of a @dfn{bracket expression}.  All that is @emph{not}
 described by a given bracket expression. The symbol @samp{^} precedes
-the negated bracket expression.  E.g.: @samp{[[^:digit:]}
+the negated bracket expression.  E.g.: @samp{[^[:digit:]]}
 designates whatever character is not a digit. @samp{[^bad]}
 designates whatever character is not one of the letters @samp{b}, @samp{a},
 or @samp{d}.
@@ -42123,7 +42488,12 @@ Base 16 notation, where the digits are @code{0}--@code{9} and
 @code{A}--@code{F}, with @samp{A}
 representing 10, @samp{B} representing 11, and so on, up to @samp{F} for 15.
 Hexadecimal numbers are written in C using a leading @samp{0x},
+@iftex
+to indicate their base.  Thus, @code{0x12} is 18 (@math{(1\times 16) + 2}).
+@end iftex
+@ifnottex
 to indicate their base.  Thus, @code{0x12} is 18 ((1 x 16) + 2).
+@end ifnottex
 @xref{Nondecimal-numbers}.
 
 @item I/O
@@ -42187,7 +42557,7 @@ meaning.  Keywords are reserved and may not be used as variable names.
 @code{break},
 @code{case},
 @code{continue},
-@code{default}
+@code{default},
 @code{delete},
 @code{do@dots{}while},
 @code{else},
@@ -42273,7 +42643,12 @@ Ancient @command{awk} implementations used single precision floating-point.
 @item Octal
 Base-eight notation, where the digits are @code{0}--@code{7}.
 Octal numbers are written in C using a leading @samp{0},
+@iftex
+to indicate their base.  Thus, @code{013} is 11 (@math{(1\times 8) + 3}).
+@end iftex
+@ifnottex
 to indicate their base.  Thus, @code{013} is 11 ((1 x 8) + 3).
+@end ifnottex
 @xref{Nondecimal-numbers}.
 
 @item Output Record
@@ -42518,7 +42893,7 @@ record or a string.
 @c hence no sectioning command or @node.
 
 @display
-Copyright @copyright{} 2007 Free Software Foundation, Inc. @url{http://fsf.org/}
+Copyright @copyright{} 2007 Free Software Foundation, Inc. @url{https://fsf.org/}
 
 Everyone is permitted to copy and distribute verbatim copies of this
 license document, but changing it is not allowed.
@@ -43201,7 +43576,7 @@ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
 General Public License for more details.
 
 You should have received a copy of the GNU General Public License
-along with this program.  If not, see @url{http://www.gnu.org/licenses/}.
+along with this program.  If not, see @url{https://www.gnu.org/licenses/}.
 @end smallexample
 
 Also add information on how to contact you by electronic and paper mail.
@@ -43224,14 +43599,14 @@ use an ``about box''.
 You should also get your employer (if you work as a programmer) or school,
 if any, to sign a ``copyright disclaimer'' for the program, if necessary.
 For more information on this, and how to apply and follow the GNU GPL, see
-@url{http://www.gnu.org/licenses/}.
+@url{https://www.gnu.org/licenses/}.
 
 The GNU General Public License does not permit incorporating your
 program into proprietary programs.  If your program is a subroutine
 library, you may consider it more useful to permit linking proprietary
 applications with the library.  If this is what you want to do, use
 the GNU Lesser General Public License instead of this License.  But
-first, please read @url{http://www.gnu.org/philosophy/why-not-lgpl.html}.
+first, please read @url{https://www.gnu.org/philosophy/why-not-lgpl.html}.
 
 @ifclear FOR_PRINT
 @c The GNU Free Documentation License.
@@ -43254,7 +43629,7 @@ first, please read @url{http://www.gnu.org/philosophy/why-not-lgpl.html}.
 
 @display
 Copyright @copyright{} 2000, 2001, 2002, 2007, 2008 Free Software Foundation, Inc.
-@uref{http://fsf.org/}
+@uref{https://fsf.org/}
 
 Everyone is permitted to copy and distribute verbatim copies
 of this license document, but changing it is not allowed.
@@ -43662,7 +44037,7 @@ The Free Software Foundation may publish new, revised versions
 of the GNU Free Documentation License from time to time.  Such new
 versions will be similar in spirit to the present version, but may
 differ in detail to address new problems or concerns.  See
-@uref{http://www.gnu.org/copyleft/}.
+@uref{https://www.gnu.org/copyleft/}.
 
 Each version of the License is given a distinguishing version number.
 If the Document specifies that a particular numbered version of this
@@ -43778,6 +44153,8 @@ Consistency issues:
 	The term "blank" is thus basically reserved for "blank lines" etc.
 	To make dark corners work, the @value{DARKCORNER} has to be outside
 		closing `.' of a sentence and after (pxref{...}).
+	Make sure that each @value{DARKCORNER} has an index entry, and
+		also that each `@cindex dark corner' has an @value{DARKCORNER}.
 	" " should have an @w{} around it
 	Use "non-" only with language names or acronyms, or the words bug and option and null
 	Use @command{ftp} when talking about anonymous ftp
@@ -43895,4 +44272,7 @@ But to use it you have to say
 which sorta sucks.
 
 TODO:
-Check that all dark corners are indexed properly.
+Add a section explaining recursion from ground zero. Probably
+easiest to do it with factorial as the example. Explain that
+recursion needs a stopping condition. Thanks to
+Bill Duncan <bduncan@beachnet.org> for the suggestion.

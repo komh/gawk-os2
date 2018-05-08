@@ -165,7 +165,7 @@ BASIC_TESTS = \
 	manglprm math membug1 memleak messages minusstr mmap8k mtchi18n \
 	nasty nasty2 negexp negrange nested nfldstr nfloop nfneg nfset nlfldsep \
 	nlinstr nlstrina noeffect nofile nofmtch noloop1 noloop2 nonl noparms \
-	nors nulinsrc nulrsend numindex numsubstr \
+	nors nulinsrc nulrsend numindex numstr1 numsubstr \
 	octsub ofmt ofmta ofmtbig ofmtfidl ofmts ofmtstrnum ofs1 onlynl \
 	opasnidx opasnslf \
 	paramasfunc1 paramasfunc2 paramdup paramres paramtyp paramuninitglobal \
@@ -175,11 +175,12 @@ BASIC_TESTS = \
 	regexpbrack regexpbrack2 regexprange regrange reindops reparse resplit \
 	rri1 rs rscompat rsnul1nl rsnulbig rsnulbig2 rstest1 rstest2 rstest3 \
 	rstest4 rstest5 rswhite \
-	scalar sclforin sclifin sigpipe1 sortempty sortglos splitargv splitarr \
+	scalar sclforin sclifin setrec0 setrec1 \
+	sigpipe1 sortempty sortglos splitargv splitarr \
 	splitdef splitvar splitwht status-close strcat1 strnum1 strnum2 strtod \
 	subamp subback subi18n subsepnm subslash substr swaplns synerr1 synerr2 \
 	tradanch tweakfld \
-	uninit2 uninit3 uninit4 uninit5 uninitialized unterm uparrfs \
+	uninit2 uninit3 uninit4 uninit5 uninitialized unterm uparrfs uplus \
 	wideidx wideidx2 widesub widesub2 widesub3 widesub4 wjposer1 \
 	zero2 zeroe0 zeroflag
 
@@ -201,13 +202,13 @@ GAWK_EXT_TESTS = \
 	genpot gensub gensub2 gensub3 getlndir gnuops2 gnuops3 gnureops gsubind \
 	icasefs icasers id igncdym igncfs ignrcas2 ignrcas4 ignrcase incdupe \
 	incdupe2 incdupe3 incdupe4 incdupe5 incdupe6 incdupe7 include include2 \
-	indirectbuiltin indirectcall indirectcall2 intarray \
+	indirectbuiltin indirectcall indirectcall2 intarray isarrayunset \
 	lint lintexp lintindex lintint lintlength lintold lintset lintwarn \
 	mixed1 mktime manyfiles match1 match2 match3 mbstr1 mbstr2 muldimposix \
 	nastyparm negtime next nondec nondec2 nonfatal1 nonfatal2 nonfatal3 \
 	patsplit posix printfbad1 printfbad2 printfbad3 printfbad4 printhuge \
 	procinfs profile0 profile1 profile2 profile3 profile4 profile5 profile6 \
-	profile7 profile8 profile9 profile10 pty1 \
+	profile7 profile8 profile9 profile10 pty1 pty2 \
 	rebuf regnul1 regnul2 regx8bit reginttrad reint reint2 rsgetline rsglstdin \
 	rsstart1 rsstart2 rsstart3 rstest6 \
 	shadow shadowbuiltin sortfor sortfor2 sortu sourcesplit split_after_fpat \
@@ -221,12 +222,14 @@ ARRAYDEBUG_TESTS = arrdbg
 EXTRA_TESTS = inftest regtest ignrcas3 
 INET_TESTS = inetdayu inetdayt inetechu inetecht
 MACHINE_TESTS = double1 double2 fmtspcl intformat
-MPFR_TESTS = mpfrnr mpfrnegzero mpfrmemok1 mpfrrem mpfrrnd mpfrieee
+MPFR_TESTS = mpfrbigint mpfrexprange mpfrieee mpfrmemok1 mpfrnegzero \
+	mpfrnr mpfrrem mpfrrnd mpfrrndeval mpfrsort mpfrsqrt \
+	mpfrstrtonum mpgforcenum mpfruplus
 LOCALE_CHARSET_TESTS = \
 	asort asorti backbigs1 backsmalls1 backsmalls2 \
 	fmttest fnarydel fnparydl jarebug lc_num1 mbfw1 \
 	mbprintf1 mbprintf2 mbprintf3 mbprintf4 mbprintf5 \
-	rebt8b2 rtlenmb sort1 sprintfc
+	nlstringtest rebt8b2 rtlenmb sort1 sprintfc
 
 SHLIB_TESTS = \
 	apiterm \
@@ -1021,6 +1024,10 @@ mpfrrnd:
 	@$(AWK) -M -vPREC=53 -f "$(srcdir)"/$@.awk > _$@ 2>&1
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
+mpfrrndeval:
+	@echo $@
+	@$(AWK) -M -f "$(srcdir)"/$@.awk > _$@ 2>&1
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 mpfrnegzero:
 	@echo $@
 	@$(AWK) -M -f "$(srcdir)"/$@.awk > _$@ 2>&1
@@ -1049,6 +1056,11 @@ mpfrsqrt:
 mpfrstrtonum:
 	@echo $@
 	@$(AWK) -M -f "$(srcdir)"/$@.awk > _$@ 2>&1
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+mpfruplus:
+	@echo $@
+	@$(AWK) -M -f "$(srcdir)"/uplus.awk > _$@ 2>&1
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
 mpgforcenum:
@@ -1175,7 +1187,7 @@ getfile:
 
 readdir:
 	@if [ "`uname`" = Linux ] && [ "`stat -f . 2>/dev/null | awk 'NR == 2 { print $$NF }'`" = nfs ];  then \
-	echo This test may fail on GNU/Linux systems when run on an NFS filesystem.; \
+	echo This test may fail on GNU/Linux systems when run on NFS or JFS filesystems.; \
 	echo If it does, try rerunning on an ext'[234]' filesystem. ; \
 	fi
 	@echo $@
@@ -1353,13 +1365,21 @@ watchpoint1:
 
 pty1:
 	@echo $@
-	@echo Expect pty1 to fail with DJGPP and MinGW.
+	@echo Expect $@ to fail with DJGPP and MinGW.
 	@-case `uname` in \
 	*[Oo][Ss]/390*) : ;; \
 	*) AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@ ; \
 	$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@ ;; \
 	esac
 
+pty2:
+	@echo $@
+	@echo Expect $@ to fail with DJGPP and MinGW.
+	@-case `uname` in \
+	*[Oo][Ss]/390*) : ;; \
+	*) AWKPATH="$(srcdir)" $(AWK) -f $@.awk | od -c | $(AWK) '{ $$1 = $$1 ; print }' >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@ ; \
+	$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@ ;; \
+	esac
 rscompat:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) --traditional -f $@.awk "$(srcdir)/$@.in" >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
@@ -1984,6 +2004,14 @@ nlstrina:
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
+nlstringtest::
+	@echo $@
+	@echo Expect nlstringtest to fail with DJGPP and MinGW when not built with gettext.
+#	@[ -z "$$GAWKLOCALE" ] && GAWKLOCALE=fr_FR.UTF-8 LANGUAGE=
+	@[ -z "$$GAWKLOCALE" ] && GAWKLOCALE=FRA_FRA.1252 LANGUAGE= ; \
+	AWKPATH="$(srcdir)" $(AWK) -f $@.awk "$(srcdir)" >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
 noeffect:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  --lint >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
@@ -2022,6 +2050,11 @@ nulrsend:
 numindex:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  < "$(srcdir)"/$@.in >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+numstr1:
+	@echo $@
+	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
 numsubstr:
@@ -2293,11 +2326,25 @@ sclifin:
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
-sigpipe1:
+setrec0:
 	@echo $@
-	@echo Expect sigpipe1 to fail with DJGPP.
+	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  < "$(srcdir)"/$@.in >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+setrec1:
+	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+sigpipe1:
+	@echo $@
+	@-case `uname` in \
+	*MS-DOS*) echo This test fails on DJGPP --- skipping $@ ;; \
+	*) \
+	AWKPATH="$(srcdir)" ; export AWKPATH; \
+	$(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@ ; \
+	$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@ ; \
+	esac
 
 sortempty:
 	@echo $@
@@ -2429,6 +2476,11 @@ unterm:
 uparrfs:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  < "$(srcdir)"/$@.in >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+uplus:
+	@echo $@
+	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
 wjposer1:
@@ -2726,6 +2778,11 @@ indirectcall:
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
 indirectcall2:
+	@echo $@
+	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+isarrayunset:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk  >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
@@ -3158,17 +3215,7 @@ diffout:
 # convenient way to scan valgrind results for errors
 valgrind-scan:
 	@echo "Scanning valgrind log files for problems:"
-	@$(AWK) '\
-	function show() {if (cmd) {printf "%s: %s\n",FILENAME,cmd; cmd = ""}; \
-	  printf "\t%s\n",$$0}; \
-	{$$1 = ""}; \
-	$$2 == "Command:" {incmd = 1; $$2 = ""; cmd = $$0; next}; \
-	incmd {if (/Parent PID:/) incmd = 0; else {cmd = (cmd $$0); next}}; \
-	/ERROR SUMMARY:/ && !/: 0 errors from 0 contexts/ {show()}; \
-	/definitely lost:/ && !/: 0 bytes in 0 blocks/ {show()}; \
-	/possibly lost:/ && !/: 0 bytes in 0 blocks/ {show()}; \
-	/ suppressed:/ && !/: 0 bytes in 0 blocks/ {show()}; \
-	' log.[0-9]*
+	@$(AWK) -f "$(srcdir)"/valgrind.awk log.[0-9]*
 
 # This target is for testing with electric fence.
 efence:

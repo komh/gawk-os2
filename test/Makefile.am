@@ -557,6 +557,8 @@ EXTRA_DIST = \
 	intprec.ok \
 	iobug1.awk \
 	iobug1.ok \
+	isarrayunset.awk \
+	isarrayunset.ok \
 	jarebug.awk \
 	jarebug.in \
 	jarebug.ok \
@@ -666,12 +668,15 @@ EXTRA_DIST = \
 	mpfrrem.ok \
 	mpfrrnd.awk \
 	mpfrrnd.ok \
+	mpfrrndeval.awk \
+	mpfrrndeval.ok \
 	mpfrsort.awk \
 	mpfrsort.ok \
 	mpfrsqrt.awk \
 	mpfrsqrt.ok \
 	mpfrstrtonum.awk \
 	mpfrstrtonum.ok \
+	mpfruplus.ok \
 	mpgforcenum.awk \
 	mpgforcenum.ok \
 	mtchi18n.awk \
@@ -712,6 +717,10 @@ EXTRA_DIST = \
 	nlinstr.ok \
 	nlstrina.awk \
 	nlstrina.ok \
+	nlstringtest.awk \
+	nlstringtest.ok \
+	nlstringtest.po \
+	fr \
 	noeffect.awk \
 	noeffect.ok \
 	nofile.ok \
@@ -747,6 +756,8 @@ EXTRA_DIST = \
 	numindex.awk \
 	numindex.in \
 	numindex.ok \
+	numstr1.awk \
+	numstr1.ok \
 	numsubstr.awk \
 	numsubstr.in \
 	numsubstr.ok \
@@ -878,6 +889,8 @@ EXTRA_DIST = \
 	prtoeval.ok \
 	pty1.awk \
 	pty1.ok \
+	pty2.awk \
+	pty2.ok \
 	rand-mpfr.ok \
 	rand.awk \
 	rand.ok \
@@ -1003,6 +1016,11 @@ EXTRA_DIST = \
 	sclforin.ok \
 	sclifin.awk \
 	sclifin.ok \
+	setrec0.awk \
+	setrec0.in \
+	setrec0.ok \
+	setrec1.awk \
+	setrec1.ok \
 	shadow.awk \
 	shadow.ok \
 	shadowbuiltin.awk \
@@ -1159,6 +1177,8 @@ EXTRA_DIST = \
 	uparrfs.awk \
 	uparrfs.in \
 	uparrfs.ok \
+	uplus.awk \
+	uplus.ok \
 	valgrind.awk \
 	watchpoint1.awk \
 	watchpoint1.in \
@@ -1216,10 +1236,10 @@ BASIC_TESTS = \
 	hex hex2 hsprint \
 	inpref inputred intest intprec iobug1 \
 	leaddig leadnl litoct longsub longwrds \
-	manglprm math membug1 memleak messages minusstr mmap8k mtchi18n \
+	manglprm math membug1 memleak messages minusstr mmap8k \
 	nasty nasty2 negexp negrange nested nfldstr nfloop nfneg nfset nlfldsep \
 	nlinstr nlstrina noeffect nofile nofmtch noloop1 noloop2 nonl noparms \
-	nors nulinsrc nulrsend numindex numsubstr \
+	nors nulinsrc nulrsend numindex numstr1 numsubstr \
 	octsub ofmt ofmta ofmtbig ofmtfidl ofmts ofmtstrnum ofs1 onlynl \
 	opasnidx opasnslf \
 	paramasfunc1 paramasfunc2 paramdup paramres paramtyp paramuninitglobal \
@@ -1229,11 +1249,12 @@ BASIC_TESTS = \
 	regexpbrack regexpbrack2 regexprange regrange reindops reparse resplit \
 	rri1 rs rscompat rsnul1nl rsnulbig rsnulbig2 rstest1 rstest2 rstest3 \
 	rstest4 rstest5 rswhite \
-	scalar sclforin sclifin sigpipe1 sortempty sortglos splitargv splitarr \
+	scalar sclforin sclifin setrec0 setrec1 \
+	sigpipe1 sortempty sortglos splitargv splitarr \
 	splitdef splitvar splitwht status-close strcat1 strnum1 strnum2 strtod \
 	subamp subback subi18n subsepnm subslash substr swaplns synerr1 synerr2 \
 	tradanch tweakfld \
-	uninit2 uninit3 uninit4 uninit5 uninitialized unterm uparrfs \
+	uninit2 uninit3 uninit4 uninit5 uninitialized unterm uparrfs uplus \
 	wideidx wideidx2 widesub widesub2 widesub3 widesub4 wjposer1 \
 	zero2 zeroe0 zeroflag
 
@@ -1255,13 +1276,13 @@ GAWK_EXT_TESTS = \
 	genpot gensub gensub2 gensub3 getlndir gnuops2 gnuops3 gnureops gsubind \
 	icasefs icasers id igncdym igncfs ignrcas2 ignrcas4 ignrcase incdupe \
 	incdupe2 incdupe3 incdupe4 incdupe5 incdupe6 incdupe7 include include2 \
-	indirectbuiltin indirectcall indirectcall2 intarray \
+	indirectbuiltin indirectcall indirectcall2 intarray isarrayunset \
 	lint lintexp lintindex lintint lintlength lintold lintset lintwarn \
 	mixed1 mktime manyfiles match1 match2 match3 mbstr1 mbstr2 muldimposix \
 	nastyparm negtime next nondec nondec2 nonfatal1 nonfatal2 nonfatal3 \
 	patsplit posix printfbad1 printfbad2 printfbad3 printfbad4 printhuge \
 	procinfs profile0 profile1 profile2 profile3 profile4 profile5 profile6 \
-	profile7 profile8 profile9 profile10 pty1 \
+	profile7 profile8 profile9 profile10 pty1 pty2 \
 	rebuf regnul1 regnul2 regx8bit reginttrad reint reint2 rsgetline rsglstdin \
 	rsstart1 rsstart2 rsstart3 rstest6 \
 	shadow shadowbuiltin sortfor sortfor2 sortu sourcesplit split_after_fpat \
@@ -1279,14 +1300,15 @@ INET_TESTS = inetdayu inetdayt inetechu inetecht
 
 MACHINE_TESTS = double1 double2 fmtspcl intformat
 
-MPFR_TESTS = mpfrnr mpfrnegzero mpfrmemok1 mpfrrem mpfrrnd mpfrieee
-	mpfrexprange mpfrsort mpfrsqrt mpfrbigint mpfrstrtonum mpgforcenum
+MPFR_TESTS = mpfrbigint mpfrexprange mpfrieee mpfrmemok1 mpfrnegzero \
+	mpfrnr mpfrrem mpfrrnd mpfrrndeval mpfrsort mpfrsqrt \
+	mpfrstrtonum mpgforcenum mpfruplus
 
 LOCALE_CHARSET_TESTS = \
 	asort asorti backbigs1 backsmalls1 backsmalls2 \
 	fmttest fnarydel fnparydl jarebug lc_num1 mbfw1 \
 	mbprintf1 mbprintf2 mbprintf3 mbprintf4 mbprintf5 \
-	rebt8b2 rtlenmb sort1 sprintfc
+	mtchi18n nlstringtest rebt8b2 rtlenmb sort1 sprintfc
 
 SHLIB_TESTS = \
 	apiterm \
@@ -1337,7 +1359,7 @@ VALGRIND =
 
 #
 # And we set AWKLIBPATH to find the extension libraries we built.
-LOCALES = LC_ALL=$${GAWKLOCALE:-C} LANG=$${GAWKLOCALE:-C}
+LOCALES = LANGUAGE= LC_ALL=$${GAWKLOCALE:-C} LANG=$${GAWKLOCALE:-C}
 AWK = $(LOCALES) AWKLIBPATH=../extension/.libs $(VALGRIND) $(AWKPROG)
 
 # Message stuff is to make it a little easier to follow.
@@ -1362,13 +1384,14 @@ gawk-extensions: $(GAWK_EXT_TESTS)
 
 charset-tests-all:
 	@if locale -a | grep -i 'en_US.UTF.*8' > /dev/null && \
+	    locale -a | grep -i 'fr_FR.UTF.*8' > /dev/null && \
 	    locale -a | grep -i 'ru_RU.UTF.*8' > /dev/null && \
 	    locale -a | grep -i 'ja_JP.UTF.*8' > /dev/null  ; \
 	then \
 		$(MAKE) charset-msg-start charset-tests charset-msg-end; \
 	else \
 		echo %%%%%%%%%% Inadequate locale support: skipping charset tests. ; \
-		echo %%%%%%%%%% At least en_US.UTF-8, ru_RU.UTF-8 and ja_JP.UTF-8 are needed. ; \
+		echo %%%%%%%%%% At least en_US.UTF-8, fr_FR.UTF-8, ru_RU.UTF-8 and ja_JP.UTF-8 are needed. ; \
 	fi
 
 charset-tests: $(LOCALE_CHARSET_TESTS)
@@ -1441,9 +1464,10 @@ charset-msg-start:
 	@echo "======== Starting tests that can vary based on character set or locale support ========"
 	@echo "**************************************************************************"
 	@echo "* Some or all of these tests may fail if you have inadequate or missing  *"
-	@echo "* locale support. At least en_US.UTF-8, ru_RU.UTF-8 and ja_JP.UTF-8 are  *"
-	@echo "* needed. The el_GR.iso88597 is optional but helpful. However, if you    *"
-	@echo "* see this message, the Makefile thinks you have what you need ...       *"
+	@echo "* locale support. At least en_US.UTF-8, fr_FR.UTF-8, ru_RU.UTF-8 and     *"
+	@echo "* ja_JP.UTF-8 are needed. The el_GR.iso88597 is optional but helpful.    *"
+	@echo "* However, if you see this message, the Makefile thinks you have what    *"
+	@echo "* you need ...                                                           *"
 	@echo "**************************************************************************"
 
 charset-msg-end:
@@ -2067,6 +2091,11 @@ mpfrrnd:
 	@$(AWK) -M -vPREC=53 -f "$(srcdir)"/$@.awk > _$@ 2>&1
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
+mpfrrndeval:
+	@echo $@
+	@$(AWK) -M -f "$(srcdir)"/$@.awk > _$@ 2>&1
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
 mpfrnegzero:
 	@echo $@
 	@$(AWK) -M -f "$(srcdir)"/$@.awk > _$@ 2>&1
@@ -2095,6 +2124,11 @@ mpfrsqrt:
 mpfrstrtonum:
 	@echo $@
 	@$(AWK) -M -f "$(srcdir)"/$@.awk > _$@ 2>&1
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+mpfruplus:
+	@echo $@
+	@$(AWK) -M -f "$(srcdir)"/uplus.awk > _$@ 2>&1
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
 
 mpgforcenum:
@@ -2391,6 +2425,16 @@ pty1:
 	$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@ ;; \
 	esac
 
+## 1/2018: The awk goop is to compensate for different output of od on
+## Mac OS X systems. Sigh.
+pty2:
+	@echo $@
+	@-case `uname` in \
+	*[Oo][Ss]/390*) : ;; \
+	*) AWKPATH="$(srcdir)" $(AWK) -f $@.awk | od -c | $(AWK) '{ $$1 = $$1 ; print }' >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@ ; \
+	$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@ ;; \
+	esac
+
 rscompat:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) --traditional -f $@.awk "$(srcdir)/$@.in" >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
@@ -2428,6 +2472,13 @@ nonfatal1:
 	@echo $@
 	@AWKPATH="$(srcdir)" $(AWK) -f $@.awk 2>&1 | $(AWK) '{print gensub(/invalid:.*$$/, "invalid", 1, $$0)}' >_$@ || echo EXIT CODE: $$? >>_$@
 	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
+nlstringtest::
+	@echo $@
+	@[ -z "$$GAWKLOCALE" ] && GAWKLOCALE=fr_FR.UTF-8 ; \
+	AWKPATH="$(srcdir)" $(AWK) -f $@.awk "$(srcdir)" >_$@ 2>&1 || echo EXIT CODE: $$? >>_$@
+	@-$(CMP) "$(srcdir)"/$@.ok _$@ && rm -f _$@
+
 
 # Targets generated for other tests:
 include Maketests

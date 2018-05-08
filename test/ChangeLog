@@ -1,3 +1,89 @@
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.1: Release tar ball made.
+
+2018-02-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (mtchi18n): Move into locale tests.
+	Thanks to Kiyoshi KANAZAWA <yoi_no_myoujou@yahoo.co.jp>
+	for the report.
+
+2018-02-07         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (uplus, mpfruplus): Add new tests.
+	* uplus.awk, uplus.ok, mpfruplus.ok: New files.
+
+2018-02-05         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (MPFR_TESTS): Sort tests and use backslash
+	continuation to get the full list. A HUGE thank you to
+	Eli Zaretskii <eliz@gnu.org> for the report.
+
+2018-02-01         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (AWK): Move LANGUAGE= to here instead of
+	having it in individual tests.
+
+2018-01-24         John E. Malmberg      <wb8tyw@qsl.net>
+
+	* lintold.awk: Minor change to allow test to run on
+	32 bit VAX/VMS with out a floating overflow.
+
+2018-01-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (pty2): Instead of sed, use simpler awk goop
+	to canonicalize the output from od. Thanks to Michal
+	Jaegermann for the tip.
+	* pty2.ok: Updated.
+
+2018-01-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (charset-tests-all): Add punctuation in the message.
+	(charset-msg-start): Add fr_FR.UTF-8 to list of desired locales,
+	reformat the message.
+	(isarrayunset): New test.
+	* isarrayunset.awk, isarrayunset.ok: New files.
+	* pty2: Add some sed goop to canonicalize the output of od;
+	this works around the Mac OS X od which produces different
+	output, avoiding a spurious test failure.
+
+2018-01-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (nlstringtest): New test.
+	* nlstringtest.awk, nlstringtest.ok, nlstringtest.po,
+	fr/LC_MESSAGES/nlstringtest.mo: New files. Thanks to
+	Bruno Haible <bruno@clisp.org> for the test.
+
+2018-01-04         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Thanks to Andrew Schorr for the basics of this test.
+
+	* Makefile.am (pty2): New test. 
+	* pty2.awk, pty2.ok: New files.
+
+2018-01-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	Thanks to Nethox <nethox@gmail.com> for this test.
+
+	* Makefile.am (mpfrrndeval): New test. 
+	* mpfrrndeval.awk, mpfrrndeval.ok: New files.
+
+2017-12-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* Makefile.am (EXTRA_DIST): Add numstr1 files.
+	* numstr1.awk, numstr1.ok: New files.
+
+2017-11-14         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* Makefile.am (EXTRA_DIST): Add new tests setrec0 and setrec1.
+	(BASIC_TESTS): Add setrec0 and setrec1.
+	* setrec0.awk, setrec0.in, setrec0.ok: New files.
+	* setrec1.awk, setrec1.ok: New files.
+
+2017-11-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* badargs.ok: Updated after code change.
+
 2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.0: Release tar ball made.

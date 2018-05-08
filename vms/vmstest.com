@@ -66,11 +66,16 @@ $! 4.1.3.i: New tests
 $!	basic:  ofmtstrnum
 $!	extra:  ignrcas3
 $!
-$! 4.1.3+: New tests
+$! 4.2.0: New tests
 $!      basic:   aryunasgn, concat5, memleak
 $!      ext:     fpat5, fpat6, fwtest5, fwtest6, fwtest7, fwtest8,
 $!               sourcesplit
 $!      charset: mbprintf5
+$!
+$! 4.2+: New tests
+$!      basic:   numstr1, setrec0, setrec1
+$!      extra:   isarrayunset, nlstringtest
+$!
 $!
 $	echo	= "write sys$output"
 $	cmp	= "diff/Output=_NL:/Maximum=1"
@@ -217,7 +222,8 @@ $		gosub list_of_tests
 $		list = "nasty nasty2 negexp negrange nested nfldstr" -
 		  + " nfloop nfneg nfset nlfldsep nlinstr nlstrina" -
 		  + " noeffect nofile nofmtch noloop1 noloop2 nonl" -
-		  + " noparms nors nulinsrc nulrsend numindex numsubstr" -
+		  + " noparms nors nulinsrc nulrsend numindex numstr1" -
+		  + " numsubstr" -
 		  + " octsub ofmt ofmtbig ofmtfidl" -
 		  + " ofmta ofmts ofs1 onlynl opasnidx opasnslf
 $		gosub list_of_tests
@@ -232,7 +238,8 @@ $		list = "rand range1 rebrackloc rebt8b1 redfilnm regeq" -
 		  + " resplit rri1 rs rscompat rsnul1nl rsnulbig rsnulbig2" -
 		  + " rstest1 rstest2 rstest3 rstest4 rstest5 rswhite"
 $		gosub list_of_tests
-$		list = "scalar sclforin sclifin sigpipe1 sortempty sortglos" -
+$		list = "scalar sclforin sclifin setrec0 setrec1 sigpipe1" -
+		  + " sortempty sortglos" -
 		  + " splitargv splitarr splitdef splitvar splitwht" -
 		  + " strcat1 strtod strnum1 subamp subback subi18n subsepnm" -
 		  + " subslash substr swaplns synerr1 synerr2"
@@ -324,7 +331,8 @@ $		gosub list_of_tests
 $		return
 $
 $extra:		echo "extra..."
-$		list = "regtest inftest inet ignrcas3"
+$		list = "regtest inftest inet ignrcas3 isarrayunset" -
+                  + " nlstringtest"
 $		gosub list_of_tests
 $		return
 $
@@ -420,6 +428,7 @@ $reindops:
 $reparse:
 $rsnul1nl:
 $rswhite:
+$setrec0:
 $sortglos:
 $splitargv:
 $splitvar:
@@ -660,6 +669,7 @@ $memleak:
 $minusstr:
 $negrange:
 $nulinsrc:
+$numstr1:
 $nlstrina:
 $octsub:
 $ofmtstrnum:
@@ -671,6 +681,7 @@ $prt1eval:
 $rebt8b1:
 $regexprange:
 $regrange:
+$setrec1:
 $splitdef:
 $splitwht:
 $strnum1:
@@ -678,6 +689,9 @@ $substr:
 $zero2:
 $zeroflag:
 $	test_class = "basic"
+$	goto common_without_test_in
+$isarrayunset:
+$	test_class = "extra"
 $	goto common_without_test_in
 $!
 $aarray1:
@@ -1728,12 +1742,30 @@ $   if f$search("sys$i18n_locale:el_gr_iso8859-7.locale") .nes. ""
 $   then
 $	define/user LC_ALL "el_gr_iso8859-7"
 $	define/user GAWKLOCALE "el_gr_iso8859-7"
-	AWKPATH_srcdir
+$	AWKPATH_srcdir
 $!	goto common_without_test_in
 $	skip_reason = "VMS EL_GR_ISO8859-7 locale fails test"
 $	gosub junit_report_skip
 $   else
 $	skip_reason = "EL_GR_ISO8859-7 locale not installed"
+$	gosub junit_report_skip
+$   endif
+$   return
+$!
+$nlstringtest:	echo "''test'"
+$   test_class = "extra"
+$   ! This locale does not seem to be available from the HPE I18N kit.
+$   ! So this test has not been run on VMS.
+$   if f$search("sys$i18n_locale:fr_fr_utf-8.locale") .nes. ""
+$   then
+$	define/user LC_ALL "fr_fr_utf-8"
+$	define/user GAWKLOCALE "fr_fr_utf-8"
+$	AWKPATH_srcdir
+$!	goto common_without_test_in
+$	skip_reason = "VMS FR_FR_UTF-8 locale test not validated."
+$	gosub junit_report_skip
+$   else
+$	skip_reason = "FR_FR_UTF-8 locale not installed"
 $	gosub junit_report_skip
 $   endif
 $   return
@@ -2250,7 +2282,9 @@ $
 $lintold:	echo "lintold"
 $	test_class = "gawk_ext"
 $	AWKPATH_srcdir
+$       set noOn
 $	gawk -f lintold.awk --lint-old <lintold.in >_lintold.tmp 2>&1
+$       set on
 $	cmp lintold.ok sys$disk:[]_lintold.tmp
 $	if $status
 $	then

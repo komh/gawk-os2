@@ -1,3 +1,143 @@
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.1: Release tar ball made.
+
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update UPDATE-MONTH.
+	* awkcard.in: Update tar ball version and copyright year.
+
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Updated.
+
+2018-02-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Further fix to NONFATAL stuff. Thanks to
+	Antonio Giovanni Colombo for the report.
+
+2018-02-16         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Fix NONFATAL stuff to cover input redirections too.
+
+2018-02-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawk.1: Fix NONFATAL stuff to cover input redirections too.
+
+2018-02-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Clarify binary mode is default on Cygwin,
+	improve section on using on PCs to refer to MinGW and DJGPP.
+	Thanks for the report to a contributor who wishes to
+	remain anonymous.
+
+2018-01-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* wordlist: Updated.
+
+2018-01-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (AWKLIBPATH Variable): Add note that changing
+	ENVIRON["AWKLIBPATH"] won't affect the running program. Thanks to
+	Neil R. Ormos <ormos-gnulists17@ormos.org> for the suggestion.
+
+2018-01-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (gawkextlib): Update discussion of gawkextlib.
+	Add not about json extension, and just present the list as
+	describing some of the extensions, since there are now too
+	many to try to keep up with all of them.
+
+2018-01-15         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update gnu.org and fsf.org URLs to https. OK'd
+	by the FSF.
+
+2018-01-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Remove incorrect '*' on some declarations of
+	ext_id in sample extension code. Thanks to Panos Papadopoulos
+	<panos1962@gmail.com> for the report.
+	* texinfo.tex: Updated from GNULIB.
+
+2018-01-08         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in (Checking for MPFR): Add warnings about exit's processing
+	of END rules.
+
+2018-01-03         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Update copryight year, and some small cleanups.
+
+2018-01-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Setting the rounding mode): Add a sidebar
+	with sample code (courtesy of <nethox@gmail.com>) to
+	demonstrate how ROUNDMODE affects number to string conversion.
+
+2017-12-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Updated.
+	* gawktexi.in (How To Contribute): Update to point to
+	awklang.org.
+
+2017-12-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* texinfo.tex: Updated.
+
+2017-12-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Additional Configuration Options): Add
+	description of the --enable-versioned-extension-dir option.
+
+2017-12-01         Sergey Tselikh     <stselikh@gmail.com>
+
+	* gawktexi.in: Several small changes to gawktexi.in,
+	mainly related to fixing typos, small text polishing
+	and adding @group/@end group in @example and @example-like
+	constructs to clean PDF version (formatted for Letter paper,
+	which is the default) of orphaned single lines of source code
+	or example output in higher and lower parts of pages (such
+	lines were with just a "}", or with a single line of code or
+	a comment).  Hyphenated words "single-precision",
+	"double-precision" and alike left untouched.
+
+2017-12-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in: Add a note to add a section on recursion.
+	Thanks to Bill Duncan <bduncan@beachnet.org> for the
+	suggestion.
+	* gawktexi.in: Add a missing DARKCORNER indicator and
+	a few missing dark corner index entries. Remove the note
+	at the end to check that all dark corners are indexed and
+	instead make it part of the list of consistency checks.
+
+2017-11-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawkworkflow.texi (General practices): Use correct option
+	--delete for deleting a branch upstream, instead of -d.
+
+2017-11-21         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* gawktexi.in (Setting the Rounding Mode): Fix the description
+	of ROUNDMODE "A": it uses MPFR_RNDA mode, which rounds away from zero,
+	not "Round to nearest, ties away from zero". 
+	* gawk.1 (ROUNDMODE): Fix description of "A".
+
+2017-11-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (Changes from API V1): Give a list of things
+	that changed, with xrefs. Thanks to Andrew Schorr for the push.
+
+2017-11-09         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (For Statement): Small clarification in the text.
+
+2017-11-08         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawktexi.in (General Data Types): Move AWK_NUMBER_TYPE
+	enum out to top level, corresponding to code change.
+
 2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.0: Release tar ball made.

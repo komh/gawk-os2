@@ -1,3 +1,108 @@
+2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 4.2.1: Release tar ball made.
+
+2018-02-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Restore checking for PPC Macintosh before
+	checking for MPFR. See README_d/README.macosx for info.
+
+2018-02-21         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Remove checking for PPC Macintosh before
+	checking for MPFR. Installing a newer compiler on that
+	system allows things to work.
+
+2018-02-17         Michal Jaegermann     <michal.jnn@gmail.com>.
+
+	* filefuncs.3am, filefuncs.c, fnmatch.3am, revoutput.3am,
+	revtwoway.3am: Spelling and typo fixes.
+
+2018-02-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Add stuff for finding gettext. Helps in
+	finding MPFR on some systems.
+
+2018-02-11         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* intdiv.c (do_intdiv): Print a warning about loss of precision if
+	MPFR arguments are received when not compiled with MPFR support.
+
+2018-02-08         Andrew J. Schorr     <aschorr@telemetry-investments.com>
+
+	* configure.ac (pkgextensiondir): This must be set to
+	'${libdir}/gawk'${EXTENSIONDIR} to match gawk's value.
+	The previous value of '${pkglibdir}'${EXTENSIONDIR} was incorrect,
+	because it was putting the extensions in the gawk-extensions
+	libdir subdirectory, instead of the gawk subdirectory.
+
+2018-02-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.3am, fnmatch.3am, fork.3am, inplace.3am,
+	ordchr.3am, readdir.3am, readfile.3am, revoutput.3am,
+	revtwoway.3am, rwarray.3am, time.3am: Add vim modeline at the
+	bottom to set the file type for syntax coloring.
+
+2018-01-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* compile, config.guess, config.rpath, config.sub,
+	depcomp: Updated from GNULIB.
+
+2018-01-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* filefuncs.c, fnmatch.c, fork.c, inplace.c, intdiv.c, ordchr.c,
+	readdir.c, readdir_test.c, readfile.c, revoutput.c, revtwoway.c,
+	rwarray.c, rwarray0.c, testext.c, time.c: Remove incorrect '*'
+	on declarations of ext_id in sample extension code. Thanks to
+	Panos Papadopoulos <panos1962@gmail.com> for the report.
+
+2017-12-29         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac (fmod): Put AC_SEARCH_LIBS before the call
+	to AC_CHECK_FUNCS and put fmod back into that list. Finally
+	causes config.h to have the correct check for HAVE_FMOD.
+	Thanks again to Michal Jaegermann <michal.jnn@gmail.com>.
+
+2017-12-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	More configuration fixes, mainly for Fedora. Thanks to
+	Michal Jaegermann <michal.jnn@gmail.com> for the reports
+	and for validating.
+
+	* configure.ac (AC_HEADER_MAJOR): Comment out, no longer works.
+	(sys/sysmacros.h, sys/mkdev.h): Check for header existence.
+	(fmod): Check with AC_SEARCH_LIBs instead of AC_CHECK_FUNCS.
+	* filefuncs.c: Rework header inclusion checks and order so
+	that we get the `major' macro without warnings on Fedora.
+	* fnmatch.c: Ditto.
+
+2017-12-26         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* gawkfts.c (fts_safe_changedir): Add check for path not null
+	before trying to open it. Thanks to Michal Jaegermann
+	<michal.jnn@gmail.com> for the report.
+
+2017-12-24          Michal Jaegermann    <michal.jnn@gmail.com>
+
+	* intdiv.c: Fix compilation for MPFR 2.4.1.
+
+2017-12-20         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Add support for the --enable-versioned-dir option
+	in the main configure program.
+
+2017-12-19         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* configure.ac: Add --disable-mpfr to be in sync with main
+	configure.ac and revise checking for MPFR appropriately.
+	* ext_custom.h: Use bug reporting address instead of my
+	personal address for reports of changes to this file.
+
+2017-10-28         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* rwarray.c (do_writea): Fix description in comment.
+	(write_array): Free the flattened array if writing an element fails.
+
 2017-10-19         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.0: Release tar ball made.

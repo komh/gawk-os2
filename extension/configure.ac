@@ -1,7 +1,7 @@
 dnl
 dnl configure.ac --- autoconf input file for gawk
 dnl
-dnl Copyright (C) 2012-2017 the Free Software Foundation, Inc.
+dnl Copyright (C) 2012-2018 the Free Software Foundation, Inc.
 dnl
 dnl This file is part of GAWK, the GNU implementation of the
 dnl AWK Programming Language.
@@ -23,10 +23,15 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk Bundled Extensions],[4.2.0],[bug-gawk@gnu.org],[gawk-extensions])
+AC_INIT([GNU Awk Bundled Extensions],[4.2.1],[bug-gawk@gnu.org],[gawk-extensions])
+
+AC_PREREQ([2.69])
 
 AC_CONFIG_MACRO_DIR([m4])
 AC_CONFIG_AUX_DIR([build-aux])
+
+AM_INIT_AUTOMAKE([1.15 -Wall -Werror])
+
 
 AC_USE_SYSTEM_EXTENSIONS
 AC_ZOS_USS
@@ -34,7 +39,25 @@ AC_ZOS_USS
 INSTALL="$ac_aux_dir/install-sh -c"
 export INSTALL
 
-AM_INIT_AUTOMAKE([1.15 -Wall -Werror])
+SKIP_MPFR=no
+AC_ARG_ENABLE([mpfr],
+	[AS_HELP_STRING([--disable-mpfr],[do not check for MPFR])],
+	if test "$enableval" = no
+	then
+		SKIP_MPFR=yes
+	fi
+)
+
+dnl Set the programming language for checks. Fortunately,
+dnl this only needs to be set once, since everything is in C.
+AC_LANG([C])
+
+dnl initialize GNU gettext
+dnl this seems to help with finding MPFR on some systems, too.
+AM_GNU_GETTEXT([external])
+AM_GNU_GETTEXT_VERSION([0.19.7])
+AM_LANGINFO_CODESET
+gt_LC_MESSAGES
 
 dnl checks for structure members
 AC_CHECK_MEMBERS([struct stat.st_blksize])
@@ -45,7 +68,11 @@ AC_DISABLE_STATIC
 LT_INIT
 dnl AC_PROG_INSTALL
 
-AC_SUBST([pkgextensiondir], ['${libdir}/gawk'])
+dnl use the same definition as the main configure script.
+dnl EXTENSIONDIR is exported if it was set there.
+dnl N.B. We must use ${libdir}/gawk instead of $pkglibdir because $pkglibdir
+dnl is set to ${libdir}/gawk-extensions, which is not what we want.
+AC_SUBST([pkgextensiondir], ['${libdir}/gawk'${EXTENSIONDIR}])
 
 if test "$GCC" = yes
 then
@@ -64,9 +91,13 @@ else
 	AC_MSG_RESULT([no])
 fi
 
-AC_CHECK_HEADERS(fnmatch.h limits.h sys/time.h sys/select.h sys/param.h sys/statvfs.h)
+AC_CHECK_HEADERS(fnmatch.h limits.h sys/mkdev.h sys/param.h sys/select.h \
+		sys/statvfs.h sys/sysmacros.h sys/time.h)
+
 AC_HEADER_DIRENT
-AC_HEADER_MAJOR
+dnl 12/2017: AC_HEADER_MAJOR no longer works on recent Fedora / GLIBC.
+dnl Instead we just check for the headers in the call above.
+dnl AC_HEADER_MAJOR
 AC_HEADER_TIME
 
 dnl check for mpfr support
@@ -74,12 +105,17 @@ case `uname -m` in
 *'Power Macintosh'*)
 	: ;;
 *)
-	GNUPG_CHECK_MPFR
+	case $SKIP_MPFR in
+	no)	GNUPG_CHECK_MPFR
+		;;
+	esac
 	;;
 esac
 
+AC_SEARCH_LIBS(fmod, m)
 AC_CHECK_FUNCS(fdopendir fmod fnmatch getdtablesize \
-		gettimeofday nanosleep select statvfs GetSystemTimeAsFileTime)
+		gettimeofday nanosleep select statvfs \
+		GetSystemTimeAsFileTime)
 
 GAWK_FUNC_DIRFD
 GAWK_PREREQ_DIRFD
