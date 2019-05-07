@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2014, 2016, 2018,
+ * Copyright (C) 1986, 1988, 1989, 1991-2014, 2016, 2018, 2019,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -37,10 +37,10 @@ static char indent_char[] = "    ";
 
 static NODE **null_lookup(NODE *symbol, NODE *subs);
 static NODE **null_dump(NODE *symbol, NODE *subs);
-static afunc_t null_array_func[] = {
+static const array_funcs_t null_array_func = {
+	"null",
 	(afunc_t) 0,
 	(afunc_t) 0,
-	null_length,
 	null_lookup,
 	null_afunc,
 	null_afunc,
@@ -53,23 +53,20 @@ static afunc_t null_array_func[] = {
 
 #define MAX_ATYPE 10
 
-static afunc_t *array_types[MAX_ATYPE];
+static const array_funcs_t *array_types[MAX_ATYPE];
 static int num_array_types = 0;
-
-/* array func to index mapping */
-#define AFUNC(F) (F ## _ind)
 
 /* register_array_func --- add routines to handle arrays */
 
-int
-register_array_func(afunc_t *afunc)
+static int
+register_array_func(const array_funcs_t *afunc)
 {
 	if (afunc && num_array_types < MAX_ATYPE) {
-		if (afunc != str_array_func && ! afunc[AFUNC(atypeof)])
+		if (afunc != & str_array_func && afunc->type_of == NULL)
 			return false;
 		array_types[num_array_types++] = afunc;
-		if (afunc[AFUNC(ainit)])	/* execute init routine if any */
-			(void) (*afunc[AFUNC(ainit)])(NULL, NULL);
+		if (afunc->init)	/* execute init routine if any */
+			(void) (*afunc->init)(NULL, NULL);
 		return true;
 	}
 	return false;
@@ -81,10 +78,10 @@ register_array_func(afunc_t *afunc)
 void
 array_init()
 {
-	(void) register_array_func(str_array_func);	/* the default */
+	(void) register_array_func(& str_array_func);	/* the default */
 	if (! do_mpfr) {
-		(void) register_array_func(int_array_func);
-		(void) register_array_func(cint_array_func);
+		(void) register_array_func(& int_array_func);
+		(void) register_array_func(& cint_array_func);
 	}
 }
 
@@ -98,7 +95,7 @@ make_array()
 	getnode(array);
 	memset(array, '\0', sizeof(NODE));
 	array->type = Node_var_array;
-	array->array_funcs = null_array_func;
+	array->array_funcs = & null_array_func;
 	/* vname, flags, and parent_array not set here */
 
 	return array;
@@ -111,7 +108,7 @@ void
 null_array(NODE *symbol)
 {
 	symbol->type = Node_var_array;
-	symbol->array_funcs = null_array_func;
+	symbol->array_funcs = & null_array_func;
 	symbol->buckets = NULL;
 	symbol->table_size = symbol->array_size = 0;
 	symbol->array_capacity = 0;
@@ -129,7 +126,7 @@ static NODE **
 null_lookup(NODE *symbol, NODE *subs)
 {
 	int i;
-	afunc_t *afunc = NULL;
+	const array_funcs_t *afunc = NULL;
 
 	assert(symbol->table_size == 0);
 
@@ -139,7 +136,7 @@ null_lookup(NODE *symbol, NODE *subs)
 	 */
 	for (i = num_array_types - 1; i >= 1; i--) {
 		afunc = array_types[i];
-		if (afunc[AFUNC(atypeof)](symbol, subs) != NULL)
+		if (afunc->type_of(symbol, subs) != NULL)
 			break;
 	}
 	if (i == 0 || afunc == NULL)
@@ -150,15 +147,6 @@ null_lookup(NODE *symbol, NODE *subs)
 	return symbol->alookup(symbol, subs);
 }
 
-/* null_length --- default function for array length interface */
-
-NODE **
-null_length(NODE *symbol, NODE *subs ATTRIBUTE_UNUSED)
-{
-	static NODE *tmp;
-	tmp = symbol;
-	return & tmp;
-}
 
 /* null_afunc --- default function for array interface */
 
@@ -618,6 +606,9 @@ do_delete(NODE *symbol, int nsubs)
 
 	(void) assoc_remove(symbol, subs);
 	DEREF(subs);
+	if (assoc_empty(symbol))
+		/* last element was removed, so reset array type to null */
+		null_array(symbol);
 
 #undef free_subs
 }
@@ -805,7 +796,7 @@ asort_actual(int nargs, sort_context_t ctxt)
 {
 	NODE *array, *dest = NULL, *result;
 	NODE *r, *subs, *s;
-	NODE **list = NULL, **ptr, **lhs;
+	NODE **list = NULL, **ptr;
 	unsigned long num_elems, i;
 	const char *sort_str;
 	char save;
@@ -893,12 +884,7 @@ asort_actual(int nargs, sort_context_t ctxt)
 
 		for (i = 1, ptr = list; i <= num_elems; i++, ptr += 2) {
 			subs = make_number(i);
-			lhs = assoc_lookup(result, subs);
-			unref(*lhs);
-			*lhs = *ptr;
-			if (result->astore != NULL)
-				(*result->astore)(result, subs);
-			unref(subs);
+			assoc_set(result, subs, *ptr);
 		}
 	} else {
 		/* We want the values of the source array. */
@@ -913,11 +899,11 @@ asort_actual(int nargs, sort_context_t ctxt)
 			/* value node */
 			r = *ptr++;
 
-			if (r->type == Node_val) {
-				lhs = assoc_lookup(result, subs);
-				unref(*lhs);
-				*lhs = dupnode(r);
-			} else {
+			NODE *value;
+
+			if (r->type == Node_val)
+				value = dupnode(r);
+			else {
 				NODE *arr;
 				arr = make_array();
 				subs = force_string(subs);
@@ -926,13 +912,10 @@ asort_actual(int nargs, sort_context_t ctxt)
 				subs->stptr = NULL;
 				subs->flags &= ~STRCUR;
 				arr->parent_array = array; /* actual parent, not the temporary one. */
-				lhs = assoc_lookup(result, subs);
-				unref(*lhs);
-				*lhs = assoc_copy(r, arr);
+
+				value = assoc_copy(r, arr);
 			}
-			if (result->astore != NULL)
-				(*result->astore)(result, subs);
-			unref(subs);
+			assoc_set(result, subs, value);
 		}
 	}
 
@@ -979,7 +962,6 @@ cmp_strings(const NODE *n1, const NODE *n2)
 	char *s1, *s2;
 	size_t len1, len2;
 	int ret;
-	size_t lmin;
 
 	s1 = n1->stptr;
 	len1 = n1->stlen;
@@ -992,7 +974,9 @@ cmp_strings(const NODE *n1, const NODE *n2)
 		return 1;
 
 	/* len1 > 0 && len2 > 0 */
-	lmin = len1 < len2 ? len1 : len2;
+	// make const to ensure it doesn't change if we
+	// need to call memcmp(), below
+	const size_t lmin = len1 < len2 ? len1 : len2;
 
 	if (IGNORECASE) {
 		const unsigned char *cp1 = (const unsigned char *) s1;
@@ -1002,7 +986,9 @@ cmp_strings(const NODE *n1, const NODE *n2)
 			ret = strncasecmpmbs((const unsigned char *) cp1,
 					     (const unsigned char *) cp2, lmin);
 		} else {
-			for (ret = 0; lmin-- > 0 && ret == 0; cp1++, cp2++)
+			size_t count = lmin;
+
+			for (ret = 0; count-- > 0 && ret == 0; cp1++, cp2++)
 				ret = casetable[*cp1] - casetable[*cp2];
 		}
 		if (ret != 0)
@@ -1302,7 +1288,7 @@ assoc_list(NODE *symbol, const char *sort_str, sort_context_t sort_ctxt)
 		cmp_func = sort_funcs[qi].comp_func;
 		assoc_kind = sort_funcs[qi].kind;
 
-		if (symbol->array_funcs != cint_array_func)
+		if (symbol->array_funcs != & cint_array_func)
 			assoc_kind &= ~(AASC|ADESC);
 
 		if (sort_ctxt != SORTED_IN || (assoc_kind & AVALUE) != 0) {

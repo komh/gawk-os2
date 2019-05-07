@@ -23,7 +23,7 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk Bundled Extensions],[4.2.1],[bug-gawk@gnu.org],[gawk-extensions])
+AC_INIT([GNU Awk Bundled Extensions],[5.0.0],[bug-gawk@gnu.org],[gawk-extensions])
 
 AC_PREREQ([2.69])
 
@@ -126,5 +126,5 @@ AC_C_INLINE
 AC_CONFIG_HEADERS([config.h:configh.in])
 AH_BOTTOM([#include "ext_custom.h"])
 
-AC_CONFIG_FILES(Makefile)
+AC_CONFIG_FILES(Makefile po/Makefile.in)
 AC_OUTPUT

@@ -115,7 +115,9 @@
 #endif
 
 /* Define if you have <langinfo.h> and nl_langinfo(CODESET). */
-#undef HAVE_LANGINFO_CODESET
+#if defined(__DJGPP__) || defined(__MINGW32__)
+#define HAVE_LANGINFO_CODESET 1
+#endif
 
 /* Define if your <locale.h> file defines LC_MESSAGES. */
 #undef HAVE_LC_MESSAGES
@@ -128,9 +130,6 @@
 
 /* Define if you have the libsigsegv library. */
 #undef HAVE_LIBSIGSEGV
-
-/* Define to 1 if you have the <limits.h> header file. */
-#define HAVE_LIMITS_H 1
 
 /* Define to 1 if you have the <locale.h> header file. */
 #if defined(__MINGW32__) || defined(__DJGPP__)
@@ -229,11 +228,8 @@
 #define HAVE_SOCKETS 1
 #endif
 
-/* Define to 1 if you have the <stdarg.h> header file. */
-#define HAVE_STDARG_H 1
-
 /* Define to 1 if stdbool.h conforms to C99. */
-#ifdef __DJGPP__
+#if defined(__MINGW32__) || defined(__DJGPP__)
 #define HAVE_STDBOOL_H 1
 #endif
 
@@ -356,6 +352,9 @@
 /* Define to 1 if you have the <termios.h> header file. */
 #undef HAVE_TERMIOS_H
 
+/* Define to 1 if you have the `timegm' function. */
+#undef HAVE_TIMEGM
+
 /* Define to 1 if you have the `tmpfile' function. */
 #ifdef __DJGPP__
 #define HAVE_TMPFILE 1
@@ -446,9 +445,6 @@
 /* Define to 1 if you have the `__etoa_l' function. */
 #undef HAVE___ETOA_L
 
-/* enable severe portability problems */
-#undef I_DONT_KNOW_WHAT_IM_DOING
-
 /* disable lint checks */
 #undef NO_LINT
 
@@ -462,7 +458,7 @@
 #define PACKAGE_NAME "GNU Awk"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "GNU Awk 4.2.1"
+#define PACKAGE_STRING "GNU Awk 5.0.0"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "gawk"
@@ -471,7 +467,10 @@
 #define PACKAGE_URL "http://www.gnu.org/software/gawk/"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "4.2.1"
+#define PACKAGE_VERSION "5.0.0"
+
+/* Define to 1 if *printf supports %a format */
+#define PRINTF_HAS_A_FORMAT 1
 
 /* Define to 1 if *printf supports %F format */
 #ifdef __DJGPP__
@@ -502,9 +501,10 @@
 /* Define to 1 if the character set is EBCDIC */
 #undef USE_EBCDIC
 
-/* force use of our version of strftime */
-#undef USE_INCLUDED_STRFTIME
-
+/* This is required to compile Gnulib regex code.  */
+#if defined(__DJGPP__) || defined(__MINGW32__)
+#define _GNU_SOURCE 1
+#endif
 /* Enable extensions on AIX 3, Interix.  */
 #ifndef _ALL_SOURCE
 # undef _ALL_SOURCE
@@ -528,7 +528,7 @@
 
 
 /* Version number of package */
-#define VERSION "4.2.1"
+#define VERSION "5.0.0"
 
 /* Enable large inode numbers on Mac OS X 10.5.  */
 #ifndef _DARWIN_USE_64_BIT_INODE
@@ -631,6 +631,10 @@
 # else
 #  define DEFPATH  ".;c:/lib/awk;c:/gnu/lib/awk"
 # endif
+
+/* Function prototype.  */
+#include <stdbool.h>
+extern bool is_valid_identifier(const char *name);
 #endif
 
 #ifndef __DJGPP__

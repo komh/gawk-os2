@@ -140,7 +140,8 @@ r_force_number(NODE *n)
 		*cpend = save;
 	}
 
-	if (errno == 0) {
+	if (errno == 0 || errno == ERANGE) {
+		errno = 0;	/* reset in case of ERANGE */
 		if (ptr == cpend)
 			goto goodnum;
 		/* else keep the leading numeric value without updating flags */
@@ -218,10 +219,13 @@ r_format_val(const char *format, int index, NODE *s)
 	 * < and > so that things work correctly on systems with 64 bit integers.
 	 */
 
-	/* not an integral value, or out of range */
-	if ((val = double_to_int(s->numbr)) != s->numbr
+	if (out_of_range(s)) {
+		const char *result = format_nan_inf(s, 'g');
+		return make_string(result, strlen(result));
+	} else if ((val = double_to_int(s->numbr)) != s->numbr
 			|| val <= LONG_MIN || val >= LONG_MAX
 	) {
+		/* not an integral value, or out of integer range */
 		/*
 		 * Once upon a time, we just blindly did this:
 		 *	sprintf(sp, format, s->numbr);
@@ -306,8 +310,24 @@ r_dupnode(NODE *n)
 	}
 #endif
 
-	getnode(r);
-	*r = *n;
+#ifdef HAVE_MPFR
+	if ((n->flags & MPZN) != 0) {
+		r = mpg_integer();
+		mpz_set(r->mpg_i, n->mpg_i);
+		r->flags = n->flags;
+	} else if ((n->flags & MPFN) != 0) {
+		r = mpg_float();
+		int tval = mpfr_set(r->mpg_numbr, n->mpg_numbr, ROUND_MODE);
+		IEEE_FMT(r->mpg_numbr, tval);
+		r->flags = n->flags;
+	} else {
+#endif
+		getnode(r);
+		*r = *n;
+#ifdef HAVE_MPFR
+	}
+#endif
+
 	r->flags |= MALLOC;
 	r->valref = 1;
 	/*
@@ -430,7 +450,9 @@ make_str_node(const char *s, size_t len, int flags)
 				c = parse_escape(&pf);
 				if (c < 0) {
 					if (do_lint)
-						lintwarn(_("backslash at end of string"));
+						lintwarn(_("backslash string continuation is not portable"));
+					if ((flags & ELIDE_BACK_NL) != 0)
+						continue;
 					c = '\\';
 				}
 				*ptm++ = c;

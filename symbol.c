@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2015, 2017, 2018,
+ * Copyright (C) 1986, 1988, 1989, 1991-2015, 2017, 2018, 2019,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -102,11 +102,14 @@ lookup(const char *name)
 	tables[3] = symbol_table;	/* then globals */
 	tables[4] = NULL;
 
-	tmp = make_string(name, strlen(name));
+	if (strncmp(name, "awk::", 5) == 0)
+		tmp = make_string(name + 5, strlen(name) - 5);
+	else
+		tmp = make_string(name, strlen(name));
 
 	n = NULL;
 	for (i = 0; tables[i] != NULL; i++) {
-		if (tables[i]->table_size == 0)
+		if (assoc_empty(tables[i]))
 			continue;
 
 		if ((do_posix || do_traditional) && tables[i] == global_table)
@@ -299,12 +302,12 @@ static NODE *
 install(const char *name, NODE *parm, NODETYPE type)
 {
 	NODE *r;
-	NODE **aptr;
 	NODE *table;
 	NODE *n_name;
 	NODE *prev;
 
 	n_name = make_string(name, strlen(name));
+
 	table = symbol_table;
 
 	if (type == Node_param_list) {
@@ -334,14 +337,12 @@ install(const char *name, NODE *parm, NODETYPE type)
 			goto simple;
 		r->dup_ent = prev->dup_ent;
 		prev->dup_ent = r;
+		unref(n_name);
 	} else {
 simple:
 		/* the simple case */
-		aptr = assoc_lookup(table, n_name);
-		unref(*aptr);
-		*aptr = r;
+		assoc_set(table, n_name, r);
 	}
-	unref(n_name);
 
 	if (install_func)
 		(*install_func)(r);
@@ -644,7 +645,7 @@ check_param_names(void)
 	bool result = true;
 	NODE n;
 
-	if (func_table->table_size == 0)
+	if (assoc_empty(func_table))
 		return result;
 
 	max = func_table->table_size * 2;
@@ -945,4 +946,30 @@ free_bcpool(INSTRUCTION_POOL *pl)
 
 	for (i = 0; i < MAX_INSTRUCTION_ALLOC; i++)
 		free_bc_mempool(& pl->pool[i], i + 1);
+}
+
+/* is_all_upper --- return true if name is all uppercase letters */
+
+/*
+ * DON'T use isupper(), it's locale aware!
+ */
+
+bool
+is_all_upper(const char *name)
+{
+	for (; *name != '\0'; name++) {
+		switch (*name) {
+		case 'A': case 'B': case 'C': case 'D': case 'E':
+		case 'F': case 'G': case 'H': case 'I': case 'J':
+		case 'K': case 'L': case 'M': case 'N': case 'O':
+		case 'P': case 'Q': case 'R': case 'S': case 'T':
+		case 'U': case 'V': case 'W': case 'X': case 'Y':
+		case 'Z':
+			break;
+		default:
+			return false;
+		}
+	}
+
+	return true;
 }

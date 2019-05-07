@@ -30,7 +30,7 @@ BEGIN    { IGNORECASE = 1 }
     }
     if ($3 != curfile) {
         if (curfile != "")
-            close(curfile)
+            filelist[curfile] = 1     # save to close later
         curfile = $3
     }
 
@@ -60,6 +60,11 @@ BEGIN    { IGNORECASE = 1 }
         print join(a, 1, n, SUBSEP) > curfile
     }
 }
+END {
+    close(curfile)          # close the last one
+    for (f in filelist)     # close all the rest
+        close(f)
+}
 function unexpected_eof()
 {
     printf("extract: %s:%d: unexpected EOF or error\n",
@@ -67,10 +72,6 @@ function unexpected_eof()
     exit 1
 }
 
-END {
-    if (curfile)
-        close(curfile)
-}
 # join.awk --- join an array into a string
 #
 # Arnold Robbins, arnold@gnu.org, Public Domain

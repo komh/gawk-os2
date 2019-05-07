@@ -1,3 +1,84 @@
+2019-04-12         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* 5.0.0: Release tar ball made.
+
+2019-04-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated from GNULIB.
+
+2019-03-22         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess: Updated from GNULIB.
+
+2019-02-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess: Updated from GNULIB.
+
+2019-02-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.rpath, config.sub: Updated from GNULIB.
+
+2018-12-14         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess: Updated from GNULIB.
+
+2018-12-06         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated from GNULIB.
+
+2018-11-25         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated from GNULIB.
+
+2018-11-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess: Updated from GNULIB.
+
+2018-10-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated from GNULIB.
+
+2018-09-07         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated from GNULIB.
+
+2018-08-24         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated from GNULIB.
+
+2018-08-17         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated from GNULIB.
+
+2018-08-10         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated from GNULIB.
+
+2018-06-27         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated from GNULIB.
+
+2018-05-23         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub: Updated from GNULIB.
+
+2018-05-13         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Update from GNULIB.
+
+2018-04-18         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.sub: Updated from GNULIB.
+
+2018-04-02         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* config.guess, config.sub, install-sh: Updated from GNULIB.
+
+2018-03-11         Arnold D. Robbins     <arnold@skeeve.com>
+
+	* ar-lib, compile, config.guess, config.sub, depcomp,
+	install-sh, ltmain.sh: Updated.
+
 2018-02-25         Arnold D. Robbins     <arnold@skeeve.com>
 
 	* 4.2.1: Release tar ball made.

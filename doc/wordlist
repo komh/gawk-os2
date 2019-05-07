@@ -38,6 +38,7 @@ Automake
 Autotools
 Avahi
 Awk
+Awklib
 Awkstuff
 Ayalon
 BBBB
@@ -65,6 +66,9 @@ Broderick
 Buening
 Burridge
 BusyBox
+Bycount
+Byname
+Byuid
 CAKuGj
 CASEFOLD
 CC
@@ -83,6 +87,7 @@ CRTL
 CSV
 CTYPE
 Callback
+Cc
 Chana
 ChangeLog
 Chassell
@@ -251,6 +256,8 @@ Igawk
 Illumos
 Incrementing
 Inf
+Init
+Inited
 Inplace
 InstallingGNVPackages
 Internetworking
@@ -704,6 +711,7 @@ beginfile
 begpat
 behaviour
 bellcore
+benhoyt
 beslab
 bf
 bfoo
@@ -865,6 +873,7 @@ dayname
 db
 dcgettext
 dcngettext
+dd
 ddd
 de
 deallocations
@@ -1004,6 +1013,7 @@ fieldwidth
 fifo
 filedata
 filefuncs
+filelist
 filename
 filenames
 fileno
@@ -1089,6 +1099,7 @@ getgruser
 getline
 getlocaltime
 getopt
+getpid
 getpwent
 getpwnam
 getpwuid
@@ -1106,6 +1117,8 @@ gmplib
 gmx
 gnubin
 gnv
+goawk
+golang
 goldberg
 goodie
 goto
@@ -1132,6 +1145,7 @@ helpfull
 helplib
 hfil
 hh
+hhhh
 hhob
 histsort
 hlp
@@ -1446,6 +1460,7 @@ nonwhitespace
 noone
 nr
 nroff
+ns
 nul
 num
 numfields
@@ -1518,6 +1533,7 @@ pdf
 pdksh
 pdq
 peifer
+pengyu
 perl
 perscr
 perscrutabor
@@ -1593,6 +1609,7 @@ qsort
 quanstro
 quicksort
 quiktrim
+quux
 rab
 radians
 raincloud
@@ -1666,6 +1683,7 @@ sbcglobal
 sbin
 sbuf
 sc
+scanf
 scl
 scm
 scottd
@@ -1677,6 +1695,7 @@ seps
 setchapternewpage
 setenv
 setfilename
+setlinebuf
 settitle
 sf
 shar
@@ -1717,11 +1736,13 @@ sqrt
 srand
 src
 ssize
+stackoverflow
 stackptr
 standalone
 stat
 statdata
 statfunc
+std
 stdbuf
 stddef
 stderr
@@ -1791,6 +1812,7 @@ testbits
 testdir
 testext
 testff
+testpasswd
 tew
 tex
 texi
@@ -1875,6 +1897,7 @@ username
 usernames
 usleep
 usr
+ut
 utah
 utc
 utf
@@ -1954,6 +1977,7 @@ xpzvf
 xr
 xrat
 xref
+xrefautomaticsectiontitle
 xrefprintnodename
 xvpf
 xvpzf
@@ -1970,6 +1994,7 @@ yearday
 ylwrap
 yourprog
 yxaay
+yyy
 zA
 zbcom
 zerofile

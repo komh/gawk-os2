@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017,
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2019,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -59,10 +59,10 @@ static NODE **cint_dump(NODE *symbol, NODE *ndump);
 static void cint_print(NODE *symbol);
 #endif
 
-afunc_t cint_array_func[] = {
+const array_funcs_t cint_array_func = {
+	"cint",
 	cint_array_init,
 	is_uinteger,
-	null_length,
 	cint_lookup,
 	cint_exists,
 	cint_clear,
@@ -256,9 +256,9 @@ xinstall:
 		 */
 
 		if (is_integer(xn, subs))
-			xn->array_funcs = int_array_func;
+			xn->array_funcs = & int_array_func;
 		else
-			xn->array_funcs = str_array_func;
+			xn->array_funcs = & str_array_func;
 		xn->flags |= XARRAY;
 	}
 	return xn->alookup(xn, subs);
@@ -526,7 +526,7 @@ cint_dump(NODE *symbol, NODE *ndump)
 	kb += (INT32_BIT * sizeof(NODE *)) / 1024.0;	/* symbol->nodes */
 	kb += (symbol->array_capacity * sizeof(NODE *)) / 1024.0;	/* value nodes in Node_array_leaf(s) */
 	if (xn != NULL) {
-		if (xn->array_funcs == int_array_func)
+		if (xn->array_funcs == & int_array_func)
 			kb += int_kilobytes(xn);
 		else
 			kb += str_kilobytes(xn);

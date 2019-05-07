@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2019 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -722,6 +722,8 @@ format_tree(
 	int ii, jj;
 	char *chp;
 	size_t copy_count, char_count;
+	char *nan_inf_val;
+	bool magic_posix_flag;
 #ifdef HAVE_MPFR
 	mpz_ptr zi;
 	mpfr_ptr mf;
@@ -820,6 +822,7 @@ format_tree(
 		signchar = '\0';
 		zero_flag = false;
 		quote_flag = false;
+		nan_inf_val = NULL;
 #ifdef HAVE_MPFR
 		mf = NULL;
 		zi = NULL;
@@ -827,6 +830,7 @@ format_tree(
 		fmt_type = MP_NONE;
 
 		lj = alt = big_flag = bigbig_flag = small_flag = false;
+		magic_posix_flag = false;
 		fill = sp;
 		cp = cend;
 		chbuf = lchbuf;
@@ -1060,6 +1064,11 @@ check_pos:
 			}
 			small_flag = true;
 			goto retry;
+		case 'P':
+			if (magic_posix_flag)
+				break;
+			magic_posix_flag = true;
+			goto retry;
 		case 'c':
 			need_format = false;
 			parse_next_arg();
@@ -1157,6 +1166,12 @@ out0:
 			need_format = false;
 			parse_next_arg();
 			(void) force_number(arg);
+
+			/*
+			 * Check for Nan or Inf.
+			 */
+			if (out_of_range(arg))
+				goto out_of_range;
 #ifdef HAVE_MPFR
 			if (is_mpg_float(arg))
 				goto mpf0;
@@ -1164,15 +1179,7 @@ out0:
 				goto mpz0;
 			else
 #endif
-			tmpval = arg->numbr;
-
-			/*
-			 * Check for Nan or Inf.
-			 */
-			if (isnan(tmpval) || isinf(tmpval))
-				goto out_of_range;
-			else
-				tmpval = double_to_int(tmpval);
+			tmpval = double_to_int(arg->numbr);
 
 			/*
 			 * ``The result of converting a zero value with a
@@ -1286,6 +1293,9 @@ out0:
 			need_format = false;
 			parse_next_arg();
 			(void) force_number(arg);
+
+			if (out_of_range(arg))
+				goto out_of_range;
 #ifdef HAVE_MPFR
 			if (is_mpg_integer(arg)) {
 mpz0:
@@ -1476,12 +1486,27 @@ mpf1:
 			break;
 
      out_of_range:
-			/* out of range - emergency use of %g format */
-			if (do_lint)
-				lintwarn(_("[s]printf: value %g is out of range for `%%%c' format"),
-							(double) tmpval, cs1);
-			cs1 = 'g';
-			goto fmt1;
+			/*
+			 * out of range - emergency use of %g format,
+			 * or format NaN and INF values.
+			 */
+			nan_inf_val = format_nan_inf(arg, cs1);
+			if (do_posix || magic_posix_flag || nan_inf_val == NULL) {
+				if (do_lint && ! do_posix && ! magic_posix_flag)
+					lintwarn(_("[s]printf: value %g is out of range for `%%%c' format"),
+								(double) tmpval, cs1);
+				tmpval = arg->numbr;
+				if (strchr("aAeEfFgG", cs1) == NULL)
+					cs1 = 'g';
+				goto fmt1;
+			} else {
+				if (do_lint)
+					lintwarn(_("[s]printf: value %s is out of range for `%%%c' format"),
+								nan_inf_val, cs1);
+				bchunk(nan_inf_val, strlen(nan_inf_val));
+				s0 = s1;
+				break;
+			}
 
 		case 'F':
 #if ! defined(PRINTF_HAS_F_FORMAT) || PRINTF_HAS_F_FORMAT != 1
@@ -1493,6 +1518,18 @@ mpf1:
 		case 'e':
 		case 'f':
 		case 'E':
+#if defined(PRINTF_HAS_A_FORMAT) && PRINTF_HAS_A_FORMAT == 1
+		case 'A':
+		case 'a':
+		{
+			static bool warned = false;
+
+			if (do_lint && tolower(cs1) == 'a' && ! warned) {
+				warned = true;
+				lintwarn(_("%%%c format is POSIX standard but not portable to other awks"), cs1);
+			}
+		}
+#endif
 			need_format = false;
 			parse_next_arg();
 			(void) force_number(arg);
@@ -1510,6 +1547,9 @@ mpf1:
 				fmt_type = MP_FLOAT;
 			}
 #endif
+			if (out_of_range(arg))
+				goto out_of_range;
+
      fmt1:
 			if (! have_prec)
 				prec = DEFAULT_G_PRECISION;
@@ -1557,11 +1597,21 @@ mpf1:
 				break;
 #endif
 			default:
-				sprintf(cp, "*.*%c", cs1);
-				while ((nc = snprintf(obufout, ofre, cpbuf,
-					     (int) fw, (int) prec,
-					     (double) tmpval)) >= ofre)
-					chksize(nc)
+				if (have_prec || tolower(cs1) != 'a') {
+					sprintf(cp, "*.*%c", cs1);
+					while ((nc = snprintf(obufout, ofre, cpbuf,
+						     (int) fw, (int) prec,
+						     (double) tmpval)) >= ofre)
+						chksize(nc)
+				} else {
+					// For %a and %A, use the default precision if it
+					// wasn't supplied by the user.
+					sprintf(cp, "*%c", cs1);
+					while ((nc = snprintf(obufout, ofre, cpbuf,
+						     (int) fw,
+						     (double) tmpval)) >= ofre)
+						chksize(nc)
+				}
 			}
 
 #if defined(LC_NUMERIC)
@@ -2046,34 +2096,6 @@ do_systime(int nargs ATTRIBUTE_UNUSED)
 	return make_number((AWKNUM) lclock);
 }
 
-/* mktime_tz --- based on Linux timegm man page */
-
-static time_t
-mktime_tz(struct tm *tm, const char *tzreq)
-{
-	time_t ret;
-	char *tz = getenv("TZ");
-
-	if (tz)
-		tz = estrdup(tz, strlen(tz));
-	if (setenv("TZ", tzreq, 1) < 0) {
-		warning(_("setenv(TZ, %s) failed (%s)"), tzreq, strerror(errno));
-		return -1;
-	}
-	tzset();
-	ret = mktime(tm);
-	if (tz) {
-		if (setenv("TZ", tz, 1) < 0)
-			fatal(_("setenv(TZ, %s) restoration failed (%s)"), tz, strerror(errno));
-		free(tz);
-	} else {
-		if (unsetenv("TZ") < 0)
-			fatal(_("unsetenv(TZ) failed (%s)"), strerror(errno));
-	}
-	tzset();
-	return ret;
-}
-
 /* do_mktime --- turn a time string into a timestamp */
 
 NODE *
@@ -2134,7 +2156,7 @@ do_mktime(int nargs)
 	then.tm_year = year - 1900;
 	then.tm_isdst = dst;
 
-	then_stamp = (do_gmt ? mktime_tz(& then, "UTC+0") : mktime(& then));
+	then_stamp = (do_gmt ? timegm(& then) : mktime(& then));
 	return make_number((AWKNUM) then_stamp);
 }
 
@@ -2314,8 +2336,8 @@ do_print_rec(int nargs, int redirtype)
 	if (fp == NULL)
 		return;
 
-	if (! field0_valid)
-		(void) get_field(0L, NULL);	/* rebuild record */
+	if (! field0_valid || do_lint)	// lint check for field access in END
+		(void) get_field(0L, NULL);
 
 	f0 = fields_arr[0];
 
@@ -2684,8 +2706,6 @@ do_match(int nargs)
 				if ((s = SUBPATSTART(rp, t1->stptr, ii)) != -1) {
 					size_t subpat_start;
 					size_t subpat_len;
-					NODE **lhs;
-					NODE *sub;
 
 					start = t1->stptr + s;
 					subpat_start = s;
@@ -2697,15 +2717,7 @@ do_match(int nargs)
 
 					it = make_string(start, len);
 					it->flags |= USER_INPUT;
-
-					sub = make_number((AWKNUM) (ii));
-					lhs = assoc_lookup(dest, sub);
-					unref(*lhs);
-					*lhs = it;
-					/* execute post-assignment routine if any */
-					if (dest->astore != NULL)
-						(*dest->astore)(dest, sub);
-					unref(sub);
+					assoc_set(dest, make_number((AWKNUM) (ii)), it);;
 
 					sprintf(buff, "%d", ii);
 					ilen = strlen(buff);
@@ -2723,14 +2735,7 @@ do_match(int nargs)
 
 					slen = ilen + subseplen + 5;
 
-					it = make_number((AWKNUM) subpat_start + 1);
-					sub = make_string(buf, slen);
-					lhs = assoc_lookup(dest, sub);
-					unref(*lhs);
-					*lhs = it;
-					if (dest->astore != NULL)
-						(*dest->astore)(dest, sub);
-					unref(sub);
+					assoc_set(dest, make_string(buf, slen), make_number((AWKNUM) subpat_start + 1));
 
 					memcpy(buf, buff, ilen);
 					memcpy(buf + ilen, subsepstr, subseplen);
@@ -2738,14 +2743,7 @@ do_match(int nargs)
 
 					slen = ilen + subseplen + 6;
 
-					it = make_number((AWKNUM) subpat_len);
-					sub = make_string(buf, slen);
-					lhs = assoc_lookup(dest, sub);
-					unref(*lhs);
-					*lhs = it;
-					if (dest->astore != NULL)
-						(*dest->astore)(dest, sub);
-					unref(sub);
+					assoc_set(dest, make_string(buf, slen), make_number((AWKNUM) subpat_len));
 				}
 			}
 
@@ -3984,7 +3982,6 @@ do_intdiv(int nargs)
 {
 	NODE *numerator, *denominator, *result;
 	double num, denom, quotient, remainder;
-	NODE *sub, **lhs;
 
 	result = POP_PARAM();
 	if (result->type != Node_var_array)
@@ -4022,15 +4019,9 @@ do_intdiv(int nargs)
 #endif	/* ! HAVE_FMOD */
 	remainder = double_to_int(remainder);
 
-	sub = make_string("quotient", 8);
-	lhs = assoc_lookup(result, sub);
-	unref(*lhs);
-	*lhs = make_number((AWKNUM) quotient);
+	assoc_set(result, make_string("quotient", 8), make_number((AWKNUM) quotient));
 
-	sub = make_string("remainder", 9);
-	lhs = assoc_lookup(result, sub);
-	unref(*lhs);
-	*lhs = make_number((AWKNUM) remainder);
+	assoc_set(result, make_string("remainder", 9), make_number((AWKNUM) remainder));
 
 	DEREF(denominator);
 	DEREF(numerator);
@@ -4047,13 +4038,24 @@ do_typeof(int nargs)
 	NODE *arg;
 	char *res = NULL;
 	bool deref = true;
+	NODE *dbg;
 
+	if (nargs == 2) {	/* 2nd optional arg for debugging */
+		dbg = POP_PARAM();
+		if (dbg->type != Node_var_array)
+			fatal(_("typeof: second argument is not an array"));
+		assoc_clear(dbg);
+	}
+	else
+		dbg = NULL;
 	arg = POP();
 	switch (arg->type) {
 	case Node_var_array:
 		/* Node_var_array is never UPREF'ed */
 		res = "array";
 		deref = false;
+		if (dbg)
+			assoc_set(dbg, make_string("array_type", 10), make_string(arg->array_funcs->name, strlen(arg->array_funcs->name)));
 		break;
 	case Node_val:
 		switch (fixtype(arg)->flags & (STRING|NUMBER|USER_INPUT|REGEX)) {
@@ -4081,6 +4083,10 @@ do_typeof(int nargs)
 				res = "unknown";
 			}
 			break;
+		}
+		if (dbg) {
+			const char *s = flags2str(arg->flags);
+			assoc_set(dbg, make_string("flags", 5), make_string(s, strlen(s)));
 		}
 		break;
 	case Node_var_new:
@@ -4182,4 +4188,69 @@ int sanitize_exit_status(int status)
 		ret = 0;	/* shouldn't get here */
 
 	return ret;
+}
+
+/* out_of_range --- return true if a value is out of range */
+
+bool
+out_of_range(NODE *n)
+{
+#ifdef HAVE_MPFR
+	if (is_mpg_integer(n))
+		return false;
+	else if (is_mpg_float(n))
+		return (! mpfr_number_p(n->mpg_numbr));
+	else
+#endif
+		return (isnan(n->numbr) || isinf(n->numbr));
+}
+
+/* format_nan_inf --- format NaN and INF values */
+
+char *
+format_nan_inf(NODE *n, char format)
+{
+	static char buf[100];
+
+#ifdef HAVE_MPFR
+	if (is_mpg_integer(n))
+		return NULL;
+	else if (is_mpg_float(n)) {
+		if (mpfr_nan_p(n->mpg_numbr)) {
+			strcpy(buf, mpfr_sgn(n->mpg_numbr) < 0 ? "-nan" : "+nan");
+
+			goto fmt;
+		} else if (mpfr_inf_p(n->mpg_numbr)) {
+			strcpy(buf, mpfr_sgn(n->mpg_numbr) < 0 ? "-inf" : "+inf");
+
+			goto fmt;
+		} else
+			return NULL;
+	}
+	/* else
+		fallthrough */
+#endif
+	double val = n->numbr;
+
+	if (isnan(val)) {
+		strcpy(buf, signbit(val) != 0 ? "-nan" : "+nan");
+
+		// fall through to end
+	} else if (isinf(val)) {
+		strcpy(buf, val < 0 ? "-inf" : "+inf");
+
+		// fall through to end
+	} else
+		return NULL;
+
+#ifdef HAVE_MPFR
+fmt:
+#endif
+	if (isupper(format)) {
+		int i;
+
+		for (i = 0; buf[i] != '\0'; i++)
+			buf[i] = toupper(buf[i]);
+	}
+	return buf;
 }

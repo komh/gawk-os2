@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1991-2017 the Free Software Foundation, Inc.
+ * Copyright (C) 1991-2018 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -51,6 +51,12 @@ make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal)
 	static bool no_dfa = false;
 	int i;
 	static struct dfa* dfaregs[2] = { NULL, NULL };
+	static bool nul_warned = false;
+
+	if (do_lint && ! nul_warned && memchr(s, '\0', len) != NULL) {
+		nul_warned = true;
+		lintwarn(_("behavior of matching a regexp containing NUL characters is not defined by POSIX"));
+	}
 
 	/*
 	 * The number of bytes in the current multibyte character.
@@ -100,12 +106,24 @@ make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal)
 			}
 		}
 
+		const char *ok_to_escape;
+		if (do_traditional)
+			ok_to_escape = "()|*+?.^$\\[]/-";
+		else
+			ok_to_escape = "<>`'BywWsS{}()|*+?.^$\\[]/-";
+
 		/* We skip multibyte character, since it must not be a special
 		   character.  */
 		if ((gawk_mb_cur_max == 1 || ! is_multibyte) &&
 		    (*src == '\\')) {
 			c = *++src;
 			switch (c) {
+			case '\0':	/* \\ before \0, either dynamic data or real end of string */
+				if (src >= s + len)
+					*dest++ = '\\';	// at end of string, will fatal below
+				else
+					fatal(_("invalid NUL byte in dynamic regexp"));
+				break;
 			case 'a':
 			case 'b':
 			case 'f':
@@ -136,11 +154,25 @@ make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal)
 				    && strchr("()|*+?.^$\\[]", c2) != NULL)
 					*dest++ = '\\';
 				*dest++ = (char) c2;
+				if (do_lint
+				    && ! nul_warned
+				    && c2 == '\0') {
+					nul_warned = true;
+					lintwarn(_("behavior of matching a regexp containing NUL characters is not defined by POSIX"));
+				}
 				break;
 			case '8':
 			case '9':	/* a\9b not valid */
 				*dest++ = c;
 				src++;
+			{
+				static bool warned[2];
+
+				if (! warned[c - '8']) {
+					warning(_("regexp escape sequence `\\%c' treated as plain `%c'"), c, c);
+					warned[c - '8'] = true;
+				}
+			}
 				break;
 			case 'y':	/* normally \b */
 				/* gnu regex op */
@@ -152,6 +184,14 @@ make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal)
 				}
 				/* else, fall through */
 			default:
+				if (strchr(ok_to_escape, c) == NULL) {
+					static bool warned[256];
+
+					if (! warned[c & 0xFF]) {
+						warning(_("regexp escape sequence `\\%c' is not a known regexp operator"), c);
+						warned[c & 0xFF] = true;
+					}
+				}
 				*dest++ = '\\';
 				*dest++ = (char) c;
 				src++;
@@ -219,7 +259,7 @@ make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal)
 			error("%s: /%s/", rerr, buf);
  			return NULL;
 		}
-		fatal("%s: /%s/", rerr, buf);
+		fatal("invalid regexp: %s: /%s/", rerr, buf);
 	}
 
 	/* gack. this must be done *after* re_compile_pattern */

@@ -82,6 +82,10 @@ s/^#undef HAVE_FMOD *$/#define HAVE_FMOD 1/
 #ifdef __MINGW32__\
 #define HAVE_ISWUPPER 1\
 #endif
+/^#undef HAVE_LANGINFO_CODESET *$/c\
+#if defined(__DJGPP__) || defined(__MINGW32__)\
+#define HAVE_LANGINFO_CODESET 1\
+#endif
 s/^#undef HAVE_LIBM *$/#define HAVE_LIBM 1/
 /^#undef HAVE_LIBREADLINE *$/c\
 /* #undef HAVE_LIBREADLINE */
@@ -142,7 +146,7 @@ s/^#undef HAVE_MKTIME *$/#define HAVE_MKTIME 1/
 #endif
 s/^#undef HAVE_STDARG_H *$/#define HAVE_STDARG_H 1/
 /^#undef HAVE_STDBOOL_H *$/c\
-#ifdef __DJGPP__\
+#if defined(__MINGW32__) || defined(__DJGPP__)\
 #define HAVE_STDBOOL_H 1\
 #endif
 /^#undef HAVE_STDDEF_H *$/c\
@@ -273,6 +277,8 @@ s/^#undef HAVE_VPRINTF *$/#define HAVE_VPRINTF 1/
 #ifdef __DJGPP__\
 #define HAVE__BOOL 1\
 #endif
+/^#undef PRINTF_HAS_A_FORMAT *$/c\
+#define PRINTF_HAS_A_FORMAT 1
 /^#undef PRINTF_HAS_F_FORMAT *$/c\
 #ifdef __DJGPP__\
 #define PRINTF_HAS_F_FORMAT 1\
@@ -293,6 +299,12 @@ s/^#undef TIME_WITH_SYS_TIME *$/#define TIME_WITH_SYS_TIME 1/
 #define inline __inline__\
 #endif
 
+/^\/\* Enable extensions on AIX 3, Interix.  \*\//i\
+/* This is required to compile Gnulib regex code.  */\
+#if defined(__DJGPP__) || defined(__MINGW32__)\
+#define _GNU_SOURCE 1\
+#endif
+
 s|^#undef PACKAGE_URL *$|#define PACKAGE_URL "http://www.gnu.org/software/gawk/"|
 
 $a\
@@ -306,6 +318,10 @@ $a\
 # else\
 #  define DEFPATH  ".;c:/lib/awk;c:/gnu/lib/awk"\
 # endif\
+\
+/* Function prototype.  */\
+#include <stdbool.h>\
+extern bool is_valid_identifier(const char *name);\
 #endif\
 \
 #ifndef __DJGPP__\

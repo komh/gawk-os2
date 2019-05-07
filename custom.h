@@ -11,7 +11,7 @@
  */
 
 /*
- * Copyright (C) 1995-2004, 2008, 2009, 2011, 2016
+ * Copyright (C) 1995-2004, 2008, 2009, 2011, 2016, 2018
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -38,6 +38,20 @@
 #include "vms/redirect.h"
 #endif
 
+/* OpenVMS has some definitions in fp.h that should be in math.h */
+/* From John Malmberg, wb8tyw@qsl.net */
+#ifdef __VMS
+#include <fp.h>
+/* isnan () macro is broken */
+#undef isnan
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE 1
+#endif
+#ifndef SIZE_MAX
+#define SIZE_MAX __INT32_MAX
+#endif
+#endif
+
 /* For QNX, based on submission from Michael Hunter, mphunter@qnx.com */
 #ifdef __QNX__
 #define GETPGRP_VOID	1
@@ -46,11 +60,6 @@
 /* For MacOS X, which is almost BSD Unix */
 #ifdef __APPLE__
 #define HAVE_MKTIME	1
-#endif
-
-/* For whiny users */
-#ifdef USE_INCLUDED_STRFTIME
-#undef HAVE_STRFTIME
 #endif
 
 /* For HP/UX with gcc */

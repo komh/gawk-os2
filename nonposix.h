@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012, 2013, 2016 the Free Software Foundation, Inc.
+ * Copyright (C) 2012, 2013, 2016, 2017, 2018 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -57,6 +57,12 @@ int unsetenv (const char *);
 int setenv (const char *, const char *, int);
 void w32_maybe_set_errno (void);
 char *w32_setlocale (int, const char *);
+/* libintl.h from GNU gettext defines setlocale to redirect that to
+   its own function.  Note: this will have to be revisited if MinGW
+   Gawk will support ENABLE_NLS at some point.  */
+#ifdef setlocale
+# undef setlocale
+#endif
 #define setlocale(c,v) w32_setlocale(c,v)
 
 #endif	/* __MINGW32__ */

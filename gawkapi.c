@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012-2018 the Free Software Foundation, Inc.
+ * Copyright (C) 2012-2019 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -40,6 +40,7 @@ extern int currule;
 
 static awk_bool_t node_to_awk_value(NODE *node, awk_value_t *result, awk_valtype_t wanted);
 static char *valtype2str(awk_valtype_t type);
+static NODE *ns_lookup(const char *name_space, const char *name, char **full_name);
 
 /*
  * api_get_argument --- get the count'th paramater, zero-based.
@@ -372,17 +373,19 @@ api_unset_ERRNO(awk_ext_id_t id)
 
 static awk_bool_t
 api_add_ext_func(awk_ext_id_t id,
-		const char *namespace,
+		const char *name_space,
 		awk_ext_func_t *func)
 {
 	(void) id;
-	(void) namespace;
 
 	if (func == NULL)
 		return awk_false;
 
+	if (name_space == NULL)
+		fatal(_("add_ext_func: received NULL name_space parameter"));
+
 #ifdef DYNAMIC
-	return make_builtin(func);
+	return make_builtin(name_space, func);
 #else
 	return awk_false;
 #endif
@@ -747,6 +750,7 @@ node_to_awk_value(NODE *node, awk_value_t *val, awk_valtype_t wanted)
 
 static awk_bool_t
 api_sym_lookup(awk_ext_id_t id,
+		const char *name_space,
 		const char *name,
 		awk_valtype_t wanted,
 		awk_value_t *result)
@@ -758,7 +762,12 @@ api_sym_lookup(awk_ext_id_t id,
 	if (   name == NULL
 	    || *name == '\0'
 	    || result == NULL
-	    || (node = lookup(name)) == NULL)
+	    || ! is_valid_identifier(name)
+	    || name_space == NULL
+	    || (name_space[0] != '\0' && ! is_valid_identifier(name_space)))
+		return awk_false;
+
+	if ((node = ns_lookup(name_space, name, NULL)) == NULL)
 		return awk_false;
 
 	if (is_off_limits_var(name))	/* a built-in variable */
@@ -791,6 +800,7 @@ api_sym_lookup_scalar(awk_ext_id_t id,
 
 static awk_bool_t
 api_sym_update(awk_ext_id_t id,
+		const char *name_space,
 		const char *name,
 		awk_value_t *value)
 {
@@ -799,7 +809,10 @@ api_sym_update(awk_ext_id_t id,
 
 	if (   name == NULL
 	    || *name == '\0'
-	    || value == NULL)
+	    || value == NULL
+	    || ! is_valid_identifier(name)
+	    || name_space == NULL
+	    || (name_space[0] != '\0' && ! is_valid_identifier(name_space)))
 		return awk_false;
 
 	switch (value->val_type) {
@@ -818,22 +831,21 @@ api_sym_update(awk_ext_id_t id,
 		return awk_false;
 	}
 
-	node = lookup(name);
+	char *full_name = NULL;
+	node = ns_lookup(name_space, name, & full_name);
 
 	if (node == NULL) {
 		/* new value to be installed */
 		if (value->val_type == AWK_ARRAY) {
 			array_node = awk_value_to_node(value);
-			node = install_symbol(estrdup((char *) name, strlen(name)),
-					Node_var_array);
+			node = install_symbol(full_name, Node_var_array);
 			array_node->vname = node->vname;
 			*node = *array_node;
 			freenode(array_node);
 			value->array_cookie = node;	/* pass new cookie back to extension */
 		} else {
 			/* regular variable */
-			node = install_symbol(estrdup((char *) name, strlen(name)),
-					Node_var);
+			node = install_symbol(full_name, Node_var);
 			node->var_value = awk_value_to_node(value);
 		}
 
@@ -845,10 +857,13 @@ api_sym_update(awk_ext_id_t id,
 	 * OK except for AWK_ARRAY.
 	 */
 	if (   (node->flags & NO_EXT_SET) != 0
-	    || is_off_limits_var(name)) {	/* most built-in vars not allowed */
+	    || is_off_limits_var(full_name)) {	/* most built-in vars not allowed */
 		node->flags |= NO_EXT_SET;
+		efree((void *) full_name);
 		return awk_false;
 	}
+
+	efree((void *) full_name);
 
 	if (    value->val_type != AWK_ARRAY
 	    && (node->type == Node_var || node->type == Node_var_new)) {
@@ -1031,7 +1046,6 @@ api_set_array_element(awk_ext_id_t id, awk_array_t a_cookie,
 	NODE *array = (NODE *)a_cookie;
 	NODE *tmp;
 	NODE *elem;
-	NODE **aptr;
 
 	/* don't check for index len zero, null str is ok as index */
 	if (   array == NULL
@@ -1043,17 +1057,13 @@ api_set_array_element(awk_ext_id_t id, awk_array_t a_cookie,
 		return awk_false;
 
 	tmp = awk_value_to_node(index);
-	aptr = assoc_lookup(array, tmp);
-	unref(*aptr);
-	elem = *aptr = awk_value_to_node(value);
+	elem = awk_value_to_node(value);
 	if (elem->type == Node_var_array) {
 		elem->parent_array = array;
 		elem->vname = estrdup(index->str_value.str,
 					index->str_value.len);
 	}
-	if (array->astore != NULL)
-		(*array->astore)(array, tmp);
-	unref(tmp);
+	assoc_set(array, tmp, elem);
 
 	return awk_true;
 }
@@ -1179,7 +1189,7 @@ api_flatten_array_typed(awk_ext_id_t id,
 
 	if (   array == NULL
 	    || array->type != Node_var_array
-	    || array->table_size == 0
+	    || assoc_empty(array)
 	    || data == NULL)
 		return awk_false;
 
@@ -1204,12 +1214,12 @@ api_flatten_array_typed(awk_ext_id_t id,
 		/* Convert index and value to API types. */
 		if (! node_to_awk_value(index,
 				& (*data)->elements[j].index, index_type)) {
-			fatal(_("api_flatten_array_typed: could not convert index %d to %s\n"),
+			fatal(_("api_flatten_array_typed: could not convert index %d to %s"),
 						(int) i, valtype2str(index_type));
 		}
 		if (! node_to_awk_value(value,
 				& (*data)->elements[j].value, value_type)) {
-			fatal(_("api_flatten_array_typed: could not convert value %d to %s\n"),
+			fatal(_("api_flatten_array_typed: could not convert value %d to %s"),
 						(int) i, valtype2str(value_type));
 		}
 	}
@@ -1580,4 +1590,32 @@ valtype2str(awk_valtype_t type)
 	sprintf(buf, "unknown type! (%d)", (int) type);
 
 	return buf;
+}
+
+/* ns_lookup --- correctly build name before looking it up */
+
+static NODE *
+ns_lookup(const char *name_space, const char *name, char **fullname)
+{
+	assert(name_space != NULL);
+	assert(name != NULL);
+
+	if (name_space[0] == '\0' || strcmp(name_space, awk_namespace) == 0) {
+		if (fullname != NULL)
+			*fullname = estrdup(name, strlen(name));
+		return lookup(name);
+	}
+
+	size_t len = strlen(name_space) + 2 + strlen(name) + 1;
+	char *buf;
+	emalloc(buf, char *, len, "ns_lookup");
+	sprintf(buf, "%s::%s", name_space, name);
+
+	NODE *f = lookup(buf);
+	if (fullname != NULL)
+		*fullname = buf;
+	else
+		efree((void *) buf);
+
+	return f;
 }

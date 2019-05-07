@@ -7,7 +7,7 @@
  */
 
 /*
- * Copyright (C) 1995 - 2001, 2003-2014, 2016-2017,
+ * Copyright (C) 1995 - 2001, 2003-2014, 2016-2018,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -57,54 +57,36 @@ load_ext(const char *lib_name)
 		fatal(_("load_ext: received NULL lib_name"));
 
 	if ((dl = dlopen(lib_name, flags)) == NULL)
-		fatal(_("load_ext: cannot open library `%s' (%s)\n"), lib_name,
+		fatal(_("load_ext: cannot open library `%s' (%s)"), lib_name,
 		      dlerror());
 
 	/* Per the GNU Coding standards */
 	gpl_compat = (int *) dlsym(dl, "plugin_is_GPL_compatible");
 	if (gpl_compat == NULL)
-		fatal(_("load_ext: library `%s': does not define `plugin_is_GPL_compatible' (%s)\n"),
+		fatal(_("load_ext: library `%s': does not define `plugin_is_GPL_compatible' (%s)"),
 				lib_name, dlerror());
 
 	install_func = (int (*)(const gawk_api_t *const, awk_ext_id_t))
 				dlsym(dl, INIT_FUNC);
 	if (install_func == NULL)
-		fatal(_("load_ext: library `%s': cannot call function `%s' (%s)\n"),
+		fatal(_("load_ext: library `%s': cannot call function `%s' (%s)"),
 				lib_name, INIT_FUNC, dlerror());
 
 	if (install_func(& api_impl, NULL /* ext_id */) == 0)
-		warning(_("load_ext: library `%s' initialization routine `%s' failed\n"),
+		warning(_("load_ext: library `%s' initialization routine `%s' failed"),
 				lib_name, INIT_FUNC);
-}
-
-/* is_valid_identifier --- return true if name is a valid simple identifier */
-
-static bool
-is_valid_identifier(const char *name)
-{
-	const char *sp = name;
-	int c;
-
-	if (! is_letter(*sp))
-		return false;
-
-	for (sp++; (c = *sp++) != '\0';) {
-		if (! is_identchar(c))
-			return false;
-	}
-
-	return true;
 }
 
 /* make_builtin --- register name to be called as func with a builtin body */
 
 awk_bool_t
-make_builtin(const awk_ext_func_t *funcinfo)
+make_builtin(const char *name_space, const awk_ext_func_t *funcinfo)
 {
 	NODE *symbol, *f;
 	INSTRUCTION *b;
 	const char *name = funcinfo->name;
 	int count = funcinfo->max_expected_args;
+	const char *install_name;
 
 	if (name == NULL || *name == '\0')
 		fatal(_("make_builtin: missing function name"));
@@ -112,9 +94,33 @@ make_builtin(const awk_ext_func_t *funcinfo)
 	if (! is_valid_identifier(name))
 		return awk_false;
 
-	f = lookup(name);
+	assert(name_space != NULL);
+	if (name_space[0] == '\0' || strcmp(name_space, awk_namespace) == 0) {
+		if (check_special(name) >= 0)
+			fatal(_("make_builtin: can't use gawk built-in `%s' as function name"), name);
+
+		f = lookup(name);
+		install_name = estrdup(name, strlen(name));
+	} else {
+		if (! is_valid_identifier(name_space))
+			return awk_false;
+
+		if (check_special(name_space) >= 0)
+			fatal(_("make_builtin: can't use gawk built-in `%s' as namespace name"), name_space);
+		if (check_special(name) >= 0)
+			fatal(_("make_builtin: can't use gawk built-in `%s' as function name"), name);
+
+		size_t len = strlen(name_space) + 2 + strlen(name) + 1;
+		char *buf;
+		emalloc(buf, char *, len, "make_builtin");
+		sprintf(buf, "%s::%s", name_space, name);
+		install_name = buf;
+
+		f = lookup(install_name);
+	}
 
 	if (f != NULL) {
+		// found it, but it shouldn't be there if we want to install this function
 		if (f->type == Node_func) {
 			/* user-defined function */
 			fatal(_("make_builtin: can't redefine function `%s'"), name);
@@ -126,8 +132,7 @@ make_builtin(const awk_ext_func_t *funcinfo)
 		} else
 			/* variable name etc. */
 			fatal(_("make_builtin: function name `%s' previously defined"), name);
-	} else if (check_special(name) >= 0)
-		fatal(_("make_builtin: can't use gawk built-in `%s' as function name"), name);
+	}
 
 	if (count < 0)
 		fatal(_("make_builtin: negative argument count for function `%s'"),
@@ -139,7 +144,7 @@ make_builtin(const awk_ext_func_t *funcinfo)
 
 	/* NB: extension sub must return something */
 
-       	symbol = install_symbol(estrdup(name, strlen(name)), Node_ext_func);
+	symbol = install_symbol(install_name, Node_ext_func);
 	symbol->code_ptr = b;
 	track_ext_func(name);
 	return awk_true;
@@ -241,4 +246,23 @@ close_extensions()
 	for (s = srcfiles->next; s != srcfiles; s = s->next)
 		if (s->stype == SRC_EXTLIB && s->fini_func)
                	        (*s->fini_func)();
+}
+
+/* is_valid_identifier --- return true if name is a valid simple identifier */
+
+bool
+is_valid_identifier(const char *name)
+{
+	const char *sp = name;
+	int c;
+
+	if (! is_letter(*sp))
+		return false;
+
+	for (sp++; (c = *sp++) != '\0';) {
+		if (! is_identchar(c))
+			return false;
+	}
+
+	return true;
 }

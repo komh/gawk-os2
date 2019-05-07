@@ -1474,12 +1474,13 @@ flush_io()
 /* close_io --- close all open files, called when exiting */
 
 int
-close_io(bool *stdio_problem)
+close_io(bool *stdio_problem, bool *got_EPIPE)
 {
 	struct redirect *rp;
 	struct redirect *next;
 	int status = 0;
 
+	*stdio_problem = *got_EPIPE = false;
 	errno = 0;
 	for (rp = red_head; rp != NULL; rp = next) {
 		next = rp->next;
@@ -1505,6 +1506,9 @@ close_io(bool *stdio_problem)
 #endif
 		if (errno != EPIPE)
 			warning(_("error writing standard output (%s)"), strerror(errno));
+		else
+			*got_EPIPE = true;
+
 		status++;
 		*stdio_problem = true;
 	}
@@ -1515,6 +1519,9 @@ close_io(bool *stdio_problem)
 #endif
 		if (errno != EPIPE)
 			warning(_("error writing standard error (%s)"), strerror(errno));
+		else
+			*got_EPIPE = true;
+
 		status++;
 		*stdio_problem = true;
 	}
@@ -2097,8 +2104,8 @@ fork_and_open_slave_pty(const char *slavenam, int master, const char *command, p
 	}
 
 	return true;
-}
 #endif
+}
 
 #endif /* defined(HAVE_TERMIOS_H) */
 
@@ -2376,7 +2383,7 @@ use_pipes:
 	if (dup(save_stdout) != 1) {
 		close(save_stdin); close(save_stdout);
 		close(ptoc[1]); close(ctop[0]);
-		fatal(_("restoring stdout in parent process failed\n"));
+		fatal(_("restoring stdout in parent process failed"));
 	}
 	close(save_stdout);
 
@@ -2384,7 +2391,7 @@ use_pipes:
 	if (dup(save_stdin) != 0) {
 		close(save_stdin);
 		close(ptoc[1]);	close(ctop[0]);
-		fatal(_("restoring stdin in parent process failed\n"));
+		fatal(_("restoring stdin in parent process failed"));
 	}
 	close(save_stdin);
 
@@ -2645,7 +2652,7 @@ gawk_popen(const char *cmd, struct redirect *rp)
 	close(1);
 	if (dup(save_stdout) != 1) {
 		close(p[0]);
-		fatal(_("restoring stdout in parent process failed\n"));
+		fatal(_("restoring stdout in parent process failed"));
 	}
 	close(save_stdout);
 
@@ -3535,12 +3542,12 @@ rs1scan(IOBUF *iop, struct recmatch *recm, SCANSTATE *state)
 	/* Thus, the check for \n here; big speedup ! */
 	if (rs != '\n' && gawk_mb_cur_max > 1) {
 		int len = iop->dataend - bp;
-		int found = 0;
+		bool found = false;
 
 		memset(& mbs, 0, sizeof(mbstate_t));
 		do {
 			if (*bp == rs)
-				found = 1;
+				found = true;
 			if (is_valid_character(*bp))
 				mbclen = 1;
 			else

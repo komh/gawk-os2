@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012, 2013, 2015, 2017, 2018,
+ * Copyright (C) 2012, 2013, 2015, 2017, 2018, 2019,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -296,7 +296,7 @@ force_mpnum(NODE *n, int do_nondec, int use_locale)
 	if (do_nondec)
 		base = get_numbase(cp1, cpend - cp1, use_locale);
 
-	if (! mpg_maybe_float(cp1, use_locale)) {
+	if (base != 10 || ! mpg_maybe_float(cp1, use_locale)) {
 		mpg_zero(n);
 		errno = 0;
 		mpg_strtoui(n->mpg_i, cp1, cpend - cp1, & ptr, base);
@@ -356,6 +356,11 @@ mpg_format_val(const char *format, int index, NODE *s)
 {
 	NODE *dummy[2], *r;
 	unsigned int oflags;
+
+	if (out_of_range(s)) {
+		const char *result = format_nan_inf(s, 'g');
+		return make_string(result, strlen(result));
+	}
 
 	/* create dummy node for a sole use of format_tree */
 	dummy[1] = s;
@@ -1257,14 +1262,10 @@ do_mpfr_intdiv(int nargs)
 	unref(denominator);
 
 	sub = make_string("quotient", 8);
-	lhs = assoc_lookup(result, sub);
-	unref(*lhs);
-	*lhs = quotient;
+	assoc_set(result, sub, quotient);
 
 	sub = make_string("remainder", 9);
-	lhs = assoc_lookup(result, sub);
-	unref(*lhs);
-	*lhs = remainder;
+	assoc_set(result, sub, remainder);
 
 	return make_number((AWKNUM) 0.0);
 }

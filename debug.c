@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2004, 2010-2013, 2016-2017 the Free Software Foundation, Inc.
+ * Copyright (C) 2004, 2010-2013, 2016-2019 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -28,6 +28,11 @@
 
 #ifndef O_RDONLY
 #include <fcntl.h>	/* open() */
+#endif
+
+#ifdef __MINGW32__
+#define execvp(p,a) w32_execvp(p,a)
+int w32_execvp(const char *, char **);
 #endif
 
 extern bool exiting;
@@ -310,6 +315,7 @@ static void delete_item(struct list_item *d);
 static int breakpoint_triggered(BREAKPOINT *b);
 static int watchpoint_triggered(struct list_item *w);
 static void print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump);
+static void print_ns_list(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump);
 static int print_code(INSTRUCTION *pc, void *x);
 static void next_command();
 static void debug_post_execute(INSTRUCTION *pc);
@@ -337,6 +343,13 @@ struct command_source
 };
 
 static struct command_source *cmd_src = NULL;
+
+#define PUSH_BINDING(stack, tag, val)	\
+if (val++) \
+	memcpy((char *) (stack), (const char *) tag, sizeof(jmp_buf))
+#define POP_BINDING(stack, tag, val)	\
+if (--val) \
+	memcpy((char *) tag, (const char *) (stack), sizeof(jmp_buf))
 
 
 #define CHECK_PROG_RUNNING() \
@@ -1024,7 +1037,7 @@ NODE *find_symbol(const char *name, char **pname)
 	if (prog_running)
 		r = find_param(name, cur_frame, pname);
 	if (r == NULL)
-		r = lookup(name);
+		r = lookup(name); // for now, require fully qualified name
 	if (r == NULL)
 		fprintf(out_fp, _("no symbol `%s' in current context\n"), name);
 	return r;
@@ -1242,6 +1255,7 @@ do_set_var(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	{
 		NODE *subs, *value;
 		int count = arg->a_count;
+		NODE *newval;
 
 		assert(count > 0);
 		name = arg->a_string;
@@ -1260,11 +1274,12 @@ do_set_var(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 				else {
 					arg = arg->next;
 					val = arg->a_node;
-					lhs = assoc_lookup(r, subs);
-					unref(*lhs);
-					*lhs = dupnode(val);
+					newval = dupnode(val);
+					// subs should not be freed, so
+					// use dupnode in call to assoc_set.
+					assoc_set(r, dupnode(subs), newval);
 					fprintf(out_fp, "%s[\"%.*s\"] = ", name, (int) subs->stlen, subs->stptr);
-					valinfo(*lhs, fprintf, out_fp);
+					valinfo(newval, fprintf, out_fp);
 				}
 			} else {
 				if (value == NULL) {
@@ -1272,9 +1287,9 @@ do_set_var(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 					array = make_array();
 					array->vname = estrdup(subs->stptr, subs->stlen);
 					array->parent_array = r;
-					lhs = assoc_lookup(r, subs);
-					unref(*lhs);
-					*lhs = array;
+					// subs should not be freed, so
+					// use dupnode in call to assoc_set.
+					assoc_set(r, dupnode(subs), array);
 					r = array;
 				} else if (value->type != Node_var_array) {
 					d_error(_("attempt to use scalar `%s[\"%.*s\"]' as array"),
@@ -2904,11 +2919,7 @@ restart(bool run)
 	close_all();
 
 	/* start a new process replacing the current process */
-#ifdef __MINGW32__
-	execvp(d_argv[0], (const char * const *)d_argv);
-#else
 	execvp(d_argv[0], d_argv);
-#endif
 
 	/* execvp failed !!! */
 	fprintf(out_fp, _("Failed to restart debugger"));
@@ -3800,7 +3811,12 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_K_do:
-		print_func(fp, "[doloop_cond = %p] [target_break = %p]\n", (pc+1)->doloop_cond, pc->target_break);
+		print_func(fp, "[doloop_cond = %p] [target_break = %p]", (pc+1)->doloop_cond, pc->target_break);
+		if (pc->comment)
+			print_func(fp, " [comment = %p]", pc->comment);
+		print_func(fp, "\n");
+		if (pc->comment)
+			print_instruction(pc->comment, print_func, fp, in_dump);
 		break;
 
 	case Op_K_for:
@@ -3808,15 +3824,44 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		/* fall through */
 	case Op_K_arrayfor:
 		print_func(fp, "[forloop_body = %p] ", (pc+1)->forloop_body);
-		print_func(fp, "[target_break = %p] [target_continue = %p]\n", pc->target_break, pc->target_continue);
+		print_func(fp, "[target_break = %p] [target_continue = %p]", pc->target_break, pc->target_continue);
+		if (pc->comment != NULL) {
+			print_func(fp, " [comment = %p]\n", (pc)->comment);
+			print_instruction(pc->comment, print_func, fp, in_dump);
+		} else
+			print_func(fp, "\n");
 		break;
 
 	case Op_K_switch:
+	{
+		bool need_newline = false;
 		print_func(fp, "[switch_start = %p] [switch_end = %p]\n", (pc+1)->switch_start, (pc+1)->switch_end);
+		if (pc->comment || (pc+1)->switch_end->comment)
+			print_func(fp, "%*s", noffset, "");
+		if (pc->comment) {
+			print_func(fp, "[start_comment = %p]", pc->comment);
+			need_newline = true;
+		}
+		if ((pc+1)->switch_end->comment) {
+			print_func(fp, "[end_comment = %p]", (pc + 1)->switch_end->comment);
+			need_newline = true;
+		}
+		if (need_newline)
+			print_func(fp, "\n");
+		if (pc->comment)
+			print_instruction(pc->comment, print_func, fp, in_dump);
+		if ((pc+1)->switch_end->comment)
+			print_instruction((pc+1)->switch_end->comment, print_func, fp, in_dump);
+	}
 		break;
 
 	case Op_K_default:
-		print_func(fp, "[stmt_start = %p] [stmt_end = %p]\n", pc->stmt_start, pc->stmt_end);
+		print_func(fp, "[stmt_start = %p] [stmt_end = %p]", pc->stmt_start, pc->stmt_end);
+		if (pc->comment) {
+			print_func(fp, " [comment = %p]\n", pc->comment);
+			print_instruction(pc->comment, print_func, fp, in_dump);
+		} else
+			print_func(fp, "\n");
 		break;
 
 	case Op_var_update:
@@ -3841,8 +3886,13 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_func:
-		print_func(fp, "[param_cnt = %d] [source_file = %s]\n", pcount,
+		print_func(fp, "[param_cnt = %d] [source_file = %s]", pcount,
 				pc->source_file ? pc->source_file : "cmd. line");
+		if (pc[3].nexti != NULL) {
+			print_func(fp, "[ns_list = %p]\n", pc[3].nexti);
+			print_ns_list(pc[3].nexti, print_func, fp, in_dump);
+		} else
+			print_func(fp, "\n");
 		break;
 
 	case Op_K_getline_redir:
@@ -3908,8 +3958,22 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_K_case:
-		print_func(fp, "[target_jmp = %p] [match_exp = %s]\n",
+		print_func(fp, "[target_jmp = %p] [match_exp = %s]",
 						pc->target_jmp,	(pc + 1)->match_exp ? "true" : "false");
+		if (pc->comment) {
+			print_func(fp, " [comment = %p]\n", pc->comment);
+			print_instruction(pc->comment, print_func, fp, in_dump);
+		} else
+			print_func(fp, "\n");
+		break;
+
+	case Op_K_namespace:
+		print_func(fp, "[namespace = %s]", pc->ns_name);
+		if (pc->nexti)
+			print_func(fp, "[nexti = %p]", pc->nexti);
+		if (pc->comment)
+			print_func(fp, "[comment = %p]", pc->comment);
+		print_func(fp, "\n");
 		break;
 
 	case Op_arrayfor_incr:
@@ -3950,7 +4014,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_builtin:
-		print_func(fp, "%s [arg_count = %ld]\n", getfname(pc->builtin),
+		print_func(fp, "%s [arg_count = %ld]\n", getfname(pc->builtin, false),
 						pc->expr_count);
 		break;
 
@@ -3988,9 +4052,14 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_rule:
-		print_func(fp, "[in_rule = %s] [source_file = %s]\n",
+		print_func(fp, "[in_rule = %s] [source_file = %s]",
 		                ruletab[pc->in_rule],
 		                pc->source_file ? pc->source_file : "cmd. line");
+		if (pc[3].nexti != NULL) {
+			print_func(fp, "[ns_list = %p]\n", pc[3].nexti);
+			print_ns_list(pc[3].nexti, print_func, fp, in_dump);
+		} else
+			print_func(fp, "\n");
 		break;
 
 	case Op_lint:
@@ -4025,9 +4094,14 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 
 	case Op_comment:
 		print_memory(pc->memory, func, print_func, fp);
-		fprintf(fp, " [comment_type = %s]\n",
+		print_func(fp, " [comment_type = %s]",
 			pc->memory->comment_type == EOL_COMMENT ?
-						"EOL" : "FULL");
+						"EOL" : "BLOCK");
+		if (pc->comment) {
+			print_func(fp, " [comment = %p]\n", pc->comment);
+			print_instruction(pc->comment, print_func, fp, in_dump);
+		} else
+			print_func(fp, "\n");
 		break;
 
 	case Op_push_i:
@@ -4077,6 +4151,18 @@ print_code(INSTRUCTION *pc, void *x)
 	for (; pc != NULL; pc = pc->nexti)
 		print_instruction(pc, data->print_func, data->fp, data->defn /* in_dump */);
 	return 0;
+}
+
+/* print_ns_list --- print the list of namespaces */
+
+static void
+print_ns_list(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
+{
+	for (; pc != NULL; pc = pc->nexti) {
+		print_instruction(pc, print_func, fp, in_dump);
+		if (pc->comment != NULL)
+			print_instruction(pc->comment, print_func, fp, in_dump);
+	}
 }
 
 /* do_dump_instructions --- dump command */
@@ -4775,7 +4861,7 @@ unserialize_list(int type)
 			field_cnt++;
 			if (field_cnt == MAX_FIELD)
 #ifdef GAWKDEBUG
-				fatal("Increase MAX_FIELD and recompile.\n");
+				fatal("Increase MAX_FIELD and recompile.");
 #else
 				return;
 #endif
@@ -5398,11 +5484,11 @@ save_options(const char *file)
 static void
 close_all()
 {
-	bool stdio_problem;
+	bool stdio_problem, got_EPIPE;
 	struct command_source *cs;
 
 	(void) nextfile(& curfile, true);	/* close input data file */
-	(void) close_io(& stdio_problem);
+	(void) close_io(& stdio_problem, & got_EPIPE);
 	if (cur_srcfile->fd != INVALID_HANDLE) {
 		close(cur_srcfile->fd);
 		cur_srcfile->fd = INVALID_HANDLE;
@@ -5436,7 +5522,7 @@ pre_execute_code(INSTRUCTION **pi)
 				op2str(ei->opcode));
 		*pi = ei->nexti;
 		break;
-	case Op_K_return:
+	case Op_K_return_from_eval:
 		if (ei->nexti != NULL) {	/* not an implicit return */
 			NODE *r;
 			d_error(_("`return' not allowed in current context;"
@@ -5514,7 +5600,7 @@ do_eval(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	push_context(ctxt);
 	the_source = add_srcfile(SRC_CMDLINE, arg->a_string, srcfiles, NULL, NULL);
 	do_flags = false;
-	ret = parse_program(&code);
+	ret = parse_program(&code, true);
 	do_flags = save_flags;
 	remove_params(this_func);
 	if (ret != 0) {
@@ -5697,7 +5783,7 @@ parse_condition(int type, int num, char *expr)
 	push_context(ctxt);
 	(void) add_srcfile(SRC_CMDLINE, expr, srcfiles, NULL, NULL);
 	do_flags = false;
-	ret = parse_program(&code);
+	ret = parse_program(&code, true);
 	do_flags = save_flags;
 	remove_params(this_func);
 	pop_context();

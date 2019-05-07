@@ -13,7 +13,7 @@ $! This generates a []config.h file and also a config_vms.h file,
 $! which is used to supplement that file.
 $!
 $!
-$! Copyright (C) 2014, 2016 the Free Software Foundation, Inc.
+$! Copyright (C) 2014, 2016, 2019 the Free Software Foundation, Inc.
 $!
 $! This file is part of GAWK, the GNU implementation of the
 $! AWK Progamming Language.
@@ -58,6 +58,16 @@ $ else
 $   arch_name = ""
 $   arch_name = arch_name + f$edit(f$getsyi("ARCH_NAME"), "UPCASE")
 $   if (arch_name .eqs. "") then arch_name = "UNK"
+$ endif
+$!
+$!
+$ pipe lib/list sys$library:decc$rtldef.tlb | search sys$input: stdint
+$ if '$SEVERITY' .ne. 1
+$ then
+$   create sys$disk:[]stdint.h
+$   open/append stdint_h sys$disk:[]stdint.h
+$   write stdint_h "/* Fake stdint.h for gnulib */"
+$   close stdint_h
 $ endif
 $!
 $!
@@ -290,8 +300,6 @@ $ write cvh "}"
 $ write cvh ""
 $ write cvh "#define TIME_T_UNSIGNED 1"
 $ write cvh "#include ""custom.h"""
-$ write cvh ""
-$ write cvh "#define __attribute(a)"
 $ write cvh ""
 $
 $!

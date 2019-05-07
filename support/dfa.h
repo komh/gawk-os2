@@ -1,5 +1,5 @@
 /* dfa.h - declarations for GNU deterministic regexp compiler
-   Copyright (C) 1988, 1998, 2007, 2009-2017 Free Software Foundation, Inc.
+   Copyright (C) 1988, 1998, 2007, 2009-2019 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -19,11 +19,7 @@
 /* Written June, 1988 by Mike Haertel */
 
 #include <regex.h>
-#ifdef HAVE_STDBOOL_H
 #include <stdbool.h>
-#else
-#include "missing_d/gawkbool.h"
-#endif /* HAVE_STDBOOL_H */
 #include <stddef.h>
 
 #if 3 <= __GNUC__

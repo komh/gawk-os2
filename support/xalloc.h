@@ -1,8 +1,6 @@
 /* xalloc.h -- malloc with out-of-memory checking
 
-   Copyright (C) 1990, 1991, 1992, 1993, 1994, 1995, 1996, 1997, 1998, 1999,
-   2000, 2003, 2004, 2006, 2007, 2008, 2009, 2010 Free Software Foundation,
-   Inc.
+   Copyright (C) 1990-2000, 2003-2004, 2006-2019 Free Software Foundation, Inc.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -15,7 +13,7 @@
    GNU General Public License for more details.
 
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program.  If not, see <https://www.gnu.org/licenses/>.  */
 
 #ifndef XALLOC_H_
 # define XALLOC_H_
@@ -30,7 +28,7 @@ extern "C" {
 
 # ifndef __attribute__
 #  if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 8)
-#   define __attribute__(x)
+#   define __attribute__(arg)
 #  endif
 # endif
 

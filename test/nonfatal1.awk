@@ -1,6 +1,6 @@
 BEGIN {
 	PROCINFO["NONFATAL"]
-	# note that ":" is not a valid hostname character
-	print |& "/inet/tcp/0/local:host/25"
+	# note the bad characters in the hostname
+	print |& "/inet/tcp/0/1.2.3.4.5/25"
 	print (ERRNO != "")
 }

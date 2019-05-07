@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017,
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2019,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -46,10 +46,10 @@ static inline NODE **int_find(NODE *symbol, long k, uint32_t hash1);
 static NODE **int_insert(NODE *symbol, long k, uint32_t hash1);
 static void grow_int_table(NODE *symbol);
 
-afunc_t int_array_func[] = {
+const array_funcs_t int_array_func = {
+	"int",
 	int_array_init,
 	is_integer,
-	null_length,
 	int_lookup,
 	int_exists,
 	int_clear,

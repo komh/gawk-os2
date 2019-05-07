@@ -3,7 +3,7 @@
  */
 
 /* 
- * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2019 the Free Software Foundation, Inc.
  * 
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -32,16 +32,26 @@
  * valref 1, that effectively means that this is an assignment like "$n = $n",
  * so a no-op, other than triggering $0 reconstitution.
  */
-#define UNFIELD(l, r) \
-{ \
-	/* if was a field, turn it into a var */ \
-	if ((r->flags & MALLOC) != 0 || r->valref == 1) { \
-		l = r; \
-	} else { \
-		l = dupnode(r); \
-		DEREF(r); \
-	} \
+
+// not a macro so we can step into it with a debugger
+#ifndef UNFIELD_DEFINED
+#define UNFIELD_DEFINED 1
+static inline void
+unfield(NODE **l, NODE **r)
+{
+	/* if was a field, turn it into a var */
+	if (((*r)->flags & MALLOC) != 0 || (*r)->valref == 1) {
+		(*l) = (*r);
+	} else {
+		(*l) = dupnode(*r);
+		DEREF(*r);
+	}
+	force_string(*l);
 }
+
+#define UNFIELD(l, r)	unfield(& (l), & (r))
+#endif
+
 int
 r_interpret(INSTRUCTION *code)
 {
@@ -101,6 +111,7 @@ top:
 		case Op_atexit:
 		{
 			bool stdio_problem = false;
+			bool got_EPIPE = false;
 
 			/* avoid false source indications */
 			source = NULL;
@@ -116,7 +127,7 @@ top:
 			 * and pipes, in that it doesn't affect their exit status.
 			 * So we no longer do either.
 			 */
-			(void) close_io(& stdio_problem);
+			(void) close_io(& stdio_problem, & got_EPIPE);
 			/*
 			 * However, we do want to exit non-zero if there was a problem
 			 * with stdout/stderr, so we reinstate a slightly different
@@ -126,6 +137,9 @@ top:
 				exit_val = 1;
 
 			close_extensions();
+
+			if (got_EPIPE)
+				die_via_sigpipe();
 		}
 			break;
 
@@ -142,7 +156,10 @@ top:
 				orig = m->stptr;
 				trans = dgettext(TEXTDOMAIN, orig);
 				m->stptr[m->stlen] = save;
-				m = make_string(trans, strlen(trans));
+				if (trans != orig)	// got a translation
+					m = make_string(trans, strlen(trans));
+				else
+					UPREF(m);
 			} else
 				UPREF(m);
 			PUSH(m);
@@ -234,7 +251,7 @@ uninitialized_scalar:
 
 		case Op_subscript:
 			t2 = mk_sub(pc->sub_count);
-			t1 = POP_ARRAY();
+			t1 = POP_ARRAY(false);
 
 			if (do_lint && in_array(t1, t2) == NULL) {
 				t2 = force_string(t2);
@@ -281,33 +298,27 @@ uninitialized_scalar:
 
 		case Op_sub_array:
 			t2 = mk_sub(pc->sub_count);
-			t1 = POP_ARRAY();
+			t1 = POP_ARRAY(false);
 			r = in_array(t1, t2);
 			if (r == NULL) {
 				r = make_array();
 				r->parent_array = t1;
-				lhs = assoc_lookup(t1, t2);
-				unref(*lhs);
-				*lhs = r;
 				t2 = force_string(t2);
 				r->vname = estrdup(t2->stptr, t2->stlen);	/* the subscript in parent array */
-
-				/* execute post-assignment routine if any */
-				if (t1->astore != NULL)
-					(*t1->astore)(t1, t2);
+				assoc_set(t1, t2, r);
 			} else if (r->type != Node_var_array) {
 				t2 = force_string(t2);
 				fatal(_("attempt to use scalar `%s[\"%.*s\"]' as an array"),
 						array_vname(t1), (int) t2->stlen, t2->stptr);
-			}
+			} else
+				DEREF(t2);
 
-			DEREF(t2);
 			PUSH(r);
 			break;
 
 		case Op_subscript_lhs:
 			t2 = mk_sub(pc->sub_count);
-			t1 = POP_ARRAY();
+			t1 = POP_ARRAY(false);
 			if (do_lint && in_array(t1, t2) == NULL) {
 				t2 = force_string(t2);
 				if (pc->do_reference)
@@ -334,16 +345,19 @@ uninitialized_scalar:
 			 * 	3. Values that awk code stuck into SYMTAB not related to variables (Node_value)
 			 * For 1, since we are giving it a value, we have to change the type to Node_var.
 			 * For 1 and 2, we have to step through the Node_var to get to the value.
-			 * For 3, we just us the value we got from assoc_lookup(), above.
+			 * For 3, we fatal out. This avoids confusion on things like
+			 * SYMTAB["a foo"] = 42	# variable with a space in its name?
 			 */
 			if (t1 == func_table)
 				fatal(_("cannot assign to elements of FUNCTAB"));
-			else if (   t1 == symbol_table
-				 && (   (*lhs)->type == Node_var
+			else if (t1 == symbol_table) {
+				if ((   (*lhs)->type == Node_var
 				     || (*lhs)->type == Node_var_new)) {
-				update_global_values();		/* make sure stuff like NF, NR, are up to date */
-				(*lhs)->type = Node_var;	/* in case was Node_var_new */
-				lhs = & ((*lhs)->var_value);	/* extra level of indirection */
+					update_global_values();		/* make sure stuff like NF, NR, are up to date */
+					(*lhs)->type = Node_var;	/* in case was Node_var_new */
+					lhs = & ((*lhs)->var_value);	/* extra level of indirection */
+				} else
+					fatal(_("cannot assign to arbitrary elements of SYMTAB"));
 			}
 
 			assert(set_idx == NULL);
@@ -644,22 +658,25 @@ mod:
 			/*
 			 * Changing something in FUNCTAB is not allowed.
 			 *
-			 * SYMTAB is a little more messy.  Three kinds of values may
-			 * be stored in SYMTAB:
+			 * SYMTAB is a little more messy.  Three possibilities for SYMTAB:
 			 * 	1. Variables that don"t yet have a value (Node_var_new)
 			 * 	2. Variables that have a value (Node_var)
 			 * 	3. Values that awk code stuck into SYMTAB not related to variables (Node_value)
 			 * For 1, since we are giving it a value, we have to change the type to Node_var.
 			 * For 1 and 2, we have to step through the Node_var to get to the value.
-			 * For 3, we just us the value we got from assoc_lookup(), above.
+			 * For 3, we fatal out. This avoids confusion on things like
+			 * SYMTAB["a foo"] = 42	# variable with a space in its name?
 			 */
 			if (t1 == func_table)
 				fatal(_("cannot assign to elements of FUNCTAB"));
-			else if (   t1 == symbol_table
-				 && (   (*lhs)->type == Node_var
+			else if (t1 == symbol_table) {
+				if ((   (*lhs)->type == Node_var
 				     || (*lhs)->type == Node_var_new)) {
-				(*lhs)->type = Node_var;	/* in case was Node_var_new */
-				lhs = & ((*lhs)->var_value);	/* extra level of indirection */
+					update_global_values();		/* make sure stuff like NF, NR, are up to date */
+					(*lhs)->type = Node_var;	/* in case was Node_var_new */
+					lhs = & ((*lhs)->var_value);	/* extra level of indirection */
+				} else
+					fatal(_("cannot assign to arbitrary elements of SYMTAB"));
 			}
 
 			unref(*lhs);
@@ -870,19 +887,19 @@ mod:
 			break;
 
 		case Op_K_delete:
-			t1 = POP_ARRAY();
+			t1 = POP_ARRAY(false);
 			do_delete(t1, pc->expr_count);
 			stack_adj(-pc->expr_count);
 			break;
 
 		case Op_K_delete_loop:
-			t1 = POP_ARRAY();
+			t1 = POP_ARRAY(false);
 			lhs = POP_ADDRESS();	/* item */
 			do_delete_loop(t1, lhs);
 			break;
 
 		case Op_in_array:
-			t1 = POP_ARRAY();
+			t1 = POP_ARRAY(false);
 			t2 = mk_sub(pc->expr_count);
 			r = node_Boolean[(in_array(t1, t2) != NULL)];
 			DEREF(t2);
@@ -901,7 +918,7 @@ mod:
 			bool saved_end = false;
 
 			/* get the array */
-			array = POP_ARRAY();
+			array = POP_ARRAY(true);
 
 			/* sanity: check if empty */
 			num_elems = assoc_length(array);
@@ -1181,6 +1198,10 @@ match_re:
 			ni = setup_frame(pc);
 			JUMPTO(ni);	/* Op_func */
 		}
+
+		case Op_K_return_from_eval:
+			cant_happen();
+			break;
 
 		case Op_K_return:
 			m = POP_SCALAR();       /* return value */

@@ -1,7 +1,7 @@
 dnl
 dnl configure.ac --- autoconf input file for gawk
 dnl
-dnl Copyright (C) 1995-2018 the Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2019 the Free Software Foundation, Inc.
 dnl
 dnl This file is part of GAWK, the GNU implementation of the
 dnl AWK Programming Language.
@@ -23,7 +23,7 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk],[4.2.1],[bug-gawk@gnu.org],[gawk])
+AC_INIT([GNU Awk],[5.0.0],[bug-gawk@gnu.org],[gawk])
 
 # This is a hack. Different versions of install on different systems
 # are just too different. Chuck it and use install-sh.
@@ -44,27 +44,11 @@ AM_INIT_AUTOMAKE([1.15 dist-xz dist-lzip])
 
 AC_CONFIG_MACRO_DIR([m4])
 
-dnl Additional argument stuff
-AC_ARG_WITH(whiny-user-strftime,
-	[AS_HELP_STRING([--with-whiny-user-strftime], [force use of included version of strftime for deficient systems])],
-	if test "$withval" = yes
-	then
-		AC_DEFINE(USE_INCLUDED_STRFTIME, 1,
-			  [force use of our version of strftime])
-	fi
-)
 AC_ARG_ENABLE([lint],
 	[AS_HELP_STRING([--disable-lint],[do not compile in gawk lint checking])],
 	if test "$enableval" = no
 	then
 		AC_DEFINE(NO_LINT, 1, [disable lint checks])
-	fi
-)
-AC_ARG_ENABLE([severe-portability-problems],
-	[AS_HELP_STRING([--enable-severe-portability-problems],[allow really nasty portability problems])],
-	if test "$enableval" = yes
-	then
-		AC_DEFINE(I_DONT_KNOW_WHAT_IM_DOING, 1, [enable severe portability problems])
 	fi
 )
 AC_ARG_ENABLE([builtin-intdiv0],
@@ -133,7 +117,7 @@ then
 	# enable debugging using macros also
 	if test "$GCC" = yes
 	then
-		CFLAGS="$CFLAGS -Wall -fno-builtin -g3"
+		CFLAGS="$CFLAGS -Wall -fno-builtin -g3 -ggdb3"
 	fi
 	AC_MSG_RESULT([yes])
 else
@@ -160,6 +144,11 @@ gnu_gawk_in_ebcdic
  use_ebcdic=yes],
 [use_ebcdic=no])
 AC_MSG_RESULT([$use_ebcdic])
+if test "$use_ebcdic" = yes
+then
+	ZOS_FAIL='; echo Expect $@ to fail on z/OS.'
+fi
+AC_SUBST(ZOS_FAIL)
 
 dnl Set the programming language for checks. Fortunately,
 dnl this only needs to be set once, since everything is in C.
@@ -167,13 +156,13 @@ AC_LANG([C])
 
 dnl initialize GNU gettext
 AM_GNU_GETTEXT([external])
-AM_GNU_GETTEXT_VERSION([0.19.7])
+AM_GNU_GETTEXT_VERSION([0.19.8])
 AM_LANGINFO_CODESET
 gt_LC_MESSAGES
 
 dnl checks for header files
-AC_CHECK_HEADERS(arpa/inet.h fcntl.h limits.h locale.h libintl.h mcheck.h \
-	netdb.h netinet/in.h stdarg.h stddef.h string.h \
+AC_CHECK_HEADERS(arpa/inet.h fcntl.h locale.h libintl.h mcheck.h \
+	netdb.h netinet/in.h stddef.h string.h \
 	sys/ioctl.h sys/param.h sys/select.h sys/socket.h sys/time.h unistd.h \
 	termios.h stropts.h wchar.h wctype.h)
 AC_HEADER_STDC
@@ -312,7 +301,7 @@ AC_CHECK_FUNCS(__etoa_l atexit btowc fmod gai_strerror \
 	memset_ulong mkstemp posix_openpt setenv setlocale setsid sigprocmask \
 	snprintf strchr \
 	strerror strftime strcasecmp strncasecmp strcoll strtod strtoul \
-	system tmpfile towlower towupper tzset usleep waitpid wcrtomb \
+	system timegm tmpfile towlower towupper tzset usleep waitpid wcrtomb \
 	wcscoll wctype)
 dnl this check is for both mbrtowc and the mbstate_t type, which is good
 AC_FUNC_MBRTOWC
@@ -395,6 +384,34 @@ then
 fi
 AC_MSG_RESULT($has_f_format)
 
+dnl check for printf %a format
+AC_MSG_CHECKING([for printf %a format])
+AC_RUN_IFELSE([
+AC_LANG_SOURCE([
+#include <stdio.h>
+
+int main()
+{
+	char buf[[100]];
+
+	sprintf(buf, "%a", 8.0);
+
+	if (strncmp(buf, "0x", 2) == 0)
+		return 0;
+	else
+		return 1;
+}
+])],
+	has_a_format=yes,
+	has_a_format=no,
+	has_a_format=no  dnl Cross-compiling, assuming the worst.
+)
+if test "$has_a_format" = yes
+then
+	AC_DEFINE(PRINTF_HAS_A_FORMAT, 1, [Define to 1 if *printf supports %a format])
+fi
+AC_MSG_RESULT($has_a_format)
+
 dnl check for sockets
 GAWK_AC_LIB_SOCKETS
 
@@ -457,3 +474,13 @@ then
 	AC_CONFIG_SUBDIRS(extension)
 fi
 AC_OUTPUT
+if test "$GCC" = yes &&
+   test -f $srcdir/.developing &&
+   grep -i debug $srcdir/.developing > /dev/null
+then
+	for i in . support extension
+	do
+		sed '/-O2/s///' $i/Makefile > foo
+		mv foo $i/Makefile
+	done
+fi

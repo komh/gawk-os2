@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2019 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -24,7 +24,7 @@
  */
 
 /* FIX THIS BEFORE EVERY RELEASE: */
-#define UPDATE_YEAR	2018
+#define UPDATE_YEAR	2019
 
 #include "awk.h"
 #include "getopt.h"
@@ -68,9 +68,7 @@ static void version(void) ATTRIBUTE_NORETURN;
 static void init_fds(void);
 static void init_groupset(void);
 static void save_argv(int, char **);
-
-extern int debug_prog(INSTRUCTION *pc); /* debug.c */
-extern int init_debug();	/* debug.c */
+static const char *platform_name();
 
 /* These nodes store all the special variables AWK uses */
 NODE *ARGC_node, *ARGIND_node, *ARGV_node, *BINMODE_node, *CONVFMT_node;
@@ -322,6 +320,10 @@ main(int argc, char **argv)
 	/* init the cache for checking bytes if they're characters */
 	init_btowc_cache();
 
+	/* set up the single byte case table */
+	if (gawk_mb_cur_max == 1)
+		load_casetable();
+
 	if (do_nostalgia)
 		nostalgia();
 
@@ -333,6 +335,7 @@ main(int argc, char **argv)
 	_("environment variable `POSIXLY_CORRECT' set: turning on `--posix'"));
 	}
 
+	// Checks for conflicting command-line arguments.
 	if (do_posix) {
 		use_lc_numeric = true;
 		if (do_traditional)	/* both on command line */
@@ -350,9 +353,6 @@ main(int argc, char **argv)
 		warning(_("`--posix'/`--traditional' overrides `--non-decimal-data'"));
 	}
 
-	if (do_lint && os_is_setuid())
-		warning(_("running %s setuid root may be a security problem"), myname);
-
 	if (do_binary) {
 		if (do_posix)
 			warning(_("`--posix' overrides `--characters-as-bytes'"));
@@ -362,6 +362,9 @@ main(int argc, char **argv)
 		setlocale(LC_ALL, "C");
 #endif
 	}
+
+	if (do_lint && os_is_setuid())
+		warning(_("running %s setuid root may be a security problem"), myname);
 
 	if (do_debug)	/* Need to register the debugger pre-exec hook before any other */
 		init_debug();
@@ -400,9 +403,10 @@ main(int argc, char **argv)
 	init_fields();
 
 	/* Now process the pre-assignments */
+	int dash_v_errs = 0;	// bad stuff for -v
 	for (i = 0; i <= numassigns; i++) {
 		if (preassigns[i].type == PRE_ASSIGN)
-			(void) arg_assign(preassigns[i].val, true);
+			dash_v_errs += (arg_assign(preassigns[i].val, true) == false);
 		else	/* PRE_ASSIGN_FS */
 			cmdline_fs(preassigns[i].val);
 		efree(preassigns[i].val);
@@ -466,11 +470,13 @@ main(int argc, char **argv)
 	setlocale(LC_NUMERIC, "C");
 #endif
 	/* Read in the program */
-	if (parse_program(& code_block) != 0)
+	if (parse_program(& code_block, false) != 0 || dash_v_errs > 0)
 		exit(EXIT_FAILURE);
 
 	if (do_intl)
 		exit(EXIT_SUCCESS);
+
+	set_current_namespace(awk_namespace);
 
 	install_builtins();
 
@@ -516,6 +522,7 @@ main(int argc, char **argv)
 		interpret(code_block);
 
 	if (do_pretty_print) {
+		set_current_namespace(awk_namespace);
 		dump_prog(code_block);
 		dump_funcs();
 	}
@@ -615,7 +622,10 @@ usage(int exitval, FILE *fp)
 	fputs(_("\t-W nostalgia\t\t--nostalgia\n"), fp);
 #endif
 #ifdef GAWKDEBUG
-	fputs(_("\t-Y\t\t--parsedebug\n"), fp);
+	fputs(_("\t-Y\t\t\t--parsedebug\n"), fp);
+#endif
+#ifdef GAWKDEBUG
+	fputs(_("\t-Z locale-name\t\t--locale=locale-name\n"), fp);
 #endif
 
 	/* This is one string to make things easier on translators. */
@@ -628,7 +638,8 @@ usage(int exitval, FILE *fp)
 which is section `Reporting Problems and Bugs' in the\n\
 printed version.  This same information may be found at\n\
 https://www.gnu.org/software/gawk/manual/html_node/Bugs.html.\n\
-PLEASE do NOT try to report bugs by posting in comp.lang.awk.\n\n"), fp);
+PLEASE do NOT try to report bugs by posting in comp.lang.awk,\n\
+or by using a web forum such as Stack Overflow.\n\n"), fp);
 
 	/* ditto */
 	fputs(_("gawk is a pattern scanning and processing language.\n\
@@ -737,23 +748,19 @@ static void
 init_args(int argc0, int argc, const char *argv0, char **argv)
 {
 	int i, j;
-	NODE **aptr;
-	NODE *tmp;
+	NODE *sub, *val;
 
 	ARGV_node = install_symbol(estrdup("ARGV", 4), Node_var_array);
-	tmp =  make_number(0.0);
-	aptr = assoc_lookup(ARGV_node, tmp);
-	unref(tmp);
-	unref(*aptr);
-	*aptr = make_string(argv0, strlen(argv0));
-	(*aptr)->flags |= USER_INPUT;
+	sub = make_number(0.0);
+	val = make_string(argv0, strlen(argv0));
+	val->flags |= USER_INPUT;
+	assoc_set(ARGV_node, sub, val);
+
 	for (i = argc0, j = 1; i < argc; i++, j++) {
-		tmp = make_number((AWKNUM) j);
-		aptr = assoc_lookup(ARGV_node, tmp);
-		unref(tmp);
-		unref(*aptr);
-		*aptr = make_string(argv[i], strlen(argv[i]));
-		(*aptr)->flags |= USER_INPUT;
+		sub = make_number((AWKNUM) j);
+		val = make_string(argv[i], strlen(argv[i]));
+		val->flags |= USER_INPUT;
+		assoc_set(ARGV_node, sub, val);
 	}
 
 	ARGC_node = install_symbol(estrdup("ARGC", 4), Node_var);
@@ -882,9 +889,8 @@ load_environ()
 	extern char **environ;
 #endif
 	char *var, *val;
-	NODE **aptr;
 	int i;
-	NODE *tmp;
+	NODE *sub, *newval;
 	static bool been_here = false;
 
 	if (been_here)
@@ -902,12 +908,10 @@ load_environ()
 			*val++ = '\0';
 		else
 			val = nullstr;
-		tmp = make_string(var, strlen(var));
-		aptr = assoc_lookup(ENVIRON_node, tmp);
-		unref(tmp);
-		unref(*aptr);
-		*aptr = make_string(val, strlen(val));
-		(*aptr)->flags |= USER_INPUT;
+		sub = make_string(var, strlen(var));
+		newval = make_string(val, strlen(val));
+		newval->flags |= USER_INPUT;
+		assoc_set(ENVIRON_node, sub, newval);
 
 		/* restore '=' so that system() gets a valid environment */
 		if (val != nullstr)
@@ -931,31 +935,32 @@ load_environ()
 	return ENVIRON_node;
 }
 
+/* load_procinfo_argv --- populate PROCINFO["argv"] */
+
 static void
 load_procinfo_argv()
 {
-	NODE *tmp;
-	NODE **aptr;
+	NODE *sub;
+	NODE *val;
 	NODE *argv_array;
 	int i;
 
-	tmp = make_string("argv", 4);
-	aptr = assoc_lookup(PROCINFO_node, tmp);
-	unref(tmp);
-	unref(*aptr);
+	// build the sub-array first
 	getnode(argv_array);
  	memset(argv_array, '\0', sizeof(NODE));  /* valgrind wants this */
 	null_array(argv_array);
-	*aptr = argv_array;
 	argv_array->parent_array = PROCINFO_node;
 	argv_array->vname = estrdup("argv", 4);
 	for (i = 0; d_argv[i] != NULL; i++) {
-		tmp = make_number(i);
-		aptr = assoc_lookup(argv_array, tmp);
-		unref(tmp);
-		unref(*aptr);
-		*aptr = make_string(d_argv[i], strlen(d_argv[i]));
+		sub = make_number(i);
+		val = make_string(d_argv[i], strlen(d_argv[i]));
+		assoc_set(argv_array, sub, val);
 	}
+
+	// hook it into PROCINFO
+	sub = make_string("argv", 4);
+	assoc_set(PROCINFO_node, sub, argv_array);
+
 }
 
 /* load_procinfo --- populate the PROCINFO array */
@@ -981,6 +986,7 @@ load_procinfo()
 
 	update_PROCINFO_str("version", VERSION);
 	update_PROCINFO_str("strftime", def_strftime_format);
+	update_PROCINFO_str("platform", platform_name());
 
 #ifdef HAVE_MPFR
 	sprintf(name, "GNU MPFR %s", mpfr_get_version());
@@ -1143,7 +1149,7 @@ arg_assign(char *arg, bool initing)
 		badvar = true;
 	else
 		for (cp2 = arg+1; *cp2; cp2++)
-			if (! is_identchar((unsigned char) *cp2)) {
+			if (! is_identchar((unsigned char) *cp2) && *cp2 != ':') {
 				badvar = true;
 				break;
 			}
@@ -1155,21 +1161,52 @@ arg_assign(char *arg, bool initing)
 		if (do_lint)
 			lintwarn(_("`%s' is not a variable name, looking for file `%s=%s'"),
 				arg, arg, cp);
-	} else {
-		if (check_special(arg) >= 0)
-			fatal(_("cannot use gawk builtin `%s' as variable name"), arg);
 
-		if (! initing) {
-			var = lookup(arg);
-			if (var != NULL && var->type == Node_func)
-				fatal(_("cannot use function `%s' as variable name"), arg);
-		}
+		goto done;
+	}
+
+	// Assigning a string or typed regex
+
+	if (! validate_qualified_name(arg)) {
+		badvar = true;
+		goto done;
+	}
+
+	if (check_special(arg) >= 0)
+		fatal(_("cannot use gawk builtin `%s' as variable name"), arg);
+
+	if (! initing) {
+		var = lookup(arg);
+		if (var != NULL && var->type == Node_func)
+			fatal(_("cannot use function `%s' as variable name"), arg);
+	}
+
+	cp2 = cp + strlen(cp) - 1;	// end char
+	if (! do_traditional
+	    && cp[0] == '@' && cp[1] == '/' && *cp2 == '/') {
+		// typed regex
+		size_t len = strlen(cp) - 3;
+
+		ezalloc(cp2, char *, len + 1, "arg_assign");
+		memcpy(cp2, cp + 2, len);
+
+		it = make_typed_regex(cp2, len);
+		// fall through to variable setup
+	} else {
+		// string assignment
+
+		// POSIX disallows any newlines inside strings
+		// The scanner handles that for program files.
+		// We have to check here for strings passed to -v.
+		if (do_posix && strchr(cp, '\n') != NULL)
+			fatal(_("POSIX does not allow physical newlines in string values"));
 
 		/*
 		 * BWK awk expands escapes inside assignments.
 		 * This makes sense, so we do it too.
+		 * In addition, remove \-<newline> as in scanning.
 		 */
-		it = make_str_node(cp, strlen(cp), SCAN);
+		it = make_str_node(cp, strlen(cp), SCAN | ELIDE_BACK_NL);
 		it->flags |= USER_INPUT;
 #ifdef LC_NUMERIC
 		/*
@@ -1183,28 +1220,30 @@ arg_assign(char *arg, bool initing)
 		if (do_posix)
 			setlocale(LC_NUMERIC, locale);
 #endif /* LC_NUMERIC */
-
-		/*
-		 * since we are restoring the original text of ARGV later,
-		 * need to copy the variable name part if we don't want
-		 * name like v=abc instead of just v in var->vname
-		 */
-
-		cp2 = estrdup(arg, cp - arg);	/* var name */
-
-		var = variable(0, cp2, Node_var);
-		if (var == NULL)	/* error */
-			final_exit(EXIT_FATAL);
-		if (var->type == Node_var && var->var_update)
-			var->var_update();
-		lhs = get_lhs(var, false);
-		unref(*lhs);
-		*lhs = it;
-		/* check for set_FOO() routine */
-		if (var->type == Node_var && var->var_assign)
-			var->var_assign();
 	}
 
+	/*
+	 * since we are restoring the original text of ARGV later,
+	 * need to copy the variable name part if we don't want
+	 * name like v=abc instead of just v in var->vname
+	 */
+
+	cp2 = estrdup(arg, cp - arg);	/* var name */
+
+	var = variable(0, cp2, Node_var);
+	if (var == NULL)	/* error */
+		final_exit(EXIT_FATAL);
+
+	if (var->type == Node_var && var->var_update)
+		var->var_update();
+	lhs = get_lhs(var, false);
+	unref(*lhs);
+	*lhs = it;
+	/* check for set_FOO() routine */
+	if (var->type == Node_var && var->var_assign)
+		var->var_assign();
+
+done:
 	if (! initing)
 		*--cp = '=';	/* restore original text of ARGV */
 	FNR = save_FNR;
@@ -1592,9 +1631,13 @@ parse_args(int argc, char **argv)
 			break;
 
 		case 'p':
+			if (do_pretty_print)
+				warning(_("`--profile' overrides `--pretty-print'"));
 			do_flags |= DO_PROFILE;
 			/* fall through */
 		case 'o':
+			if (c == 'o' && do_profile)
+				warning(_("`--profile' overrides `--pretty-print'"));
 			do_flags |= DO_PRETTY_PRINT;
 			if (optarg != NULL)
 				set_prof_file(optarg);
@@ -1740,4 +1783,36 @@ set_locale_stuff(void)
 	/* These must be done after calling setlocale */
 	(void) bindtextdomain(PACKAGE, locale_dir);
 	(void) textdomain(PACKAGE);
+}
+
+/* platform_name --- return the platform name */
+
+static const char *
+platform_name()
+{
+	// Cygwin and Mac OS X count as POSIX
+#if defined(__VMS)
+	return "vms";
+#elif defined(__MINGW32__)
+	return "mingw";
+#elif defined(__DJGPP__)
+	return "djgpp";
+#elif defined(__EMX__)
+	return "os2";
+#elif defined(USE_EBCDIC)
+	return "os390";
+#else
+	return "posix";
+#endif
+}
+
+/* set_current_namespace --- set current_namespace and handle memory management */
+
+void
+set_current_namespace(const char *new_namespace)
+{
+	if (current_namespace != awk_namespace)
+		efree((void *) current_namespace);
+
+	current_namespace = new_namespace;
 }

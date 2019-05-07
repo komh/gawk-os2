@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2017 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -104,6 +104,12 @@ char casetable[] = {
 	'\170', '\171', '\172', '\173', '\174', '\175', '\176', '\177',
 
 	/* Latin 1: */
+	/*
+	 * 4/2019: This is now overridden; in single byte locales
+	 * we call load_casetable from main and it fills in the values
+	 * based on the current locale. In particular, we want LC_ALL=C
+	 * to work correctly for values >= 0200.
+	 */
 	C('\200'), C('\201'), C('\202'), C('\203'), C('\204'), C('\205'), C('\206'), C('\207'),
 	C('\210'), C('\211'), C('\212'), C('\213'), C('\214'), C('\215'), C('\216'), C('\217'),
 	C('\220'), C('\221'), C('\222'), C('\223'), C('\224'), C('\225'), C('\226'), C('\227'),
@@ -201,18 +207,12 @@ load_casetable(void)
 {
 #if defined(LC_CTYPE)
 	int i;
-	char *cp;
 	static bool loaded = false;
 
 	if (loaded || do_traditional)
 		return;
 
 	loaded = true;
-	cp = setlocale(LC_CTYPE, NULL);
-
-	/* this is not per standard, but it's pretty safe */
-	if (cp == NULL || strcmp(cp, "C") == 0 || strcmp(cp, "POSIX") == 0)
-		return;
 
 #ifndef USE_EBCDIC
 	/* use of isalpha is ok here (see is_alpha in awkgram.y) */
@@ -325,11 +325,13 @@ static struct optypetab {
 	{ "Op_K_next", "next" },
 	{ "Op_K_exit", "exit" },
 	{ "Op_K_return", "return" },
+	{ "Op_K_return_from_eval", "return" },
 	{ "Op_K_delete", "delete" },
 	{ "Op_K_delete_loop", NULL },
 	{ "Op_K_getline_redir", "getline" },
 	{ "Op_K_getline", "getline" },
 	{ "Op_K_nextfile", "nextfile" },
+	{ "Op_K_namespace", "@namespace" },
 	{ "Op_builtin", NULL },
 	{ "Op_sub_builtin", NULL },
 	{ "Op_ext_builtin", NULL },
@@ -400,7 +402,7 @@ nodetype2str(NODETYPE type)
 	return buf;
 }
 
-/* opcode2str --- convert a opcode type into a printable value */
+/* opcode2str --- convert an opcode type into a printable value */
 
 const char *
 opcode2str(OPCODE op)
@@ -410,6 +412,8 @@ opcode2str(OPCODE op)
 	fatal(_("unknown opcode %d"), (int) op);
 	return NULL;
 }
+
+/* op2str --- convert an opcode type to corresponding operator or keyword */
 
 const char *
 op2str(OPCODE op)
@@ -674,7 +678,7 @@ void
 dump_fcall_stack(FILE *fp)
 {
 	NODE *f, *func;
-	long i = 0, j, k = 0;
+	long i = 0, k = 0;
 
 	if (fcall_count == 0)
 		return;
@@ -682,15 +686,13 @@ dump_fcall_stack(FILE *fp)
 
 	/* current frame */
 	func = frame_ptr->func_node;
-	for (j = 0; j <= frame_ptr->num_tail_calls; j++)
-		fprintf(fp, "\t# %3ld. %s\n", k++, func->vname);
+	fprintf(fp, "\t# %3ld. %s\n", k++, func->vname);
 
 	/* outer frames except main */
 	for (i = 1; i < fcall_count; i++) {
 		f = fcall_list[i];
 		func = f->func_node;
-		for (j = 0; j <= f->num_tail_calls; j++)
-			fprintf(fp, "\t# %3ld. %s\n", k++, func->vname);
+		fprintf(fp, "\t# %3ld. %s\n", k++, func->vname);
 	}
 
 	fprintf(fp, "\t# %3ld. -- main --\n", k);
@@ -708,7 +710,7 @@ set_IGNORECASE()
 		warned = true;
 		lintwarn(_("`IGNORECASE' is a gawk extension"));
 	}
-	load_casetable();
+
 	if (do_traditional)
 		IGNORECASE = false;
    	else
@@ -1021,7 +1023,23 @@ update_ERRNO_string(const char *string)
 {
 	update_PROCINFO_num("errno", 0);
 	unref(ERRNO_node->var_value);
-	ERRNO_node->var_value = make_string(string, strlen(string));
+	size_t len = strlen(string);
+#if defined(USE_EBCDIC) && defined(ELIDE_IBM_ERROR_CODE)
+	// skip over leading IBM error code
+	// N.B. This code is untested
+	if (isupper(string[0]) && isupper(string[1])) {
+		while (*string && *string != ' ')
+			string++;
+
+		while (*string && *string == ' ')
+			string++;
+
+		len = strlen(string);
+		if (string[len-1] == '.')
+			len--;	// remove the final '.'
+	}
+#endif
+	ERRNO_node->var_value = make_string(string, len);
 }
 
 /* unset_ERRNO --- eliminate the value of ERRNO */
@@ -1242,37 +1260,15 @@ setup_frame(INSTRUCTION *pc)
 	NODE *m, *f, *fp;
 	NODE **sp = NULL;
 	int pcount, arg_count, i, j;
-	bool tail_optimize = false;
 
 	f = pc->func_body;
 	pcount = f->param_cnt;
 	fp = f->fparms;
 	arg_count = (pc + 1)->expr_count;
 
-	/* tail recursion optimization */
-	tail_optimize =  ((pc + 1)->tail_call && do_optimize
-				&& ! do_debug && ! do_profile);
-
-	if (tail_optimize) {
-		/* free local vars of calling frame */
-
-		NODE *func;
-		int n;
-
-		func = frame_ptr->func_node;
-		for (n = func->param_cnt, sp = frame_ptr->stack; n > 0; n--) {
-			r = *sp++;
-			if (r->type == Node_var)     /* local variable */
-				DEREF(r->var_value);
-			else if (r->type == Node_var_array)     /* local array */
-				assoc_clear(r);
-		}
-		sp = frame_ptr->stack;
-
-	} else if (pcount > 0) {
+	if (pcount > 0) {
 		ezalloc(sp, NODE **, pcount * sizeof(NODE *), "setup_frame");
 	}
-
 
 	/* check for extra args */
 	if (arg_count > pcount) {
@@ -1287,13 +1283,9 @@ setup_frame(INSTRUCTION *pc)
 	}
 
 	for (i = 0, j = arg_count - 1; i < pcount; i++, j--) {
-		if (tail_optimize)
-			r = sp[i];
-		else {
-			getnode(r);
-			memset(r, 0, sizeof(NODE));
-			sp[i] = r;
-		}
+		getnode(r);
+		memset(r, 0, sizeof(NODE));
+		sp[i] = r;
 
 		if (i >= arg_count) {
 			/* local variable */
@@ -1348,11 +1340,6 @@ setup_frame(INSTRUCTION *pc)
 
 	stack_adj(-arg_count);	/* adjust stack pointer */
 
-	if (tail_optimize) {
-		frame_ptr->num_tail_calls++;
-		return f->code_ptr;
-	}
-
 	if (pc->opcode == Op_indirect_func_call) {
 		r = POP();	/* indirect var */
 		DEREF(r);
@@ -1372,7 +1359,6 @@ setup_frame(INSTRUCTION *pc)
 	frame_ptr->stack = sp;
 	frame_ptr->prev_frame_size = (stack_ptr - stack_bottom); /* size of the previous stack frame */
 	frame_ptr->func_node = f;
-	frame_ptr->num_tail_calls = 0;
 	frame_ptr->vname = NULL;
 	frame_ptr->reti = pc; /* on return execute pc->nexti */
 
@@ -1774,7 +1760,6 @@ init_interpret()
 	frame_ptr->type = Node_frame;
 	frame_ptr->stack = NULL;
 	frame_ptr->func_node = NULL;	/* in main */
-	frame_ptr->num_tail_calls = 0;
 	frame_ptr->vname = NULL;
 
 	/* initialize true and false nodes */

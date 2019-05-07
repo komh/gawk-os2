@@ -338,6 +338,11 @@ reset_record()
 {
 	fields_arr[0] = force_string(fields_arr[0]);
 	purge_record();
+	if (api_parser_override) {
+		api_parser_override = false;
+		parse_field = normal_parse_field;
+		update_PROCINFO_str("FS", current_field_sep_str());
+	}
 }
 
 static void
@@ -391,6 +396,13 @@ set_NF()
 	nf = get_number_si(NF_node->var_value);
 	if (nf < 0)
 		fatal(_("NF set to negative value"));
+
+	static bool warned = false;
+	if (do_lint && NF > nf && ! warned) {
+		warned = true;
+		lintwarn(_("decrementing NF is not portable to many awk versions"));
+	}
+
 	NF = nf;
 
 	if (NF > nf_high_water)
@@ -827,6 +839,14 @@ NODE **
 get_field(long requested, Func_ptr *assign)
 {
 	bool in_middle = false;
+	static bool warned = false;
+	extern int currule;
+
+	if (do_lint && currule == END && ! warned) {
+		warned = true;
+		lintwarn(_("accessing fields from an END rule may not be portable"));
+	}
+
 	/*
 	 * if requesting whole line but some other field has been altered,
 	 * then the whole line must be rebuilt
@@ -929,18 +949,12 @@ static void
 set_element(long num, char *s, long len, NODE *n)
 {
 	NODE *it;
-	NODE **lhs;
 	NODE *sub;
 
 	it = make_string(s, len);
 	it->flags |= USER_INPUT;
 	sub = make_number((AWKNUM) (num));
-	lhs = assoc_lookup(n, sub);
-	unref(*lhs);
-	*lhs = it;
-        if (n->astore != NULL)
-                (*n->astore)(n, sub);
-	unref(sub);
+	assoc_set(n, sub, it);
 }
 
 /* do_split --- implement split(), semantics are same as for field splitting */
@@ -1018,7 +1032,7 @@ do_split(int nargs)
 
 			if (do_lint && ! warned) {
 				warned = true;
-				lintwarn(_("split: null string for third arg is a gawk extension"));
+				lintwarn(_("split: null string for third arg is a non-standard extension"));
 			}
 		} else if (fs->stlen == 1 && (sep->re_flags & CONSTANT) == 0) {
 			if (fs->stptr[0] == ' ') {
@@ -1392,16 +1406,12 @@ current_field_sep_str()
 void
 update_PROCINFO_str(const char *subscript, const char *str)
 {
-	NODE **aptr;
 	NODE *tmp;
 
 	if (PROCINFO_node == NULL)
 		return;
 	tmp = make_string(subscript, strlen(subscript));
-	aptr = assoc_lookup(PROCINFO_node, tmp);
-	unref(tmp);
-	unref(*aptr);
-	*aptr = make_string(str, strlen(str));
+	assoc_set(PROCINFO_node, tmp, make_string(str, strlen(str)));
 }
 
 /* update_PROCINFO_num --- update PROCINFO[sub] with numeric value */
@@ -1409,16 +1419,12 @@ update_PROCINFO_str(const char *subscript, const char *str)
 void
 update_PROCINFO_num(const char *subscript, AWKNUM val)
 {
-	NODE **aptr;
 	NODE *tmp;
 
 	if (PROCINFO_node == NULL)
 		return;
 	tmp = make_string(subscript, strlen(subscript));
-	aptr = assoc_lookup(PROCINFO_node, tmp);
-	unref(tmp);
-	unref(*aptr);
-	*aptr = make_number(val);
+	assoc_set(PROCINFO_node, tmp, make_number(val));
 }
 
 /* set_FPAT --- handle an assignment to FPAT */

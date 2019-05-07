@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2018,
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2018, 2019,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -56,10 +56,10 @@ static NODE **str_list(NODE *symbol, NODE *subs);
 static NODE **str_copy(NODE *symbol, NODE *newsymb);
 static NODE **str_dump(NODE *symbol, NODE *ndump);
 
-afunc_t str_array_func[] = {
+const array_funcs_t str_array_func = {
+	"str",
 	str_array_init,
 	(afunc_t) 0,
-	null_length,
 	str_lookup,
 	str_exists,
 	str_clear,
@@ -75,10 +75,10 @@ static NODE **env_store(NODE *symbol, NODE *subs);
 static NODE **env_clear(NODE *symbol, NODE *subs);
 
 /* special case for ENVIRON */
-afunc_t env_array_func[] = {
+const array_funcs_t env_array_func = {
+	"env",
 	str_array_init,
 	(afunc_t) 0,
-	null_length,
 	str_lookup,
 	str_exists,
 	env_clear,
@@ -121,7 +121,7 @@ str_array_init(NODE *symbol ATTRIBUTE_UNUSED, NODE *subs ATTRIBUTE_UNUSED)
 
 
 /*
- * assoc_lookup:
+ * str_lookup:
  * Find SYMBOL[SUBS] in the assoc array.  Install it with value "" if it
  * isn't there. Returns a pointer ala get_lhs to where its value is stored.
  *
@@ -798,7 +798,7 @@ env_clear(NODE *symbol, NODE *subs)
 	environ = NULL;	/* ZAP! */
 
 	/* str_clear zaps the vtable, reset it */
-	symbol->array_funcs = env_array_func;
+	symbol->array_funcs = & env_array_func;
 
 	return val;
 }
@@ -831,5 +831,5 @@ init_env_array(NODE *env_node)
 	if (do_posix)
 		return;
 
-	env_node->array_funcs = env_array_func;
+	env_node->array_funcs = & env_array_func;
 }

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1989, 1991-2013 the Free Software Foundation, Inc.
+ * Copyright (C) 1989, 1991-2014, 2018 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -90,6 +90,10 @@
 #undef DEBUG
 #include "missing_d/mktime.c"
 #endif /* HAVE_MKTIME */
+
+#ifndef HAVE_TIMEGM
+#include "missing_d/timegm.c"
+#endif /* HAVE_TIMEGM */
 
 #ifndef HAVE_SNPRINTF
 #include "missing_d/snprintf.c"

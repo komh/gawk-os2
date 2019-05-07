@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2019 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -43,19 +43,13 @@
 #include <config.h>
 #endif
 
-#ifndef _GNU_SOURCE
-#define _GNU_SOURCE	1	/* enable GNU extensions */
-#endif /* _GNU_SOURCE */
-
 #if defined(tandem_for_real) && ! defined(_SCO_DS)
 #define _XOPEN_SOURCE_EXTENDED 1
 #endif
 
 #include <stdio.h>
 #include <assert.h>
-#ifdef HAVE_LIMITS_H
 #include <limits.h>
-#endif /* HAVE_LIMITS_H */
 #include <ctype.h>
 #include <setjmp.h>
 
@@ -69,15 +63,14 @@
 #endif /* LOCALEDIR */
 #endif
 
+#if !defined(__SUNPRO_C)
 #if !defined(__STDC__) || __STDC__ < 1
 #error "gawk no longer supports non-C89 environments (no __STDC__ or __STDC__ < 1)"
 #endif
-
-#if defined(HAVE_STDARG_H)
-#include <stdarg.h>
-#else
-#error "gawk no longer supports <varargs.h>. Please update your compiler and runtime"
 #endif
+
+#include <stdarg.h>
+#include <stdbool.h>
 #include <signal.h>
 #include <time.h>
 #include <errno.h>
@@ -89,11 +82,6 @@ extern int errno;
 #include <stdlib.h>
 #endif	/* not STDC_HEADERS */
 
-#ifdef HAVE_STDBOOL_H
-#include <stdbool.h>
-#else
-#include "missing_d/gawkbool.h"
-#endif
 
 /* We can handle multibyte strings.  */
 #include <wchar.h>
@@ -233,7 +221,7 @@ extern double gawk_strtod();
 #endif
 
 #if __GNUC__ < 2 || (__GNUC__ == 2 && __GNUC_MINOR__ < 7)
-# define __attribute__(x)
+# define __attribute__(arg)
 #endif
 
 #ifndef ATTRIBUTE_UNUSED
@@ -308,6 +296,12 @@ typedef union bucket_item {
 	} hi;
 } BUCKET;
 
+enum commenttype {
+	EOL_COMMENT = 1,
+	BLOCK_COMMENT,
+	FOR_COMMENT	// special case
+};
+
 /* string hash table */
 #define ahnext		hs.next
 #define	ahname		hs.name	/* a string index node */
@@ -326,6 +320,19 @@ struct exp_instruction;
 
 typedef int (*Func_print)(FILE *, const char *, ...);
 typedef struct exp_node **(*afunc_t)(struct exp_node *, struct exp_node *);
+typedef struct {
+	const char *name;
+	afunc_t init;
+	afunc_t type_of;	/* avoid reserved word typeof */
+	afunc_t lookup;
+	afunc_t exists;
+	afunc_t clear;
+	afunc_t remove;
+	afunc_t list;
+	afunc_t copy;
+	afunc_t dump;
+	afunc_t store;
+} array_funcs_t;
 
 /*
  * NOTE - this struct is a rather kludgey -- it is packed to minimize
@@ -338,7 +345,7 @@ typedef struct exp_node {
 				struct exp_node *lptr;
 				struct exp_instruction *li;
 				long ll;
-				afunc_t *lp;
+				const array_funcs_t *lp;
 			} l;
 			union {
 				struct exp_node *rptr;
@@ -352,6 +359,7 @@ typedef struct exp_node {
 				struct exp_node *extra;
 				void (*aptr)(void);
 				long xl;
+				void *cmnt;	// used by pretty printer
 			} x;
 			char *name;
 			size_t reserved;
@@ -380,6 +388,7 @@ typedef struct exp_node {
 			wchar_t *wsp;
 			size_t wslen;
 			struct exp_node *typre;
+			enum commenttype comtype;
 		} val;
 	} sub;
 	NODETYPE type;
@@ -527,7 +536,6 @@ typedef struct exp_node {
 #define func_node    sub.nodep.x.extra
 #define prev_frame_size	sub.nodep.reflags
 #define reti         sub.nodep.l.li
-#define num_tail_calls    sub.nodep.cnt
 
 /* Node_var: */
 #define var_value    lnode
@@ -545,29 +553,16 @@ typedef struct exp_node {
 #define xarray		sub.nodep.rn
 #define parent_array	sub.nodep.x.extra
 
-#define ainit		array_funcs[0]
-#define ainit_ind	0
-#define atypeof		array_funcs[1]
-#define atypeof_ind	1
-#define alength		array_funcs[2]
-#define alength_ind	2
-#define alookup 	array_funcs[3]
-#define alookup_ind	3
-#define aexists 	array_funcs[4]
-#define aexists_ind	4
-#define aclear		array_funcs[5]
-#define aclear_ind	5
-#define aremove		array_funcs[6]
-#define aremove_ind	6
-#define alist		array_funcs[7]
-#define alist_ind	7
-#define acopy		array_funcs[8]
-#define acopy_ind	8
-#define adump		array_funcs[9]
-#define adump_ind	9
-#define astore		array_funcs[10]
-#define astore_ind	10
-#define NUM_AFUNCS	11		/* # of entries in array_funcs */
+#define ainit		array_funcs->init
+#define atypeof		array_funcs->type_of
+#define alookup 	array_funcs->lookup
+#define aexists 	array_funcs->exists
+#define aclear		array_funcs->clear
+#define aremove		array_funcs->remove
+#define alist		array_funcs->list
+#define acopy		array_funcs->copy
+#define adump		array_funcs->dump
+#define astore		array_funcs->store
 
 /* Node_array_ref: */
 #define orig_array lnode
@@ -578,9 +573,7 @@ typedef struct exp_node {
 #define alevel     sub.nodep.x.xl
 
 /* Op_comment	*/
-#define comment_type	sub.val.idx
-#define EOL_COMMENT 1
-#define FULL_COMMENT 2
+#define comment_type	sub.val.comtype
 
 /* --------------------------------lint warning types----------------------------*/
 typedef enum lintvals {
@@ -671,11 +664,13 @@ typedef enum opcodeval {
 	Op_K_next,
 	Op_K_exit,
 	Op_K_return,
+	Op_K_return_from_eval,
 	Op_K_delete,
 	Op_K_delete_loop,
 	Op_K_getline_redir,
 	Op_K_getline,
 	Op_K_nextfile,
+	Op_K_namespace,
 
 	Op_builtin,
 	Op_sub_builtin,		/* sub, gsub and gensub */
@@ -777,6 +772,7 @@ typedef struct exp_instruction {
 		awk_ext_func_t *exf;
 	} x;
 
+	struct exp_instruction *comment;
 	short source_line;
 	short pool_size;	// memory management in symbol.c
 	OPCODE opcode;
@@ -862,9 +858,6 @@ typedef struct exp_instruction {
 /* Op_func_call, Op_func */
 #define func_body       x.xn
 
-/* Op_func_call */
-#define tail_call	d.dl
-
 /* Op_subscript */
 #define sub_count       d.dl
 
@@ -929,6 +922,9 @@ typedef struct exp_instruction {
 /* Op_line_range */
 #define condpair_left   d.di
 #define condpair_right  x.xi
+
+/* Op_Rule, Op_Func */
+#define ns_name		d.name
 
 /* Op_store_var */
 #define initval         x.xn
@@ -1025,11 +1021,13 @@ typedef struct srcfile {
 	char *lexeme;
 	char *lexptr_begin;
 	int lasttok;
+	INSTRUCTION *comment;	/* comment on @load line */
+	const char *namespace;
 } SRCFILE;
 
 // structure for INSTRUCTION pool, needed mainly for debugger
 typedef struct instruction_pool {
-#define MAX_INSTRUCTION_ALLOC	3	// we don't call bcalloc with more than this
+#define MAX_INSTRUCTION_ALLOC	4	// we don't call bcalloc with more than this
 	struct instruction_mem_pool {
 		struct instruction_block *block_list;
 		INSTRUCTION *free_space;	// free location in active block
@@ -1125,9 +1123,9 @@ extern NODE *(*format_val)(const char *, int, NODE *);
 extern int (*cmp_numbers)(const NODE *, const NODE *);
 
 /* built-in array types */
-extern afunc_t str_array_func[];
-extern afunc_t cint_array_func[];
-extern afunc_t int_array_func[];
+extern const array_funcs_t str_array_func;
+extern const array_funcs_t cint_array_func;
+extern const array_funcs_t int_array_func;
 
 /* special node used to indicate success in array routines (not NULL) */
 extern NODE *success_node;
@@ -1211,6 +1209,10 @@ extern char *deflibpath;
 extern char envsep;
 
 extern char casetable[];	/* for case-independent regexp matching */
+
+extern const char awk_namespace[];	/* "awk" */
+extern const char *current_namespace;
+extern bool namespace_changed;
 
 /* ------------------------- Runtime stack -------------------------------- */
 
@@ -1332,8 +1334,10 @@ DEREF(NODE *r)
 
 #define	make_string(s, l)	make_str_node((s), (l), 0)
 
+// Flags for making string nodes
 #define		SCAN			1
 #define		ALREADY_MALLOCED	2
+#define		ELIDE_BACK_NL		4
 
 #define	cant_happen()	r_fatal("internal error line %d, file: %s", \
 				__LINE__, __FILE__)
@@ -1349,14 +1353,7 @@ DEREF(NODE *r)
 extern jmp_buf fatal_tag;
 extern int fatal_tag_valid;
 
-#define PUSH_BINDING(stack, tag, val)	\
-if (val++) \
-	memcpy((char *) (stack), (const char *) tag, sizeof(jmp_buf))
-#define POP_BINDING(stack, tag, val)	\
-if (--val) \
-	memcpy((char *) tag, (const char *) (stack), sizeof(jmp_buf))
-
-#define assoc_length(a)	((*((a)->alength(a, NULL)))->table_size)
+#define assoc_length(a)	((a)->table_size)
 #define assoc_empty(a)	(assoc_length(a) == 0)
 #define assoc_lookup(a, s)	((a)->alookup(a, s))
 
@@ -1365,6 +1362,7 @@ if (--val) \
 
 /* assoc_remove --- remove an index from symbol[] */
 #define assoc_remove(a, s) ((a)->aremove(a, s) != NULL)
+
 
 /* ------------- Function prototypes or defs (as appropriate) ------------- */
 /* array.c */
@@ -1388,8 +1386,6 @@ extern NODE *force_array(NODE *symbol, bool canfatal);
 extern const char *make_aname(const NODE *symbol);
 extern const char *array_vname(const NODE *symbol);
 extern void array_init(void);
-extern int register_array_func(afunc_t *afunc);
-extern NODE **null_length(NODE *symbol, NODE *subs);
 extern NODE **null_afunc(NODE *symbol, NODE *subs);
 extern void set_SUBSEP(void);
 extern NODE *concat_exp(int nargs, bool do_subsep);
@@ -1407,11 +1403,11 @@ extern unsigned long (*hash)(const char *s, size_t len, unsigned long hsize, siz
 extern void init_env_array(NODE *env_node);
 /* awkgram.c */
 extern NODE *variable(int location, char *name, NODETYPE type);
-extern int parse_program(INSTRUCTION **pcode);
+extern int parse_program(INSTRUCTION **pcode, bool from_eval);
 extern void track_ext_func(const char *name);
 extern void dump_funcs(void);
 extern void dump_vars(const char *fname);
-extern const char *getfname(NODE *(*)(int));
+extern const char *getfname(NODE *(*)(int), bool prepend_awk);
 extern NODE *stopme(int nargs);
 extern void shadow_funcs(void);
 extern int check_special(const char *name);
@@ -1428,6 +1424,7 @@ extern bool is_alnum(int c);
 extern bool is_letter(int c);
 extern bool is_identchar(int c);
 extern NODE *make_regnode(int type, NODE *exp);
+extern bool validate_qualified_name(char *token);
 /* builtin.c */
 extern double double_to_int(double d);
 extern NODE *do_exp(int nargs);
@@ -1477,6 +1474,9 @@ extern NODE *do_typeof(int nargs);
 extern int strncasecmpmbs(const unsigned char *,
 			  const unsigned char *, size_t);
 extern int sanitize_exit_status(int status);
+/* debug.c */
+extern void init_debug(void);
+extern int debug_prog(INSTRUCTION *pc);
 /* eval.c */
 extern void PUSH_CODE(INSTRUCTION *cp);
 extern INSTRUCTION *POP_CODE(void);
@@ -1514,8 +1514,9 @@ extern NODE **r_get_field(NODE *n, Func_ptr *assign, bool reference);
 extern NODE *do_ext(int nargs);
 void load_ext(const char *lib_name);	/* temporary */
 extern void close_extensions(void);
+extern bool is_valid_identifier(const char *name);
 #ifdef DYNAMIC
-extern awk_bool_t make_builtin(const awk_ext_func_t *);
+extern awk_bool_t make_builtin(const char *name_space, const awk_ext_func_t *);
 extern NODE *get_argument(int);
 extern NODE *get_actual_argument(NODE *, int, bool);
 #define get_scalar_argument(n, i)  get_actual_argument((n), (i), false)
@@ -1585,7 +1586,7 @@ extern struct redirect *redirect_string(const char *redir_exp_str,
 		int *errflg, int extfd, bool failure_fatal);
 extern NODE *do_close(int nargs);
 extern int flush_io(void);
-extern int close_io(bool *stdio_problem);
+extern int close_io(bool *stdio_problem, bool *got_EPIPE);
 typedef enum { CLOSE_ALL, CLOSE_TO, CLOSE_FROM } two_way_close_type;
 extern int close_rp(struct redirect *rp, two_way_close_type how);
 extern int devopen_simple(const char *name, const char *mode, bool try_real_open);
@@ -1611,6 +1612,7 @@ extern char *estrdup(const char *str, size_t len);
 extern void update_global_values();
 extern long getenv_long(const char *name);
 extern void after_beginfile(IOBUF **curfile);
+extern void set_current_namespace(const char *new_namespace);
 
 /* mpfr.c */
 extern void set_PREC(void);
@@ -1689,6 +1691,8 @@ extern wint_t btowc_cache[];
 #define btowc_cache(x) btowc_cache[(x)&0xFF]
 extern void init_btowc_cache();
 #define is_valid_character(b)	(btowc_cache[(b)&0xFF] != WEOF)
+extern bool out_of_range(NODE *n);
+extern char *format_nan_inf(NODE *n, char format);
 /* re.c */
 extern Regexp *make_regexp(const char *s, size_t len, bool ignorecase, bool dfa, bool canfatal);
 extern int research(Regexp *rp, char *str, int start, size_t len, int flags);
@@ -1728,6 +1732,7 @@ extern NODE **variable_list();
 extern NODE **function_list(bool sort);
 extern void print_vars(NODE **table, Func_print print_func, FILE *fp);
 extern bool check_param_names(void);
+extern bool is_all_upper(const char *name);
 
 /* floatcomp.c */
 #ifdef HAVE_UINTMAX_T
@@ -1777,9 +1782,15 @@ extern uintmax_t adjust_uint(uintmax_t n);
 /* POP_ARRAY --- get the array at the top of the stack */
 
 static inline NODE *
-POP_ARRAY()
+POP_ARRAY(bool check_for_untyped)
 {
 	NODE *t = POP();
+	static bool warned = false;
+
+	if (do_lint && ! warned && check_for_untyped && t->type == Node_var_new) {
+		warned = true;
+		lintwarn(_("behavior of `for' loop on untyped variable is not defined by POSIX"));
+	}
 
 	return (t->type == Node_var_array) ? t : force_array(t, true);
 }
@@ -2014,6 +2025,20 @@ make_number_node(unsigned int flags)
 	r->valref = 1;
 	r->flags = (flags|MALLOC|NUMBER|NUMCUR);
 	return r;
+}
+
+/* assoc_set -- set an element in an array. Does unref(sub)! */
+
+static inline void
+assoc_set(NODE *array, NODE *sub, NODE *value)
+{
+
+	NODE **lhs = assoc_lookup(array, sub);
+	unref(*lhs);
+	*lhs = value;
+	if (array->astore != NULL)
+		(*array->astore)(array, sub);
+	unref(sub);
 }
 
 /*

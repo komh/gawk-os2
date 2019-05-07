@@ -1,7 +1,7 @@
 #
 # Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 2000-2016 the Free Software Foundation, Inc.
+# Copyright (C) 2000-2019 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -38,6 +38,7 @@ EXTRA_DIST = \
 	INSTALL \
 	NEWS \
 	NEWS.0 \
+	NEWS.1 \
 	POSIX.STD \
 	README_d \
 	config.guess \
@@ -169,7 +170,7 @@ check-local: gawk$(EXEEXT)
 
 # A little extra clean up when making distributions.
 # And additional set up for the pc directory.
-dist-hook:
+dist-hook: pc/Makefile.tst
 	cd "$(distdir)"/extension ; rm -f *.o *.so
 	cd "$(srcdir)"/pc ; \
 	chmod u+w config.h ; \
@@ -191,6 +192,11 @@ command.c: command.y
 	$(YACC) -o $@ -p zz $<
 	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
+pc/Makefile.tst: test/Makefile.in
+	test -d pc || mkdir pc
+	cat "$(top_srcdir)"/pc/Makefile.tst.prologue > pc/Makefile.tst
+	awk -f "$(top_srcdir)"/pc/GenMakefileTst.awk "$(top_srcdir)"/test/Makefile.in >> pc/Makefile.tst
+
 # This is for my development & testing.
 efence: gawk
 	$(CC) $(LDFLAGS) -o gawk $$(ls *.o | grep -v '_p.o$$') $(LDADD) $(LIBS) -lefence
@@ -210,3 +216,6 @@ valgrind-noleak:
 
 spell:
 	cd "$(srcdir)"/doc ; $(MAKE) spell
+
+distclean-local:
+	rm -fr .deps
