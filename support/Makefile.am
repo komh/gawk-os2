@@ -1,7 +1,8 @@
 #
 # Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 2000-2016, 2018, 2019 the Free Software Foundation, Inc.
+# Copyright (C) 2000-2016, 2018, 2019, 2021, 2022, 2023
+# the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -23,31 +24,42 @@
 
 ## process this file with automake to produce Makefile.in
 
-# This insures that make flags get passed down to child makes.
-AM_MAKEFLAGS = 'CFLAGS=$(CFLAGS)' 'LDFLAGS=$(LDFLAGS)'
+AM_CFLAGS  = @CFLAGS@
+AM_LDFLAGS = @LDFLAGS@
+
+AR = @AR@
 
 # Stuff to include in the dist that doesn't need it's own
 # Makefile.am files
 EXTRA_DIST = \
+        ChangeLog.0 \
 	Makefile.am \
 	Makefile.in \
-	cdefs.h \
-	libc-config.h \
+	pma.h \
+	pma.c \
 	regcomp.c \
 	regex_internal.c \
 	regex_internal.h \
-	regexec.c
+	regexec.c \
+	malloc/dynarray-skeleton.c
 
 # what to make and install
 noinst_LIBRARIES = libsupport.a
 libsupport_a_SOURCES = \
+	attribute.h \
+	cdefs.h \
 	dfa.c \
 	dfa.h \
+	dynarray.h \
+	flexmember.h \
 	getopt.c \
 	getopt.h \
-	getopt_int.h \
 	getopt1.c \
+	getopt_int.h \
+	idx.h \
 	intprops.h \
+	intprops-internal.h \
+	libc-config.h \
 	localeinfo.c \
 	localeinfo.h \
 	random.c \
@@ -55,10 +67,25 @@ libsupport_a_SOURCES = \
 	regex.c \
 	regex.h \
 	verify.h \
-	xalloc.h
+	xalloc.h \
+	malloc/dynarray.h \
+	malloc/dynarray_at_failure.c \
+	malloc/dynarray_emplace_enlarge.c  \
+	malloc/dynarray_finalize.c \
+	malloc/dynarray_resize.c \
+	malloc/dynarray_resize_clear.c
+
+if USE_PERSISTENT_MALLOC
+libsupport_a_SOURCES += pma.c pma.h
+CFLAGS += -DNDEBUG
+AM_CFLAGS += -DNDEBUG
+endif
 
 # For some make's, e.g. OpenBSD, that don't define this
 RM = rm -f
+
+# For debugging
+DEBUG = -gdwarf-4 -g3
 
 DEFS = -DGAWK -DHAVE_CONFIG_H -I"$(srcdir)/.."
 

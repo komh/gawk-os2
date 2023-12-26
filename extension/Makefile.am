@@ -1,7 +1,8 @@
 #
 # extension/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 1995-2006, 2012-2015, 2017 the Free Software Foundation, Inc.
+# Copyright (C) 1995-2006, 2012-2015, 2017, 2020, 2021, 2022, 2023
+# the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -27,12 +28,10 @@ AM_CPPFLAGS = -I$(srcdir)/..
 
 # This variable insures that aclocal runs
 # correctly after changing configure.ac
-ACLOCAL_AMFLAGS = -I m4 -I ../m4
+ACLOCAL_AMFLAGS = -I ../m4
 
 # For some make's, e.g. OpenBSD, that don't define this
 RM = rm -f
-
-# Note: rwarray does not currently compile.
 
 pkgextension_LTLIBRARIES =	\
 	filefuncs.la	\
@@ -49,11 +48,10 @@ pkgextension_LTLIBRARIES =	\
 	time.la
 
 noinst_LTLIBRARIES =	\
-	readdir_test.la	\
 	testext.la
 
 MY_MODULE_FLAGS = -module -avoid-version -no-undefined
-# On Cygwin, gettext requires that we link with -lintl 
+# On Cygwin, gettext requires that we link with -lintl
 MY_LIBS = $(LTLIBINTL)
 
 filefuncs_la_SOURCES  = filefuncs.c stack.h stack.c gawkfts.h \
@@ -99,9 +97,10 @@ revtwoway_la_SOURCES  = revtwoway.c
 revtwoway_la_LDFLAGS  = $(MY_MODULE_FLAGS)
 revtwoway_la_LIBADD   = $(MY_LIBS)
 
+# On Cygwin, rwarray has to be linked with the MPFR and GMP libraries.
 rwarray_la_SOURCES    = rwarray.c
 rwarray_la_LDFLAGS    = $(MY_MODULE_FLAGS)
-rwarray_la_LIBADD     = $(MY_LIBS)
+rwarray_la_LIBADD     = $(MY_LIBS) $(LIBMPFR)
 
 time_la_SOURCES       = time.c
 time_la_LDFLAGS       = $(MY_MODULE_FLAGS)
@@ -110,16 +109,10 @@ time_la_LIBADD        = $(MY_LIBS)
 # N.B. Becaues we are not installing testext, we must specify -rpath in
 # LDFLAGS to get automake to build a shared library, since it needs
 # an installation path.
+# On Cygwin, testext has to be linked with the MPFR and GMP libraries.
 testext_la_SOURCES    = testext.c
 testext_la_LDFLAGS    = $(MY_MODULE_FLAGS) -rpath /foo
-testext_la_LIBADD     = $(MY_LIBS)
-
-# N.B. Because we are not installing readdir_test, we must specify -rpath in
-# LDFLAGS to get automake to build a shared library, since it needs
-# an installation path.
-readdir_test_la_SOURCES = readdir_test.c
-readdir_test_la_LDFLAGS = $(MY_MODULE_FLAGS) -rpath /foo
-readdir_test_la_LIBADD  = $(MY_LIBS)
+testext_la_LIBADD     = $(MY_LIBS) $(LIBMPFR)
 
 install-data-hook:
 	for i in $(pkgextension_LTLIBRARIES) ; do \
@@ -135,14 +128,13 @@ uninstall-so:
 
 uninstall-recursive: uninstall-so
 
-EXTRA_DIST = build-aux/config.rpath  \
+EXTRA_DIST =  \
 	ChangeLog \
 	ChangeLog.0 \
+	ChangeLog.1 \
 	ext_custom.h \
 	fts.3 \
-	m4 \
-	README.fts \
-	rwarray0.c
+	README.fts
 
 dist_man_MANS = \
 	filefuncs.3am fnmatch.3am fork.3am inplace.3am \
@@ -150,7 +142,10 @@ dist_man_MANS = \
 	revtwoway.3am rwarray.3am time.3am
 
 # gettext requires this
-SUBDIRS = po 
+SUBDIRS = po
+
+# For debugging
+DEBUG = -gdwarf-4 -g3
 
 distclean-local:
 	rm -fr .deps

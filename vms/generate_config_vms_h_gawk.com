@@ -13,7 +13,7 @@ $! This generates a []config.h file and also a config_vms.h file,
 $! which is used to supplement that file.
 $!
 $!
-$! Copyright (C) 2014, 2016, 2019 the Free Software Foundation, Inc.
+$! Copyright (C) 2014, 2016, 2019, 2023 the Free Software Foundation, Inc.
 $!
 $! This file is part of GAWK, the GNU implementation of the
 $! AWK Progamming Language.
@@ -67,6 +67,14 @@ $ then
 $   create sys$disk:[]stdint.h
 $   open/append stdint_h sys$disk:[]stdint.h
 $   write stdint_h "/* Fake stdint.h for gnulib */"
+$   write stdint_h "#ifndef FAKE_STDINT"
+$   write stdint_h "#define FAKE_STDINT"
+$   write stdint_h "#include <fake_vms_path/limits.h>"
+$   write stdint_h "#define PTRDIFF_MAX (__INT32_MAX)"
+$   write stdint_h "#ifndef SIZE_MAX"
+$   write stdint_h "#define SIZE_MAX (__UINT32_MAX)"
+$   write stdint_h "#endif /* __VAX */"
+$   write stdint_h "#endif  /* FAKE_STDINT */"
 $   close stdint_h
 $ endif
 $!
@@ -139,8 +147,6 @@ $ write cvh "#ifndef __DECC	/* DEC C does not support #pragma builtins */"
 $ write cvh "#define VAXC_BUILTINS"
 $ write cvh "#endif"
 $ write cvh "/* #define YYDEBUG 0 */"
-$ write cvh -
-  "#define NO_MBSUPPORT  /* VAX C's preprocessor can't handle mbsupport.h */"
 $ write cvh "#endif"
 $ write cvh ""
 $ write cvh ""
@@ -193,6 +199,16 @@ $ write cvh "#include <stdio.h>"
 $ write cvh "#include <time.h>"
 $ write cvh "#include <stsdef.h>"
 $ write cvh "#include <string.h>"
+$ write cvh "#ifndef _POSIX_C_SOURCE"
+$ write cvh "#define _POSIX_C_SOURCE 2"
+$ write cvh "#define _XOPEN_SOURCE 1"
+$ write cvh "#define _XOPEN_SOURCE_EXTENDED 1"
+$ write cvh "#include <stat.h>"
+$ write cvh "#undef _POSIX_C_SOURCE"
+$ write cvh "#undef _XOPEN_SOURCE"
+$ write cvh "#undef _XOPEN_SOURCE_EXTENDED"
+$ write cvh "#endif"
+$ write cvh "#define HAVE_STRPTIME 1"
 $ write cvh "#undef getopt"
 $ write cvh "#undef optopt"
 $ write cvh "#undef optind"
@@ -229,8 +245,12 @@ $ write cvh "#define USE_INCLUDED_STRFTIME"
 $ write cvh "#endif /* HAVE_STRFTIME */"
 $ write cvh ""
 $ write cvh "#include <bitypes.h>"
+$ write cvh "#ifndef INT32_MAX"
 $ write cvh "#define INT32_MAX __INT32_MAX"
+$ write cvh "#endif"
+$ write cvh "#ifndef INT32_MIN"
 $ write cvh "#define INT32_MIN __INT32_MIN"
+$ write cvh "#endif"
 $ write cvh ""
 $ write cvh "/*"
 $ write cvh " * DEFPATH"

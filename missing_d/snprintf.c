@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2006, 2007, 2018 the Free Software Foundation, Inc.
+ * Copyright (C) 2006, 2007, 2018, 2022 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -86,10 +86,10 @@ safe_tmpfile (void)
 	if ((fd = mkstemp (tmpfilename)) < 0)
 		return NULL;
 
-#if ! defined(__DJGPP__) && ! defined(MSDOS) && ! defined(_MSC_VER) \
-	&& ! defined(_WIN32) && ! defined(__CRTRSXNT__) && ! defined(__EMX__) \
+#if ! defined(MSDOS) && ! defined(_MSC_VER) \
+	&& ! defined(_WIN32) && ! defined(__CRTRSXNT__) \
 	&& ! defined(__MINGW32__) && ! defined(__WIN32__)
-	/* If not MS or OS/2, unlink after opening. */
+	/* If not MS unlink after opening. */
 	unlink (tmpfilename);
 	free(tmpfilename);
 	tmpfilename = NULL;

@@ -1,12 +1,10 @@
 # Makefile for gawk (GNU awk)                                      Dec 2010
 #
-# - for GNU C (djgpp)         [32bit protected-mode executable for DOS]
-# - for GNU C (emx)           [32bit executable for OS/2 or DOS or Windows32]
 # - for GNU C (mingw32)	      [Windows32 executable for Windows 9x/NT/2K/XP/7]
 
 # Tested with GNU make on Windows, OS/2 and DOS.
 
-# Copyright (C) 1989-2016 Free Software Foundation, Inc.
+# Copyright (C) 1989-2019, 2021 Free Software Foundation, Inc.
 
 # This Makefile is free software; the Free Software Foundation
 # gives unlimited permission to copy and/or distribute it,
@@ -20,15 +18,6 @@
 default:
 	@echo "Enter $(MAK) target "
 	@echo " where 'target' is chosen from                          "
-	@echo "  djgpp ... DOS 32-bit exe [GNU C, Delorie, v2]         "
-	@echo "  djgpp-mpfr . Like djgpp, but with MPFR                "
-	@echo "   [You will need to have GNU MPFR library installed.]  "
-	@echo "  djgpp-readline . Like djgpp, but with readline        "
-	@echo "   [You will need to have GNU readline library installed.] "
-	@echo "  djgpp-readline-mpfr . djgpp with readline and MPFR    "
-	@echo "  emx ..... OS/2 32-bit exe [emx/gcc; uses emxlibc.dll] "
-	@echo "  emxnt ... NT exe [emx/gcc with RSXNT]                 "
-	@echo "  emxbnd .. OS/2 and DOS 32-bit exe [emx/gcc]           "
 	@echo "  mingw32 . Windows32 exe [Mingw32 GNU C]               "
 	@echo "  mingw32-readline . Like mingw32, but with readline    "
 	@echo "   [You will need to have GNU readline library installed.] "
@@ -41,11 +30,9 @@ default:
 	@echo "  doc ..... Create documentation                        "
 
 # Support dropped in 4.0
-# - for DJGPP v1.x            [DOS 32bit protected-mode executable]
 # - for MS-Visual C/C++ 4.x   [Windows32 executable for Windows 9x/NT]
 # - for Microsoft C 7         [16bit ececutable for DOS]
 # - for Microsoft C 6.00A     [16bit executable for OS/2 or DOS]
-#	@echo "  djgppv1 . DOS 32-bit exe [GNU C, Delorie, v1]         "
 #	@echo "  msc ..... DOS exe [Microsoft C 7 & 8 (AKA 1.52)]      "
 #	@echo "  msc6 .... DOS exe [Microsoft C 6.00a]                 "
 #	@echo "  msc6os2 . OS/2 exe [Microsoft C 6.00a]                "
@@ -65,7 +52,7 @@ RSPFILE = gawk.rsp
 #LDRSP = $(GAWKOBJS)
 #LNKRSP = $(LDRSP)
 #
-# else use brain-dead approach (emxbnd will need 'tr').
+# else use brain-dead approach
 RSP = $(RSPFILE)
 LDRSP = @$(RSP)
 LNKRSP = $(LDRSP)
@@ -85,6 +72,7 @@ MAK = $(MAKE) $(MAKEFILE)
 prefix = c:/gnu
 pkgdatadir = $(prefix)/lib/awk
 pkgextensiondir = $(prefix)/lib/gawk
+DEFPATH = "\".;$(pkgdatadir);c:/lib/awk;c:/gnu/lib/awk\""
 DEFLIBPATH = "\"$(pkgextensiondir)\""
 LOCALEDIR="\"$(prefix)/share/locale\""
 SHLIBEXT = "\"dll\""
@@ -101,92 +89,10 @@ DO_LNK = $($(LNK))
 DO_BIND= $($(BIND))
 #------------------------------------------------------------------------
 # To allow Make find files in the support subdirectory.
-VPATH = .;./support
+VPATH = .;./support;./support/malloc
 #========================================================================
 # End of general configuration. Some platform-specific configuration
 # notes appear below.
-
-#========================================================================
-#========================== DJGPP =======================================
-#========================================================================
-
-ifneq ($(DJGPP),)
-prefix = /dev/env/DJDIR
-pkgdatadir = $(prefix)/share/awk
-SHLIBEXT = "\"dxe\""
-endif
-LDJG = $(CC) $(LF) -o gawk.exe $(LDRSP) $(LF2)
-BDJG = stubify -g awk.exe | stubedit awk.exe runfile=gawk
-
-djgpp:
-	$(MAK) all \
-	CC=gcc O=.o CF=-O2 \
-	LNK=LDJG LF=-s LF2=-lm \
-	BIND=BDJG
-
-djgpp-debug:
-	$(MAK) all \
-	CC=gcc O=.o CF='-O2 -g' \
-	LNK=LDJG LF2=-lm \
-	BIND=BDJG
-
-djgpp-mpfr:
-	$(MAK) all \
-	CC=gcc O=.o CF='-O2 -DHAVE_MPFR' \
-	LNK=LDJG LF=-s LF2="-lmpfr -lgmp -lm" \
-	BIND=BDJG
-
-djgpp-readline:
-	$(MAK) all \
-	CC=gcc O=.o CF='-O2 -DHAVE_LIBREADLINE' \
-	LNK=LDJG LF=-s LF2="-lreadline -lm" \
-	BIND=BDJG
-
-djgpp-readline-mpfr:
-	$(MAK) all \
-	CC=gcc O=.o CF='-O2 -DHAVE_LIBREADLINE -DHAVE_MPFR' \
-	LNK=LDJG LF=-s LF2="-lreadline -lmpfr -lgmp -lm" \
-	BIND=BDJG
-
-#========================================================================
-#========================== EMX =========================================
-#========================================================================
-
-# Link command for OS/2 versions.
-LEMX = $(CC) $(LF) -o $@ $(GAWKOBJS) gawk.def -lbsd $(LF2)
-
-# Link and bind for DOS and OS/2 versions.
-# emx-09 needs '-p' emx option here or in EMXOPT environ var.
-# The following works with 0.9a or newer
-LEMXBND = $(CC) $(LF) -o gawk $(LDRSP) gawk.def -lbsd $(LF2)
-BEMX = emxbind -bs gawk  -p
-# The following works with 0.9c or newer
-#LEMXBND = $(CC) $(LF) -o a.out $(LDRSP) gawk.def -lbsd $(LF2)
-#BEMX = emxbind -bs -o $@ a.out -p
-#BEMX = emxbind -bs /emx/bin/emx.exe a.out $@ -p
-BEMXD = emxbind -b -o $@ a.out -p
-
-emx:
-	$(MAK) all \
-	"CC=gcc -Zomf" O=.obj "CF=-O -DOS2" \
-	LNK=LEMX "LF=-s -Zcrtdll -Zstack 512" RSP=
-
-emxnt:
-	$(MAK) all \
-	"CC=gcc -Zwin32 -Zcrtdll=rsxntcs" O=.o "CF=-O -DOS2" \
-	LNK=LEMX "LF=-s -Zstack 512" RSP=
-
-emxbnd:
-	$(MAK) all \
-	CC=gcc O=.o "CF=-O -DOS2 -DMSDOS" OBJ=popen.o \
-	LNK=LEMXBND \
-	BIND=BEMX "P=|tr \" \" \"\n\""
-
-emxbnd-debug:
-	$(MAK) all \
-	CC=gcc O=.o "CF=-g -DOS2 -DMSDOS" OBJ=popen.o \
-	LNK=LEMXBND \
-	BIND=BEMXD "P=|tr \" \" \"\n\""
 
 #========================================================================
 #========================== MINGW32 =====================================
@@ -200,35 +106,35 @@ mingw32:
 	$(MAK) all \
 	CC=gcc O=.o CF="-D__USE_MINGW_ANSI_STDIO -O2 -gdwarf-2 -g3 -Wno-deprecated-declarations" \
 	OBJ=popen.o LNK=LMINGW32 LF="-gdwarf-2 -g3" \
-        LF2="-lws2_32 -lmsvcp60" RSP=
+        LF2="-lws2_32" RSP=
 
 mingw32-readline:
 	$(MAK) all \
 	CC=gcc O=.o \
 	CF="-D__USE_MINGW_ANSI_STDIO -DHAVE_LIBREADLINE -O2 -gdwarf-2 -g3 -Wno-deprecated-declarations" \
 	OBJ=popen.o LNK=LMINGW32 LF="-gdwarf-2 -g3" \
-	LF2="-lreadline -lws2_32 -lmsvcp60 -Wl,--enable-auto-import" RSP=
+	LF2="-lreadline -lws2_32 -Wl,--enable-auto-import" RSP=
 
 mingw32-mpfr:
 	$(MAK) all \
 	CC=gcc O=.o \
 	CF="-D__USE_MINGW_ANSI_STDIO -DHAVE_MPFR -O2 -gdwarf-2 -g3 -Wno-deprecated-declarations" \
 	OBJ=popen.o LNK=LMINGW32 LF="-gdwarf-2 -g3" \
-	LF2="-lmpfr -lgmp -lws2_32 -lmsvcp60 -Wl,--enable-auto-import" RSP=
+	LF2="-lmpfr -lgmp -lws2_32 -Wl,--enable-auto-import" RSP=
 
 mingw32-readline-mpfr:
 	$(MAK) all \
 	CC=gcc O=.o \
 	CF="-D__USE_MINGW_ANSI_STDIO -DHAVE_LIBREADLINE -DHAVE_MPFR -O2 -gdwarf-2 -g3 -Wno-deprecated-declarations" \
 	OBJ=popen.o LNK=LMINGW32 LF="-gdwarf-2 -g3" \
-	LF2="-lmpfr -lgmp -lreadline -lws2_32 -lmsvcp60 -Wl,--enable-auto-import" RSP=
+	LF2="-lmpfr -lgmp -lreadline -lws2_32 -Wl,--enable-auto-import" RSP=
 
 # Define BIND for BINDless compiles, otherwise $($(BIND)) may break.
 BIND = EMPTY
 PBIND = EMPTY
 EMPTY=
 
-CFLAGS = $(CF) -DGAWK -I. -I./support -DHAVE_CONFIG_H -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DLOCALEDIR=$(LOCALEDIR)
+CFLAGS = $(CF) -DGAWK -I. -I./support -DHAVE_CONFIG_H -DDEFPATH=$(DEFPATH) -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DLOCALEDIR=$(LOCALEDIR)
 
 # object files
 AWKOBJS1  = array$O builtin$O eval$O field$O floatcomp$O gawkmisc$O io$O main$O
@@ -241,7 +147,10 @@ ALLOBJS = $(AWKOBJS) awkgram$O getid$O $(OBJ)
 
 # LIBOBJS
 #       GNU and other stuff that gawk uses as library routines.
-LIBOBJS= getopt$O getopt1$O dfa$O regex$O random$O localeinfo$O
+DYNOBJS= dynarray_resize$O dynarray_emplace_enlarge$O dynarray_finalize$O \
+         dynarray_at_failure$O dynarray_resize_clear$O
+
+LIBOBJS= getopt$O getopt1$O dfa$O random$O localeinfo$O regex$O $(DYNOBJS)
 
 GAWKOBJS = $(ALLOBJS) $(LIBOBJS)
 
@@ -271,8 +180,10 @@ $(RSPFILE) : $(GAWKOBJS)
 #    and we have -I. on the compiler command line.  unistd.h is
 #    included by awk.h.
 # 2. custom.h is not mentioned because pc ports don't use it.
-$(ALLOBJS) $(LIBOBJS): \
-  awk.h regex.h config.h gettext.h mbsupport.h protos.h dfa.h getopt.h nonposix.h
+$(ALLOBJS) $(LIBOBJS) $(DYNOBJS): \
+  awk.h regex.h config.h gettext.h protos.h dfa.h getopt.h nonposix.h
+
+$(DYNOBJS) regex$O:	dynarray.h libc-config.h malloc/dynarray.h malloc/dynarray-skeleton.c
 
 builtin$O:	floatmagic.h random.h popen.h
 
@@ -311,15 +222,7 @@ popen$O:	popen.h
 install: install$(install)
 	-$(MAKE) -C extension install-extensions
 
-# Note: The line that copies gawk.exe into awk.exe should come before
-# the line after it, which copies *awk.exe, to support the DJGPP "hard
-# link to executables" feature, whereby awk.exe is actually a small
-# stub that invokes gawk.exe.
 install1:
-	echo extproc sh $(prefix)/bin/igawk.cmd > igawk.cmd
-	echo shift >> igawk.cmd
-	cat pc/awklib/igawk >> igawk.cmd
-	cat pc/awklib/igawk.bat > igawk.bat
 	-mkdir "$(prefix)"
 	-mkdir "$(prefix)/include"
 	-mkdir "$(prefix)/bin"
@@ -329,12 +232,14 @@ install1:
 	-mkdir "$(pkgdatadir)" "$(prefix)/share/man/man1" "$(prefix)/share/info"
 	-mkdir "$(prefix)/lib/gawk"
 	cp gawk.exe $(prefix)/bin/awk.exe
-	cp *awk.exe igawk.bat igawk.cmd pc/awklib/igawk $(prefix)/bin
+	cp *awk.exe $(prefix)/bin
 	cp gawkapi.h $(prefix)/include
-	cp awklib/eg/lib/* pc/awklib/igawk.awk $(pkgdatadir)
+	cp awklib/eg/lib/* $(pkgdatadir)
 	cp doc/*.1 $(prefix)/share/man/man1
 	cp doc/*.info $(prefix)/share/info
 	cp doc/*.png $(prefix)/share/info
+	cp doc/*.txt $(prefix)/share/info
+	rm -f $(prefix)/share/info/awkforai.txt
 
 # install2 is equivalent to install1, but doesn't require cp, sed, etc.
 install2:

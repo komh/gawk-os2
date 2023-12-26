@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012, 2013, 2014, 2015, 2017, 2018
+ * Copyright (C) 2012, 2013, 2014, 2015, 2017, 2018, 2021, 2022,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -39,6 +39,11 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 
+#ifdef HAVE_MPFR
+#include <gmp.h>
+#include <mpfr.h>
+#endif
+
 #include "gawkapi.h"
 
 static const gawk_api_t *api;	/* for convenience macros to work */
@@ -48,6 +53,7 @@ static const char *ext_version = "testext extension: version 1.0";
 int plugin_is_GPL_compatible;
 
 static void fill_in_array(awk_value_t *value);
+static int populate_array(awk_array_t);
 
 #ifdef __MINGW32__
 unsigned int
@@ -85,6 +91,13 @@ valrep2str(const awk_value_t *value)
 		if (value->str_value.len < size)
 			size = value->str_value.len;
 		sprintf(buf, "\"%.*s\"",
+				size,
+				value->str_value.str);
+		break;
+	case AWK_BOOL:
+		if (value->str_value.len + 8 < size)
+			size = value->str_value.len;
+		sprintf(buf, "<bool>: %.*s",
 				size,
 				value->str_value.str);
 		break;
@@ -314,7 +327,7 @@ var_test(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 		goto out;
 	}
 
-	/* look up PROCINFO - should succeed fail */
+	/* look up PROCINFO - should succeed */
 	if (sym_lookup("PROCINFO", AWK_ARRAY, & value))
 		printf("var_test: sym_lookup of PROCINFO passed - got a value!\n");
 	else
@@ -630,7 +643,7 @@ BEGIN {
 static awk_value_t *
 test_array_param(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
-	awk_value_t new_array;
+	awk_value_t new_array = { 0 };	// init to zero, silences warnings
 	awk_value_t arg0;
 
 	(void) nargs;		/* silence warnings */
@@ -656,6 +669,57 @@ test_array_param(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	make_number(1.0, result);
 out:
 	return result;	/* for now */
+}
+
+/*
+function tfunc(f) {
+	if (isarray(f)) {
+		print "good: we have an array"
+		print "hello element value inside function is", f["hello"]
+	}
+}
+
+BEGIN {
+	printf "test_array_create returned %d\n", test_array_create("testarr")
+	tfunc(testarr)
+	print "hello element global scope is", testarr["hello"]
+}
+*/
+
+static awk_value_t *
+test_array_create(int nargs, awk_value_t *result, struct awk_ext_func *unused)
+{
+	awk_value_t new_array;
+	awk_value_t arg0;
+
+	(void) nargs;		/* silence warnings */
+	make_number(0.0, result);
+
+	if (! get_argument(0, AWK_STRING, & arg0)) {
+		printf("test_array_create: could not get argument\n");
+		goto out;
+	}
+
+	if (arg0.val_type != AWK_STRING) {
+		printf("test_array_create: argument is not string (%d)\n",
+				arg0.val_type);
+		goto out;
+	}
+
+	new_array.val_type = AWK_ARRAY;
+	new_array.array_cookie = create_array();
+	if (! sym_update(arg0.str_value.str, & new_array)) {
+		printf("test_array_create: sym_update(\"%s\") failed!\n", arg0.str_value.str);
+		goto out;
+	}
+	if (populate_array(new_array.array_cookie) < 0) {
+		printf("test_array_create: populate(\"%s\") failed!\n", arg0.str_value.str);
+		goto out;
+	}
+
+	make_number(1.0, result);
+out:
+	return result;
 }
 
 /*
@@ -711,6 +775,10 @@ test_scalar(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 {
 	awk_value_t new_value, new_value2;
 	awk_value_t the_scalar;
+#ifdef HAVE_MPFR
+	mpz_t mpz_val;
+	mpfr_t mpfr_val;
+#endif
 
 	(void) nargs;		/* silence warnings */
 	make_number(0.0, result);
@@ -730,8 +798,26 @@ test_scalar(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 
 	if (new_value.val_type == AWK_STRING) {
 		make_const_string(new_value.str_value.str, new_value.str_value.len, & new_value2);
-	} else {
+	} else {	/* AWK_NUMBER */
+#ifdef HAVE_MPFR
+		switch (new_value.num_type) {
+		case AWK_NUMBER_TYPE_MPZ:
+			mpz_init(mpz_val);
+			mpz_set(mpz_val, new_value.num_ptr);
+			make_number_mpz(mpz_val, & new_value2);
+			break;
+		case AWK_NUMBER_TYPE_MPFR:
+			mpfr_init(mpfr_val);
+			mpfr_set(mpfr_val, (mpfr_ptr) new_value.num_ptr, mpfr_get_default_rounding_mode());
+			make_number_mpfr(mpfr_val, & new_value2);
+			break;
+		default:
+			new_value2 = new_value;
+			break;
+		}
+#else
 		new_value2 = new_value;
+#endif
 	}
 
 	if (! sym_update_scalar(the_scalar.scalar_cookie, & new_value2)) {
@@ -951,29 +1037,40 @@ do_get_file(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	return make_number(1.0, result);
 }
 
-/* fill_in_array --- fill in a new array */
+/* populate_array --- fill in some array values */
 
-static void
-fill_in_array(awk_value_t *new_array)
+static int
+populate_array(awk_array_t a_cookie)
 {
-	awk_array_t a_cookie;
 	awk_value_t index, value;
-
-	a_cookie = create_array();
 
 	(void) make_const_string("hello", 5, & index);
 	(void) make_const_string("world", 5, & value);
 	if (! set_array_element(a_cookie, & index, & value)) {
 		printf("fill_in_array:%d: set_array_element failed\n", __LINE__);
-		return;
+		return -1;
 	}
 
 	(void) make_const_string("answer", 6, & index);
 	(void) make_number(42.0, & value);
 	if (! set_array_element(a_cookie, & index, & value)) {
 		printf("fill_in_array:%d: set_array_element failed\n", __LINE__);
-		return;
+		return -1;
 	}
+	return 0;
+}
+
+/* fill_in_array --- fill in a new array */
+
+static void
+fill_in_array(awk_value_t *new_array)
+{
+	awk_array_t a_cookie;
+
+	a_cookie = create_array();
+
+	if (populate_array(a_cookie) < 0)
+		return;
 
 	new_array->val_type = AWK_ARRAY;
 	new_array->array_cookie = a_cookie;
@@ -1054,6 +1151,7 @@ static awk_ext_func_t func_table[] = {
 	{ "test_array_size", test_array_size, 1, 1, awk_false, NULL },
 	{ "test_array_elem", test_array_elem, 2, 2, awk_false, NULL },
 	{ "test_array_param", test_array_param, 1, 1, awk_false, NULL },
+	{ "test_array_create", test_array_create, 1, 1, awk_false, NULL },
 	{ "print_do_lint", print_do_lint, 0, 0, awk_false, NULL },
 	{ "test_scalar", test_scalar, 1, 1, awk_false, NULL },
 	{ "test_scalar_reserved", test_scalar_reserved, 0, 0, awk_false, NULL },

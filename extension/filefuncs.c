@@ -1,5 +1,5 @@
 /*
- * filefuncs.c - Builtin functions that provide initial minimal iterface
+ * filefuncs.c - Builtin functions that provide initial minimal interface
  *		 to the file system.
  *
  * Arnold Robbins, update for 3.1, Mon Nov 23 12:53:39 EST 1998
@@ -10,7 +10,7 @@
  */
 
 /*
- * Copyright (C) 2001, 2004, 2005, 2010-2018
+ * Copyright (C) 2001, 2004, 2005, 2010-2021, 2023,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -126,13 +126,16 @@ static long long
 get_inode(const char *fname)
 {
 	HANDLE fh;
+	BOOL ok;
 	BY_HANDLE_FILE_INFORMATION info;
 
 	fh = CreateFile(fname, 0, 0, NULL, OPEN_EXISTING,
 			FILE_FLAG_BACKUP_SEMANTICS, NULL);
 	if (fh == INVALID_HANDLE_VALUE)
 		return 0;
-	if (GetFileInformationByHandle(fh, &info)) {
+	ok = GetFileInformationByHandle(fh, &info);
+	CloseHandle(fh);
+	if (ok) {
 		long long inode = info.nFileIndexHigh;
 
 		inode <<= 32;
@@ -403,7 +406,8 @@ fill_stat_array(const char *name, awk_array_t array, struct stat *sbuf)
 	array_set_numeric(array, "gid", sbuf->st_gid);
 	array_set_numeric(array, "size", sbuf->st_size);
 #ifdef __MINGW32__
-	array_set_numeric(array, "blocks", (sbuf->st_size + 4095) / 4096);
+	array_set_numeric(array, "blocks", (double)((sbuf->st_size +
+		device_blocksize() - 1) / device_blocksize()));
 #else
 	array_set_numeric(array, "blocks", sbuf->st_blocks);
 #endif
@@ -471,9 +475,13 @@ do_stat(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	assert(result != NULL);
 
 	/* file is first arg, array to hold results is second */
-	if (   ! get_argument(0, AWK_STRING, & file_param)
-	    || ! get_argument(1, AWK_ARRAY, & array_param)) {
-		warning(ext_id, _("stat: bad parameters"));
+	if (! get_argument(0, AWK_STRING, & file_param)) {
+		warning(ext_id, _("stat: first argument is not a string"));
+		return make_number(-1, result);
+	}
+
+	if (! get_argument(1, AWK_ARRAY, & array_param)) {
+		warning(ext_id, _("stat: second argument is not an array"));
 		return make_number(-1, result);
 	}
 
@@ -527,7 +535,7 @@ do_statvfs(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	/* always empty out the array */
 	clear_array(array);
 
-	/* stat the file; if error, set ERRNO and return */
+	/* statvfs the filesystem; if error, set ERRNO and return */
 	ret = statvfs(name, & vfsbuf);
 	if (ret < 0) {
 		update_ERRNO_int(errno);
@@ -564,6 +572,7 @@ init_filefuncs(void)
 
 #ifndef __MINGW32__
 	/* at least right now, only FTS needs initializing */
+#define FTS_NON_RECURSIVE	FTS_STOP	/* Don't step into directories.  */
 	static struct flagtab {
 		const char *name;
 		int value;
@@ -575,7 +584,7 @@ init_filefuncs(void)
 		ENTRY(FTS_PHYSICAL),
 		ENTRY(FTS_SEEDOT),
 		ENTRY(FTS_XDEV),
-		ENTRY(FTS_SKIP),
+		{"FTS_SKIP", FTS_NON_RECURSIVE},
 		{ NULL, 0 }
 	};
 
@@ -622,7 +631,7 @@ fill_stat_element(awk_array_t element_array, const char *name, struct stat *sbuf
 
 	stat_array = create_array();
 	if (stat_array == NULL) {
-		warning(ext_id, _("fill_stat_element: could not create array"));
+		warning(ext_id, _("fill_stat_element: could not create array, out of memory"));
 		fts_errors++;
 		return;
 	}
@@ -832,7 +841,7 @@ do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	int ret = -1;
 	static const int mask = (
 		  FTS_COMFOLLOW | FTS_LOGICAL | FTS_NOCHDIR | FTS_PHYSICAL
-		| FTS_SEEDOT | FTS_XDEV | FTS_SKIP);
+		| FTS_SEEDOT | FTS_XDEV | FTS_NON_RECURSIVE);
 
 	assert(result != NULL);
 	fts_errors = 0;		/* ensure a fresh start */
@@ -841,19 +850,19 @@ do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 		lintwarn(ext_id, _("fts: called with incorrect number of arguments, expecting 3"));
 
 	if (! get_argument(0, AWK_ARRAY, & pathlist)) {
-		warning(ext_id, _("fts: bad first parameter"));
+		warning(ext_id, _("fts: first argument is not an array"));
 		update_ERRNO_int(EINVAL);
 		goto out;
 	}
 
 	if (! get_argument(1, AWK_NUMBER, & flagval)) {
-		warning(ext_id, _("fts: bad second parameter"));
+		warning(ext_id, _("fts: second argument is not a number"));
 		update_ERRNO_int(EINVAL);
 		goto out;
 	}
 
 	if (! get_argument(2, AWK_ARRAY, & dest)) {
-		warning(ext_id, _("fts: bad third parameter"));
+		warning(ext_id, _("fts: third argument is not an array"));
 		update_ERRNO_int(EINVAL);
 		goto out;
 	}
@@ -882,6 +891,9 @@ do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 	}
 	flags &= mask;	/* turn off anything else */
 
+	if (flags & FTS_NON_RECURSIVE)
+		flags |= FTS_NOCHDIR;
+
 	/* make pathvector */
 	count = path_array->count + 1;
 	ezalloc(pathvector, char **, count * sizeof(char *), "do_fts");
@@ -893,14 +905,14 @@ do_fts(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 
 
 	/* clear dest array */
-	if (! clear_array(dest.array_cookie)) {
-		warning(ext_id, _("fts: clear_array() failed\n"));
-		goto out;
-	}
+	assert(clear_array(dest.array_cookie));
 
 	/* let's do it! */
-	if ((hierarchy = fts_open(pathvector, flags, NULL)) != NULL) {
-		process(hierarchy, dest.array_cookie, (flags & FTS_SEEDOT) != 0, (flags & FTS_SKIP) != 0);
+	hierarchy = fts_open(pathvector, flags & ~FTS_NON_RECURSIVE, NULL);
+	if (hierarchy != NULL) {
+		process(hierarchy, dest.array_cookie,
+			(flags & FTS_SEEDOT) != 0,
+			(flags & FTS_NON_RECURSIVE) != 0);
 		fts_close(hierarchy);
 
 		if (fts_errors == 0)

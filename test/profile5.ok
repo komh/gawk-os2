@@ -759,8 +759,7 @@ function _BASE(c, t, P, A)
 function _DS(c, t, P, a, A)
 {
 	######################################################
-	switch (c) {
-	#___________________________________________________________
+	switch (c) {	#___________________________________________________________
 	case "_lib_CMDLN":
 		return t
 		#_____________________________________________________
@@ -930,8 +929,7 @@ function _FILEIO(c, t, P, A)
 function _FILEVER(c, t, P, a, A)
 {
 	#################################################
-	switch (c) {
-	#___________________________________________________________
+	switch (c) {	#___________________________________________________________
 	case "_lib_CMDLN":
 		return t
 		#_____________________________________________________
@@ -1680,14 +1678,14 @@ function _con(t, ts, a, b, c, d, i, r, A, B)
 			if ((i = length(t = _tabtospc(A[1], ts, _conlastrln))) < _constatstrln) {
 				t = t _getchrln(" ", _constatstrln - i)
 			}
-			print((t B[1])) > _SYS_STDCON
+			print(t B[1]) > _SYS_STDCON
 			for (i = 2; i < c; i++) {
-				print((_tabtospc(A[i], ts) B[i])) > _SYS_STDCON
+				print(_tabtospc(A[i], ts) B[i]) > _SYS_STDCON
 			}
-			print((_conlastr = _tabtospc(A[c], ts))) > _SYS_STDCON
+			print(_conlastr = _tabtospc(A[c], ts)) > _SYS_STDCON
 			fflush(_SYS_STDCON)
 		} else {
-			print((t = _tabtospc(t, ts, _conlastrln))) > _SYS_STDCON
+			print(t = _tabtospc(t, ts, _conlastrln)) > _SYS_STDCON
 			fflush(_SYS_STDCON)
 			_conlastr = _conlastr t
 		}
@@ -1696,7 +1694,7 @@ function _con(t, ts, a, b, c, d, i, r, A, B)
 		}
 		_conlastrln = length(_conlastr)
 		if (_constatstr) {
-			print(((t = _constatgtstr(_constatstr, _CON_WIDTH - 1 - _conlastrln)) _CHR["CR"] _conlastr)) > _SYS_STDCON
+			print((t = _constatgtstr(_constatstr, _CON_WIDTH - 1 - _conlastrln)) _CHR["CR"] _conlastr) > _SYS_STDCON
 			fflush(_SYS_STDCON)
 			_constatstrln = length(t)
 		}
@@ -1763,7 +1761,7 @@ function _constat(t, ts, ln, a)
 	a = BINMODE
 	BINMODE = "rw"
 	ORS = ""
-	print((t _CHR["CR"] _conlastr)) > _SYS_STDCON
+	print(t _CHR["CR"] _conlastr) > _SYS_STDCON
 	fflush(_SYS_STDCON)
 	ORS = ln
 	BINMODE = a
@@ -4218,8 +4216,7 @@ function _qstrq(t)
 function _rEG(c, t, P, a, A)
 {
 	#####################################################
-	switch (c) {
-	#___________________________________________________________
+	switch (c) {	#___________________________________________________________
 	case "_lib_CMDLN":
 		return t
 		#_____________________________________________________
@@ -4940,8 +4937,7 @@ function _rxpfn(R, t, p, i, f, A)
 function _sHARE(c, t, P, a, A)
 {
 	###################################################
-	switch (c) {
-	#___________________________________________________________
+	switch (c) {	#___________________________________________________________
 	case "_lib_CMDLN":
 		return t
 		#_____________________________________________________
@@ -4968,8 +4964,7 @@ function _sHARE(c, t, P, a, A)
 function _sYS(c, t, P, a, A)
 {
 	#####################################################
-	switch (c) {
-	#___________________________________________________________
+	switch (c) {	#___________________________________________________________
 	case "_lib_CMDLN":
 		return t
 		#_____________________________________________________
@@ -5460,8 +5455,7 @@ function _sysinfo(D, h)
 #########################################################
 function _tOBJ(c, t, P)
 {
-	switch (c) {
-	#___________________________________________________________
+	switch (c) {	#___________________________________________________________
 	case "_lib_CMDLN":
 		return t
 		#___________________________________________________________
@@ -8176,3 +8170,7 @@ function zzer()
 {
 	################################################################
 }
+gawk: profile5.awk:3278: warning: regexp escape sequence `\~' is not a known regexp operator
+gawk: profile5.awk:3601: warning: regexp escape sequence `\!' is not a known regexp operator
+gawk: profile5.awk:3610: warning: regexp escape sequence `\:' is not a known regexp operator
+gawk: profile5.awk:3742: warning: regexp escape sequence `\,' is not a known regexp operator

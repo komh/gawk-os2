@@ -3,7 +3,8 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003, 2010-2013, 2017, 2018,
+ * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003, 2010-2013, 2017-2019,
+ * 2021, 2022, 2023,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -11,7 +12,7 @@
  *
  * GAWK is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2, or (at your option)
+ * the Free Software Foundation; either version 3, or (at your option)
  * any later version.
  *
  * GAWK is distributed in the hope that it will be useful,
@@ -46,10 +47,17 @@ err(bool isfatal, const char *s, const char *emsg, va_list argp)
 
 	static bool first = true;
 	static bool add_src_info = false;
+	static long lineno_val = 0;	// Easter Egg
 
 	if (first) {
 		first = false;
 		add_src_info = (getenv("GAWK_MSG_SRC") != NULL);
+		if (! do_traditional) {
+			NODE *n = lookup("LINENO");
+
+			if (n != NULL && n->type == Node_var)
+				lineno_val = get_number_d(n->var_value);
+		}
 	}
 
 	(void) fflush(output_fp);
@@ -67,11 +75,11 @@ err(bool isfatal, const char *s, const char *emsg, va_list argp)
 		else
 			(void) fprintf(stderr, _("cmd. line:"));
 
-		(void) fprintf(stderr, "%d: ", sourceline);
+		(void) fprintf(stderr, "%ld: ", sourceline + lineno_val);
 	}
 
 #ifdef HAVE_MPFR
-	if (FNR_node && is_mpg_number(FNR_node->var_value)) {
+	if (FNR_node && FNR_node->var_value && is_mpg_number(FNR_node->var_value)) {
 		NODE *val;
 		val = mpg_update_var(FNR_node);
 		assert((val->flags & MPZN) != 0);
@@ -99,14 +107,9 @@ err(bool isfatal, const char *s, const char *emsg, va_list argp)
 	(void) fprintf(stderr, "\n");
 	(void) fflush(stderr);
 
-	if (isfatal) {
-#ifdef GAWKDEBUG
-		// GLIBC 2.27 doesn't necessarily flush on abort. Sigh.
-		fflush(NULL);
-		abort();
-#endif
+	if (isfatal)
 		gawk_exit(EXIT_FATAL);
-	}
+
 }
 
 /* msg --- take a varargs error message and print it */

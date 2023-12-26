@@ -12,7 +12,7 @@
  */
 
 /*
- * Copyright (C) 2002, 2003, 2004, 2011, 2012, 2013, 2014, 2018
+ * Copyright (C) 2002, 2003, 2004, 2011, 2012, 2013, 2014, 2018, 2022,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -121,8 +121,10 @@ do_readfile(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 		}
 
 		text = read_file_to_buffer(fd, & sbuf);
-		if (text == NULL)
+		if (text == NULL) {
+			close(fd);
 			goto done;	/* ERRNO already updated */
+		}
 
 		close(fd);
 		make_malloced_string(text, sbuf.st_size, result);

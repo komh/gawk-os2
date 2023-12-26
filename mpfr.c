@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2012, 2013, 2015, 2017, 2018, 2019,
+ * Copyright (C) 2012, 2013, 2015, 2017, 2018, 2019, 2021, 2022,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -176,7 +176,7 @@ mpg_strtoui(mpz_ptr zi, char *str, size_t len, char **end, int base)
 		case '8':
 		case '9':
 			if (base == 8)
-				goto done;
+				base = 10;
 			break;
 		case 'a':
 		case 'b':
@@ -247,7 +247,7 @@ mpg_maybe_float(const char *str, int use_locale)
 
 /* mpg_zero --- initialize with arbitrary-precision integer(GMP) and set value to zero */
 
-static inline void
+void
 mpg_zero(NODE *n)
 {
 	if (is_mpg_float(n)) {
@@ -271,7 +271,7 @@ force_mpnum(NODE *n, int do_nondec, int use_locale)
 	char save;
 	int tval, base = 10;
 
-	if (n->stlen == 0) {
+	if (n->stlen == 0 || (n->flags & REGEX) != 0) {
 		mpg_zero(n);
 		return false;
 	}
@@ -292,6 +292,17 @@ force_mpnum(NODE *n, int do_nondec, int use_locale)
 		cp1 = cp + 1;
 	else
 		cp1 = cp;
+
+	/*
+	 * Maybe "+" or "-" was the field.  mpg_strtoui
+	 * won't check for that and set errno, so we have
+	 * to check manually.
+	 */
+	if (*cp1 == '\0') {
+		*cpend = save;
+		mpg_zero(n);
+		return false;
+	}
 
 	if (do_nondec)
 		base = get_numbase(cp1, cpend - cp1, use_locale);
@@ -317,6 +328,8 @@ force_mpnum(NODE *n, int do_nondec, int use_locale)
 
 	errno = 0;
 	tval = mpfr_strtofr(n->mpg_numbr, cp, & ptr, base, ROUND_MODE);
+	if (mpfr_nan_p(n->mpg_numbr) && *cp == '-')
+		tval = mpfr_setsign(n->mpg_numbr, n->mpg_numbr, 1, ROUND_MODE);
 	IEEE_FMT(n->mpg_numbr, tval);
 done:
 	/* trailing space is OK for NUMBER */
@@ -334,9 +347,55 @@ done:
 static NODE *
 mpg_force_number(NODE *n)
 {
+	char *cp, *cpend;
+
+	if (n->type == Node_elem_new) {
+		n->type = Node_val;
+		n->flags &= ~STRING;
+		n->stptr[0] = '0';	// STRCUR is still set
+		n->stlen = 1;
+
+		return n;
+	}
+
 	if ((n->flags & NUMCUR) != 0)
 		return n;
 	n->flags |= NUMCUR;
+
+	/* Trim leading white space, bailing out if there's nothing else */
+	for (cp = n->stptr, cpend = cp + n->stlen;
+	     cp < cpend && isspace((unsigned char) *cp); cp++)
+		continue;
+
+	if (cp == cpend)
+		goto badnum;
+
+	/* At this point, we know the string is not entirely white space */
+	/* Trim trailing white space */
+	while (isspace((unsigned char) cpend[-1]))
+		cpend--;
+
+	/*
+	 * 2/2007:
+	 * POSIX, by way of severe language lawyering, seems to
+	 * allow things like "inf" and "nan" to mean something.
+	 * So if do_posix, the user gets what he deserves.
+	 * This also allows hexadecimal floating point. Ugh.
+	 */
+	if (! do_posix) {
+		if (is_alpha((unsigned char) *cp))
+			goto badnum;
+		else if (is_ieee_magic_val(cp)) {
+			if (cpend != cp + 4)
+				goto badnum;
+			/* else
+				fall through */
+		}
+		/* else
+			fall through */
+	}
+	/* else POSIX, so
+		fall through */
 
 	if (force_mpnum(n, (do_non_decimal_data && ! do_traditional), true)) {
 		if ((n->flags & USER_INPUT) != 0) {
@@ -346,6 +405,10 @@ mpg_force_number(NODE *n)
 		}
 	} else
 		n->flags &= ~USER_INPUT;
+	return n;
+badnum:
+	mpg_zero(n);
+	n->flags &= ~USER_INPUT;
 	return n;
 }
 
@@ -422,6 +485,53 @@ mpg_cmp(const NODE *t1, const NODE *t2)
 	return cmp_awknums(t1, t2);
 }
 
+/* mpg_cmp_as_numbers --- compare two numbers, similar to doubles */
+
+bool
+mpg_cmp_as_numbers(const NODE *t1, const NODE *t2, scalar_cmp_t comparison_type)
+{
+	/*
+	 * This routine provides numeric comparisons that should work
+	 * the same as in C.  It should NOT be used for sorting.
+	 */
+
+	bool t1_nan = mpfr_nan_p(t1->mpg_numbr);
+	bool t2_nan = mpfr_nan_p(t2->mpg_numbr);
+	bool ret = false;
+
+	// MPFR is different than native doubles...
+	if (t1_nan || t2_nan)
+		return comparison_type == SCALAR_NEQ;
+
+	int di = mpg_cmp(t1, t2);
+
+	switch (comparison_type) {
+	case SCALAR_EQ:
+		ret = (di == 0);
+		break;
+	case SCALAR_NEQ:
+		ret = (di != 0);
+		break;
+	case SCALAR_LT:
+		ret = (di < 0);
+		break;
+	case SCALAR_LE:
+		ret = (di <= 0);
+		break;
+	case SCALAR_GT:
+		ret = (di > 0);
+		break;
+	case SCALAR_GE:
+		ret = (di >= 0);
+		break;
+	default:
+		cant_happen("invalid comparison type %d", (int) comparison_type);
+		break;
+	}
+
+	return ret;
+}
+
 
 /*
  * mpg_update_var --- update NR or FNR.
@@ -442,7 +552,7 @@ mpg_update_var(NODE *n)
 		nr = FNR;
 		nq = MFNR;
 	} else
-		cant_happen();
+		cant_happen("invalid node for mpg_update_var%s", "");
 
 	if (mpz_sgn(nq) == 0) {
 		/* Efficiency hack similar to that for AWKNUM */
@@ -474,7 +584,7 @@ mpg_set_var(NODE *n)
 	else if (n == FNR_node)
 		nq = MFNR;
 	else
-		cant_happen();
+		cant_happen("invalid node for mpg_set_var%s", "");
 
 	if (is_mpg_integer(val))
 		r = val->mpg_i;
@@ -585,7 +695,7 @@ get_rnd_mode(const char rmode)
 	default:
 		break;
 	}
-	return -1;
+	return (mpfr_rnd_t) -1;
 }
 
 /*
@@ -597,7 +707,7 @@ void
 set_ROUNDMODE()
 {
 	if (do_mpfr) {
-		mpfr_rnd_t rndm = -1;
+		mpfr_rnd_t rndm = (mpfr_rnd_t) -1;
 		NODE *n;
 		n = force_string(ROUNDMODE_node->var_value);
 		if (n->stlen == 1)
@@ -607,7 +717,7 @@ set_ROUNDMODE()
 			ROUND_MODE = rndm;
 			MPFR_round_mode = n->stptr[0];
 		} else
-			warning(_("RNDMODE value `%.*s' is invalid"), (int) n->stlen, n->stptr);
+			warning(_("ROUNDMODE value `%.*s' is invalid"), (int) n->stlen, n->stptr);
 	}
 }
 
@@ -666,6 +776,8 @@ do_mpfr_atan2(int nargs)
 	mpfr_ptr p1, p2;
 	int tval;
 
+	check_exact_args(nargs, "atan2", 2);
+
 	t2 = POP_SCALAR();
 	t1 = POP_SCALAR();
 
@@ -694,13 +806,15 @@ do_mpfr_atan2(int nargs)
 
 static inline NODE *
 do_mpfr_func(const char *name,
-		int (*mpfr_func)(),	/* putting argument types just gets the compiler confused */
-		int nargs)
+		int (*mpfr_func)(mpfr_ptr, mpfr_srcptr, mpfr_rnd_t),
+		int nargs, bool warn_negative)
 {
 	NODE *t1, *res;
 	mpfr_ptr p1;
 	int tval;
 	mpfr_prec_t argprec;
+
+	check_exact_args(nargs, name, 1);
 
 	t1 = POP_SCALAR();
 	if (do_lint && (fixtype(t1)->flags & NUMBER) == 0)
@@ -708,6 +822,10 @@ do_mpfr_func(const char *name,
 
 	force_number(t1);
 	p1 = MP_FLOAT(t1);
+	if (warn_negative && mpfr_sgn(p1) < 0) {
+		force_string(t1);
+		warning(_("%s: received negative argument %.*s"), name, (int) t1->stlen, t1->stptr);
+	}
 	res = mpg_float();
 	if ((argprec = mpfr_get_prec(p1)) > default_prec)
 		mpfr_set_prec(res->mpg_numbr, argprec);	/* needed at least for sqrt() */
@@ -717,9 +835,9 @@ do_mpfr_func(const char *name,
 	return res;
 }
 
-#define SPEC_MATH(X)				\
+#define SPEC_MATH(X, WN)				\
 NODE *result;					\
-result = do_mpfr_func(#X, mpfr_##X, nargs);	\
+result = do_mpfr_func(#X, mpfr_##X, nargs, WN);	\
 return result
 
 /* do_mpfr_sin --- do the sin function */
@@ -727,7 +845,7 @@ return result
 NODE *
 do_mpfr_sin(int nargs)
 {
-	SPEC_MATH(sin);
+	SPEC_MATH(sin, false);
 }
 
 /* do_mpfr_cos --- do the cos function */
@@ -735,7 +853,7 @@ do_mpfr_sin(int nargs)
 NODE *
 do_mpfr_cos(int nargs)
 {
-	SPEC_MATH(cos);
+	SPEC_MATH(cos, false);
 }
 
 /* do_mpfr_exp --- exponential function */
@@ -743,7 +861,7 @@ do_mpfr_cos(int nargs)
 NODE *
 do_mpfr_exp(int nargs)
 {
-	SPEC_MATH(exp);
+	SPEC_MATH(exp, false);
 }
 
 /* do_mpfr_log --- the log function */
@@ -751,7 +869,7 @@ do_mpfr_exp(int nargs)
 NODE *
 do_mpfr_log(int nargs)
 {
-	SPEC_MATH(log);
+	SPEC_MATH(log, true);
 }
 
 /* do_mpfr_sqrt --- do the sqrt function */
@@ -759,7 +877,7 @@ do_mpfr_log(int nargs)
 NODE *
 do_mpfr_sqrt(int nargs)
 {
-	SPEC_MATH(sqrt);
+	SPEC_MATH(sqrt, true);
 }
 
 /* do_mpfr_int --- convert double to int for awk */
@@ -768,6 +886,8 @@ NODE *
 do_mpfr_int(int nargs)
 {
 	NODE *tmp, *r;
+
+	check_exact_args(nargs, "int", 1);
 
 	tmp = POP_SCALAR();
 	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
@@ -798,6 +918,8 @@ do_mpfr_compl(int nargs)
 {
 	NODE *tmp, *r;
 	mpz_ptr zptr;
+
+	check_exact_args(nargs, "compl", 1);
 
 	tmp = POP_SCALAR();
 	if (do_lint && (fixtype(tmp)->flags & NUMBER) == 0)
@@ -918,6 +1040,8 @@ do_mpfr_lshift(int nargs)
 	unsigned long shift;
 	mpz_ptr pz1, pz2;
 
+	check_exact_args(nargs, "lshift", 2);
+
 	t2 = POP_SCALAR();
 	t1 = POP_SCALAR();
 
@@ -949,6 +1073,8 @@ do_mpfr_rshift(int nargs)
 	NODE *t1, *t2, *res;
 	unsigned long shift;
 	mpz_ptr pz1, pz2;
+
+	check_exact_args(nargs, "rshift", 2);
 
 	t2 = POP_SCALAR();
 	t1 = POP_SCALAR();
@@ -1070,6 +1196,8 @@ do_mpfr_strtonum(int nargs)
 {
 	NODE *tmp, *r;
 
+	check_exact_args(nargs, "strtonum", 1);
+
 	tmp = fixtype(POP_SCALAR());
 	if ((tmp->flags & NUMBER) == 0) {
 		r = mpg_integer();	/* will be changed to MPFR float if necessary in force_mpnum() */
@@ -1106,6 +1234,8 @@ do_mpfr_rand(int nargs ATTRIBUTE_UNUSED)
 {
 	NODE *res;
 	int tval;
+
+	check_exact_args(nargs, "rand", 0);
 
 	if (firstrand) {
 #if 0
@@ -1157,6 +1287,8 @@ do_mpfr_srand(int nargs)
 		firstrand = false;
 	}
 
+	check_args_min_max(nargs, "srand", 0, 1);
+
 	res = mpg_integer();
 	mpz_set(res->mpg_i, seed);	/* previous seed */
 
@@ -1197,6 +1329,8 @@ do_mpfr_intdiv(int nargs)
 	NODE *num, *denom;
 	NODE *quotient, *remainder;
 	NODE *sub, **lhs;
+
+	check_exact_args(nargs, "intdiv", 3);
 
 	result = POP_PARAM();
 	if (result->type != Node_var_array)
@@ -1451,6 +1585,8 @@ mpg_div(NODE *t1, NODE *t2)
 		mpfr_ptr p1, p2;
 		p1 = MP_FLOAT(t1);
 		p2 = MP_FLOAT(t2);
+		if (mpfr_zero_p(p2))
+			fatal(_("division by zero attempted"));
 		r = mpg_float();
 		tval = mpfr_div(r->mpg_numbr, p1, p2, ROUND_MODE);
 		IEEE_FMT(r->mpg_numbr, tval);
@@ -1484,6 +1620,8 @@ mpg_mod(NODE *t1, NODE *t2)
 		 */
 		NODE *dummy_quotient;
 
+		if (mpz_sgn(t2->mpg_i) == 0)
+			fatal(_("division by zero attempted"));
 		r = mpg_integer();
 		dummy_quotient = mpg_integer();
 		mpz_tdiv_qr(dummy_quotient->mpg_i, r->mpg_i, t1->mpg_i, t2->mpg_i);
@@ -1492,6 +1630,8 @@ mpg_mod(NODE *t1, NODE *t2)
 		mpfr_ptr p1, p2;
 		p1 = MP_FLOAT(t1);
 		p2 = MP_FLOAT(t2);
+		if (mpfr_zero_p(p2))
+			fatal(_("division by zero attempted in `%%'"));
 		r = mpg_float();
 		tval = mpfr_fmod(r->mpg_numbr, p1, p2, ROUND_MODE);
 		IEEE_FMT(r->mpg_numbr, tval);
@@ -1514,7 +1654,42 @@ mpg_interpret(INSTRUCTION **cp)
 	NODE **lhs;
 	int tval;	/* the ternary value returned by a MPFR function */
 
-	switch ((op = pc->opcode)) {
+	op = pc->opcode;
+	if (do_itrace) {
+		switch (op) {
+		case Op_plus_i:
+		case Op_plus:
+		case Op_minus_i:
+		case Op_minus:
+		case Op_times_i:
+		case Op_times:
+		case Op_exp_i:
+		case Op_exp:
+		case Op_quotient_i:
+		case Op_quotient:
+		case Op_mod_i:
+		case Op_mod:
+		case Op_preincrement:
+		case Op_predecrement:
+		case Op_postincrement:
+		case Op_postdecrement:
+		case Op_unary_minus:
+		case Op_unary_plus:
+		case Op_assign_plus:
+		case Op_assign_minus:
+		case Op_assign_times:
+		case Op_assign_quotient:
+		case Op_assign_mod:
+		case Op_assign_exp:
+			fprintf(stderr, "++ %s: mpg_interpret\n", opcode2str(op));
+			fflush(stderr);
+			break;
+		default:
+			return true;	/* unhandled */
+		}
+	}
+
+	switch (op) {
 	case Op_plus_i:
 		t2 = force_number(pc->memory);
 		goto plus;
@@ -1676,8 +1851,17 @@ mod:
 			tval = mpfr_neg(r->mpg_numbr, t1->mpg_numbr, ROUND_MODE);
 			IEEE_FMT(r->mpg_numbr, tval);
 		} else {
-			r = mpg_integer();
-			mpz_neg(r->mpg_i, t1->mpg_i);
+			if (! is_zero(t1)) {
+				r = mpg_integer();
+				mpz_neg(r->mpg_i, t1->mpg_i);
+			} else {
+				// have to convert to MPFR for -0.0. sigh
+				r = mpg_float();
+				tval = mpfr_set_d(r->mpg_numbr, 0.0, ROUND_MODE);
+				IEEE_FMT(r->mpg_numbr, tval);
+				tval = mpfr_neg(r->mpg_numbr, r->mpg_numbr, ROUND_MODE);
+				IEEE_FMT(r->mpg_numbr, tval);
+			}
 		}
 		DEREF(t1);
 		REPLACE(r);
@@ -1728,7 +1912,7 @@ mod:
 			r = mpg_pow(t1, t2);
 			break;
 		default:
-			cant_happen();
+			cant_happen("unexpected opcode %s", opcode2str(op));
 		}
 
 		DEREF(t2);
@@ -1777,6 +1961,38 @@ mpfr_unset(NODE *n)
 		mpfr_clear(n->mpg_numbr);
 	else if (is_mpg_integer(n))
 		mpz_clear(n->mpg_i);
+}
+
+/*
+ * Custom memory allocation functions for GMP / MPFR. We need these so that the
+ * persistent memory feature will also work with the -M option.
+ *
+ * These just call malloc/realloc/free; if we are using PMA then those are
+ * redefined as macros to point at the pma functions, so all should "just work."
+ */
+
+/* mpfr_mem_alloc --- allocate memory */
+
+void *
+mpfr_mem_alloc(size_t alloc_size)
+{
+	return malloc(alloc_size);
+}
+
+/* mpfr_mem_realloc --- reallocate memory */
+
+void *
+mpfr_mem_realloc(void *ptr, size_t old_size, size_t new_size)
+{
+	return realloc(ptr, new_size);
+}
+
+/* mpfr_mem_free --- free memory */
+
+void
+mpfr_mem_free(void *ptr, size_t size)
+{
+	free(ptr);
 }
 
 #else

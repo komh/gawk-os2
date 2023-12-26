@@ -4,6 +4,7 @@
 
 /*
  * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2018, 2019,
+ * 2021, 2022,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -75,7 +76,7 @@ static NODE **env_store(NODE *symbol, NODE *subs);
 static NODE **env_clear(NODE *symbol, NODE *subs);
 
 /* special case for ENVIRON */
-const array_funcs_t env_array_func = {
+static const array_funcs_t env_array_func = {
 	"env",
 	str_array_init,
 	(afunc_t) 0,
@@ -94,6 +95,7 @@ static void grow_table(NODE *symbol);
 
 static unsigned long gst_hash_string(const char *str, size_t len, unsigned long hsize, size_t *code);
 static unsigned long scramble(unsigned long x);
+static unsigned long fnv1a_hash_string(const char *str, size_t len, unsigned long hsize, size_t *code);
 static unsigned long awk_hash(const char *s, size_t len, unsigned long hsize, size_t *code);
 
 unsigned long (*hash)(const char *s, size_t len, unsigned long hsize, size_t *code) = awk_hash;
@@ -111,8 +113,13 @@ str_array_init(NODE *symbol ATTRIBUTE_UNUSED, NODE *subs ATTRIBUTE_UNUSED)
 		/* check relevant environment variables */
 		if ((newval = getenv_long("STR_CHAIN_MAX")) > 0)
 			STR_CHAIN_MAX = newval;
-		if ((val = getenv("AWK_HASH")) != NULL && strcmp(val, "gst") == 0)
-			hash = gst_hash_string;
+
+		if ((val = getenv("AWK_HASH")) != NULL) {
+			if (strcmp(val, "gst") == 0)
+				hash = gst_hash_string;
+			else if (strcmp(val, "fnv1a") == 0)
+				hash = fnv1a_hash_string;
+		}
 	} else
 		null_array(symbol);
 
@@ -168,9 +175,11 @@ str_lookup(NODE *symbol, NODE *subs)
 	// Special cases:
 	// 1. The string was generated using CONVFMT.
 	// 2. The string was from an unassigned variable.
-	// 3. The string was from an unassigned field.
+	// 3. The string was from a straight number, perniciously, from MPFR
+	// 4. The string was from an unassigned field.
 	if (   subs->stfmt != STFMT_UNUSED
 	    || subs == Nnull_string
+	    || (subs->flags & STRING) == 0
 	    || (subs->flags & NULL_FIELD) != 0) {
 		NODE *tmp;
 
@@ -208,7 +217,7 @@ str_lookup(NODE *symbol, NODE *subs)
 	b->ahname = subs;
 	b->ahname_str = subs->stptr;
 	b->ahname_len = subs->stlen;
-	b->ahvalue = dupnode(Nnull_string);
+	b->ahvalue = new_array_element();
 	b->ahcode = code1;
 	return & (b->ahvalue);
 }
@@ -768,6 +777,34 @@ scramble(unsigned long x)
 	}
 
 	return x;
+}
+
+/* fnv1a_hash_string --- fnv1a hash function */
+
+/*
+ * FNV-1a hash function
+ * http://www.isthe.com/chongo/tech/comp/fnv/index.html
+ */
+
+static unsigned long
+fnv1a_hash_string(const char *str, size_t len, unsigned long hsize, size_t *code)
+{
+	/* FNV-1a */
+	register unsigned ret = 2166136261U;
+
+	while (len > 0) {
+		ret ^= (unsigned char) (*str++);
+		ret *= 16777619U;
+		len-- ;
+	}
+
+	if (code != NULL)
+		*code = ret;
+
+	if (ret >= hsize)
+		ret %= hsize;
+
+	return ret;
 }
 
 /* env_remove --- for ENVIRON, remove value from real environment */

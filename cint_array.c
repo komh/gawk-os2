@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2019,
+ * Copyright (C) 1986, 1988, 1989, 1991-2013, 2016, 2017, 2019-2022,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -71,6 +71,24 @@ const array_funcs_t cint_array_func = {
 	cint_copy,
 	cint_dump,
 	(afunc_t) 0,
+};
+
+
+static NODE **argv_store(NODE *symbol, NODE *subs);
+
+/* special case for ARGV in sandbox mode */
+static const array_funcs_t argv_array_func = {
+	"argv",
+	cint_array_init,
+	is_uinteger,
+	cint_lookup,
+	cint_exists,
+	cint_clear,
+	cint_remove,
+	cint_list,
+	cint_copy,
+	cint_dump,
+	argv_store,
 };
 
 static inline int cint_hash(long k);
@@ -157,7 +175,7 @@ cint_array_init(NODE *symbol ATTRIBUTE_UNUSED, NODE *subs ATTRIBUTE_UNUSED)
 		if ((newval = getenv_long("NHAT")) > 1 && newval < INT32_BIT)
 			NHAT = newval;
 		/* don't allow overflow off the end of the table */
-		if (NHAT >= nelems)
+		if (NHAT > nelems - 2)
 			NHAT = nelems - 2;
 		THRESHOLD = power_two_table[NHAT + 1];
 	} else
@@ -509,8 +527,8 @@ cint_dump(NODE *symbol, NODE *ndump)
 	indent(indent_level);
 	fprintf(output_fp, "THRESHOLD: %ld\n", THRESHOLD);
 	indent(indent_level);
-	fprintf(output_fp, "table_size: %ld (total), %ld (cint), %ld (int + str)\n",
-				symbol->table_size, cint_size, xsize);
+	fprintf(output_fp, "table_size: %lu (total), %ld (cint), %ld (int + str)\n",
+				(unsigned long) symbol->table_size, cint_size, xsize);
 	indent(indent_level);
 	fprintf(output_fp, "array_capacity: %lu\n", (unsigned long) symbol->array_capacity);
 	indent(indent_level);
@@ -1050,7 +1068,7 @@ leaf_lookup(NODE *symbol, NODE *array, long k, long size, long base)
 	lhs = array->nodes + (k - base); /* leaf element */
 	if (*lhs == NULL) {
 		array->table_size++;	/* one more element in leaf array */
-		*lhs = dupnode(Nnull_string);
+		*lhs = new_array_element();
 	}
 	return lhs;
 }
@@ -1230,3 +1248,68 @@ leaf_print(NODE *array, size_t bi, int indent_level)
 			(unsigned long) array->table_size);
 }
 #endif
+
+static NODE *argv_shadow_array = NULL;
+
+/* argv_store --- post assign function for ARGV in sandbox mode */
+
+static NODE **
+argv_store(NODE *symbol, NODE *subs)
+{
+	NODE **val = cint_exists(symbol, subs);
+	NODE *newval = *val;
+	char *cp;
+
+	if (newval->stlen == 0)	// empty strings in ARGV are OK
+		return val;
+
+	if ((cp = strchr(newval->stptr, '=')) == NULL) {
+		if (! in_array(argv_shadow_array, newval))
+			fatal(_("cannot add a new file (%.*s) to ARGV in sandbox mode"),
+				(int) newval->stlen, newval->stptr);
+	} else {
+		// check if it's a valid variable assignment
+		bool badvar = false;
+		char *arg = newval->stptr;
+		char *cp2;
+
+		*cp = '\0';	// temporarily
+
+		if (! is_letter((unsigned char) arg[0]))
+			badvar = true;
+		else
+			for (cp2 = arg+1; *cp2; cp2++)
+				if (! is_identchar((unsigned char) *cp2) && *cp2 != ':') {
+					badvar = true;
+					break;
+				}
+
+		// further checks
+		if (! badvar) {
+			char *cp = strchr(arg, ':');
+			if (cp && (cp[1] != ':' || strchr(cp + 2, ':') != NULL))
+				badvar = true;
+		}
+		*cp = '=';	// restore the '='
+
+		if (badvar && ! in_array(argv_shadow_array, newval))
+			fatal(_("cannot add a new file (%.*s) to ARGV in sandbox mode"),
+				(int) newval->stlen, newval->stptr);
+
+		// otherwise, badvar is false, let it through as variable assignment
+	}
+	return val;
+}
+
+/* init_argv_array --- set up the pointers for ARGV in sandbox mode. A bit hacky. */
+
+void
+init_argv_array(NODE *argv_node, NODE *shadow_node)
+{
+	/* If POSIX simply don't reset the vtable and things work as before */
+	if (! do_sandbox)
+		return;
+
+	argv_node->array_funcs = & argv_array_func;
+	argv_shadow_array = shadow_node;
+}

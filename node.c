@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003-2015, 2017, 2018,
+ * Copyright (C) 1986, 1988, 1989, 1991-2001, 2003-2015, 2017-2019, 2021, 2022, 2023,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -25,10 +25,7 @@
  */
 
 #include "awk.h"
-#include "math.h"
-#include "floatmagic.h"	/* definition of isnan */
 
-static int is_ieee_magic_val(const char *val);
 static NODE *r_make_number(double x);
 static AWKNUM get_ieee_magic_val(char *val);
 extern NODE **fmt_list;          /* declared in eval.c */
@@ -62,7 +59,15 @@ r_force_number(NODE *n)
 	char *cpend;
 	char save;
 	char *ptr;
-	extern double strtod();
+
+	if (n->type == Node_elem_new) {
+		n->type = Node_val;
+		n->flags &= ~STRING;
+		n->stptr[0] = '0';	// STRCUR is still set
+		n->stlen = 1;
+
+		return n;
+	}
 
 	if ((n->flags & NUMCUR) != 0)
 		return n;
@@ -101,9 +106,12 @@ r_force_number(NODE *n)
 	if (! do_posix) {
 		if (is_alpha((unsigned char) *cp))
 			goto badnum;
-		else if (cpend == cp+4 && is_ieee_magic_val(cp)) {
-			n->numbr = get_ieee_magic_val(cp);
-			goto goodnum;
+		else if (is_ieee_magic_val(cp)) {
+			if (cpend == cp + 4) {
+				n->numbr = get_ieee_magic_val(cp);
+				goto goodnum;
+			} else
+				goto badnum;
 		}
 		/* else
 			fall through */
@@ -165,6 +173,9 @@ badnum:
 	return n;
 
 goodnum:
+	if (isnan(n->numbr) && *cp == '-' && signbit(n->numbr) == 0)
+		n->numbr = -(n->numbr);
+
 	if ((n->flags & USER_INPUT) != 0) {
 		/* leave USER_INPUT enabled to indicate that this is a strnum */
 		n->flags &= ~STRING;
@@ -304,27 +315,23 @@ r_dupnode(NODE *n)
 	assert(n->type == Node_val);
 
 #ifdef GAWKDEBUG
+	/* Do the same as in awk.h:dupnode().  */
 	if ((n->flags & MALLOC) != 0) {
 		n->valref++;
 		return n;
 	}
 #endif
+	getnode(r);
+	*r = *n;
 
 #ifdef HAVE_MPFR
 	if ((n->flags & MPZN) != 0) {
-		r = mpg_integer();
+		mpz_init(r->mpg_i);
 		mpz_set(r->mpg_i, n->mpg_i);
-		r->flags = n->flags;
 	} else if ((n->flags & MPFN) != 0) {
-		r = mpg_float();
+		mpfr_init(r->mpg_numbr);
 		int tval = mpfr_set(r->mpg_numbr, n->mpg_numbr, ROUND_MODE);
 		IEEE_FMT(r->mpg_numbr, tval);
-		r->flags = n->flags;
-	} else {
-#endif
-		getnode(r);
-		*r = *n;
-#ifdef HAVE_MPFR
 	}
 #endif
 
@@ -342,6 +349,7 @@ r_dupnode(NODE *n)
 		emalloc(r->stptr, char *, n->stlen + 1, "r_dupnode");
 		memcpy(r->stptr, n->stptr, n->stlen);
 		r->stptr[n->stlen] = '\0';
+		r->stlen = n->stlen;
 		if ((n->flags & WSTRCUR) != 0) {
 			r->wstlen = n->wstlen;
 			emalloc(r->wstptr, wchar_t *, sizeof(wchar_t) * (n->wstlen + 1), "r_dupnode");
@@ -370,7 +378,7 @@ int
 cmp_awknums(const NODE *t1, const NODE *t2)
 {
 	/*
-	 * This routine is also used to sort numeric array indices or values.
+	 * This routine is used to sort numeric array indices or values.
 	 * For the purposes of sorting, NaN is considered greater than
 	 * any other value, and all NaN values are considered equivalent and equal.
 	 * This isn't in compliance with IEEE standard, but compliance w.r.t. NaN
@@ -389,7 +397,6 @@ cmp_awknums(const NODE *t1, const NODE *t2)
 		return -1;
 	return 1;
 }
-
 
 /* make_str_node --- make a string node */
 
@@ -434,10 +441,15 @@ make_str_node(const char *s, size_t len, int flags)
 			 * character happens to be a backslash.
 			 */
 			if (gawk_mb_cur_max > 1) {
-				int mblen = mbrlen(pf, end-pf, &cur_state);
+				size_t mblen = mbrlen(pf, end-pf, &cur_state);
 
-				if (mblen > 1) {
-					int i;
+				/*
+				 * Incomplete (-2), invalid (-1), and
+				 * null (0) characters are excluded here.
+				 * They are read as a sequence of bytes.
+				 */
+				if (mblen > 1 && mblen < (size_t) -2) {
+					size_t i;
 
 					for (i = 0; i < mblen; i++)
 						*ptm++ = *pf++;
@@ -447,15 +459,34 @@ make_str_node(const char *s, size_t len, int flags)
 
 			c = *pf++;
 			if (c == '\\') {
-				c = parse_escape(&pf);
-				if (c < 0) {
+				const char *result;
+				size_t nbytes;
+				enum escape_results ret;
+
+				ret = parse_escape(& pf, & result, & nbytes);
+				switch (ret) {
+				case ESCAPE_OK:
+					assert(nbytes > 0);
+					while (nbytes--)
+						*ptm++ = *result++;
+					break;
+				case ESCAPE_CONV_ERR:
+					*ptm++ = '?';
+					break;
+				case ESCAPE_TERM_BACKSLASH:
+					if (do_lint)
+						lintwarn(_("backslash at end of string"));
+					*ptm++ = '\\';
+					break;
+				case ESCAPE_LINE_CONTINUATION:
 					if (do_lint)
 						lintwarn(_("backslash string continuation is not portable"));
-					if ((flags & ELIDE_BACK_NL) != 0)
-						continue;
-					c = '\\';
+					continue;
+				default:
+					cant_happen("received bad result %d from parse_escape(), nbytes = %zu",
+							(int) ret, nbytes);
+					break;
 				}
-				*ptm++ = c;
 			} else
 				*ptm++ = c;
 		}
@@ -482,8 +513,13 @@ make_typed_regex(const char *re, size_t len)
 
 	n2 = make_string(re, len);
 	n2->typed_re = n;
+#if HAVE_MPFR
+	if (do_mpfr)
+		mpg_zero(n2);
+	else
+#endif
 	n2->numbr = 0;
-	n2->flags |= NUMCUR|STRCUR|REGEX; 
+	n2->flags |= NUMCUR|STRCUR|REGEX;
 	n2->flags &= ~(STRING|NUMBER);
 
 	return n2;
@@ -496,20 +532,14 @@ void
 r_unref(NODE *tmp)
 {
 #ifdef GAWKDEBUG
-	if (tmp == NULL)
+	/* Do the same as in awk.h:unref().  */
+	assert(tmp == NULL || tmp->valref > 0);
+	if (tmp == NULL || --tmp->valref > 0)
 		return;
-	if ((tmp->flags & MALLOC) != 0) {
-		if (tmp->valref > 1) {
-			tmp->valref--;
-			return;
-		}
-		if ((tmp->flags & STRCUR) != 0)
-			efree(tmp->stptr);
-	}
-#else
+#endif
+
 	if ((tmp->flags & (MALLOC|STRCUR)) == (MALLOC|STRCUR))
 		efree(tmp->stptr);
-#endif
 
 	mpfr_unset(tmp);
 
@@ -521,62 +551,72 @@ r_unref(NODE *tmp)
 /*
  * parse_escape:
  *
- * Parse a C escape sequence.  STRING_PTR points to a variable containing a
- * pointer to the string to parse.  That pointer is updated past the
- * characters we use.  The value of the escape sequence is returned.
+ * Parse a C escape sequence.  string_ptr points to a variable containing
+ * a pointer to the string to parse.  result points to a pointer which will
+ * be set to the address of the internal buffer holding the bytes of the
+ * translated escape sequence.
  *
- * A negative value means the sequence \ newline was seen, which is supposed to
- * be equivalent to nothing at all.
+ * Return values:
+ *	ESCAPE_OK,		// nbytes == 1 to MB_CUR_MAX: the length of the translated escape sequence
+ *	ESCAPE_CONV_ERR,	// wcrtomb conversion error
+ *	ESCAPE_TERM_BACKSLASH,	// terminal backslash (to be preserved in cmdline strings)
+ *	ESCAPE_LINE_CONTINUATION	// line continuation  (backslash-newline pair)
  *
- * If \ is followed by a null character, we return a negative value and leave
- * the string pointer pointing at the null character.
- *
- * If \ is followed by 000, we return 0 and leave the string pointer after the
- * zeros.  A value of 0 does not mean end of string.
- *
- * POSIX doesn't allow \x.
+ * POSIX doesn't allow \x or \u.
  */
 
-int
-parse_escape(const char **string_ptr)
+enum escape_results
+parse_escape(const char **string_ptr, const char **result, size_t *nbytes)
 {
+	static char buf[MB_LEN_MAX];
+	enum escape_results retval = ESCAPE_OK;
 	int c = *(*string_ptr)++;
 	int i;
 	int count;
 	int j;
 	const char *start;
 
+	*nbytes = 1;
 	if (do_lint_old) {
 		switch (c) {
 		case 'a':
 		case 'b':
 		case 'f':
 		case 'r':
-			warning(_("old awk does not support the `\\%c' escape sequence"), c);
+			lintwarn(_("old awk does not support the `\\%c' escape sequence"), c);
 			break;
 		}
 	}
 
 	switch (c) {
 	case 'a':
-		return '\a';
+		buf[0] = '\a';
+		break;
 	case 'b':
-		return '\b';
+		buf[0] = '\b';
+		break;
 	case 'f':
-		return '\f';
+		buf[0] = '\f';
+		break;
 	case 'n':
-		return '\n';
+		buf[0] = '\n';
+		break;
 	case 'r':
-		return '\r';
+		buf[0] = '\r';
+		break;
 	case 't':
-		return '\t';
+		buf[0] = '\t';
+		break;
 	case 'v':
-		return '\v';
+		buf[0] = '\v';
+		break;
 	case '\n':
-		return -2;
+		retval = ESCAPE_LINE_CONTINUATION;
+		break;
 	case 0:
 		(*string_ptr)--;
-		return -1;
+		retval = ESCAPE_TERM_BACKSLASH;
+		break;
 	case '0':
 	case '1':
 	case '2':
@@ -596,7 +636,8 @@ parse_escape(const char **string_ptr)
 				break;
 			}
 		}
-		return i;
+		buf[0] = i;
+		break;
 	case 'x':
 		if (do_lint) {
 			static bool warned = false;
@@ -606,16 +647,19 @@ parse_escape(const char **string_ptr)
 				lintwarn(_("POSIX does not allow `\\x' escapes"));
 			}
 		}
-		if (do_posix)
-			return ('x');
+		if (do_posix) {
+			buf[0] = 'x';
+			break;
+		}
 		if (! isxdigit((unsigned char) (*string_ptr)[0])) {
 			warning(_("no hex digits in `\\x' escape sequence"));
-			return ('x');
+			buf[0] = 'x';
+			break;
 		}
 		start = *string_ptr;
 		for (i = j = 0; j < 2; j++) {
 			/* do outside test to avoid multiple side effects */
-			c = *(*string_ptr)++;
+			c = (unsigned char) *(*string_ptr)++;
 			if (isxdigit(c)) {
 				i *= 16;
 				if (isdigit(c))
@@ -629,12 +673,73 @@ parse_escape(const char **string_ptr)
 				break;
 			}
 		}
-		if (do_lint && j > 2)
-			lintwarn(_("hex escape \\x%.*s of %d characters probably not interpreted the way you expect"), j, start, j);
-		return i;
+		if (do_lint && j == 2 && isxdigit((unsigned char)*(*string_ptr)))
+			lintwarn(_("hex escape \\x%.*s of %d characters probably not interpreted the way you expect"), 3, start, 3);
+		buf[0] = i;
+		break;
+	case 'u':
+	{
+		size_t n;
+#ifndef __MINGW32__
+		mbstate_t mbs;
+#endif
+
+		if (do_lint) {
+			static bool warned = false;
+
+			if (! warned) {
+				warned = true;
+				lintwarn(_("POSIX does not allow `\\u' escapes"));
+			}
+		}
+		if (do_posix) {
+			buf[0] = 'u';
+			break;
+		}
+		if (! isxdigit((unsigned char) (*string_ptr)[0])) {
+			warning(_("no hex digits in `\\u' escape sequence"));
+			buf[0] = 'u';
+			break;
+		}
+		start = *string_ptr;
+		for (i = j = 0; j < 8; j++) {
+			/* do outside test to avoid multiple side effects */
+			c = (unsigned char) *(*string_ptr)++;
+			if (isxdigit(c)) {
+				i *= 16;
+				if (isdigit(c))
+					i += c - '0';
+				else if (isupper(c))
+					i += c - 'A' + 10;
+				else
+					i += c - 'a' + 10;
+			} else {
+				(*string_ptr)--;
+				break;
+			}
+		}
+#ifdef __MINGW32__
+		n = w32_wc_to_lc (i, buf);
+#elif defined (__CYGWIN__)
+		memset(& mbs, 0, sizeof(mbs));
+		n = wcitomb(buf, i, & mbs);
+#else
+		memset(& mbs, 0, sizeof(mbs));
+		n = wcrtomb(buf, i, & mbs);
+#endif	/* !__MINGW32__ */
+		if (n == (size_t) -1) {
+			warning(_("invalid `\\u' escape sequence"));
+			retval = ESCAPE_CONV_ERR;
+			*nbytes = 0;
+		} else {
+			*nbytes = n;
+		}
+		break;
+	}
 	case '\\':
 	case '"':
-		return c;
+		buf[0] = c;
+		break;
 	default:
 	{
 		static bool warned[256];
@@ -648,8 +753,12 @@ parse_escape(const char **string_ptr)
 			warning(_("escape sequence `\\%c' treated as plain `%c'"), uc, uc);
 		}
 	}
-		return c;
+		buf[0] = c;
+		break;
 	}
+
+	*result = buf;
+	return retval;
 }
 
 /* get_numbase --- return the base to use for the number in 's' */
@@ -751,7 +860,7 @@ str2wstr(NODE *n, size_t **ptr)
 	 * Create the array.
 	 */
 	if (ptr != NULL) {
-		ezalloc(*ptr, size_t *, sizeof(size_t) * n->stlen, "str2wstr");
+		ezalloc(*ptr, size_t *, sizeof(size_t) * (n->stlen + 1), "str2wstr");
 	}
 
 	sp = n->stptr;
@@ -781,7 +890,7 @@ str2wstr(NODE *n, size_t **ptr)
 			/* Warn the user something's wrong */
 			if (! warned) {
 				warned = true;
-				warning(_("Invalid multibyte data detected. There may be a mismatch between your data and your locale."));
+				warning(_("Invalid multibyte data detected. There may be a mismatch between your data and your locale"));
 			}
 
 			/*
@@ -822,6 +931,11 @@ str2wstr(NODE *n, size_t **ptr)
 			break;
 		}
 	}
+
+	/* Needed for zero-length matches at the end of a string */
+	assert(sp - n->stptr == n->stlen);
+	if (ptr != NULL)
+		(*ptr)[sp - n->stptr] = i;
 
 	*wsp = L'\0';
 	n->wstlen = wsp - n->wstptr;
@@ -963,7 +1077,7 @@ out:	;
 
 /* is_ieee_magic_val --- return true for +inf, -inf, +nan, -nan */
 
-static int
+bool
 is_ieee_magic_val(const char *val)
 {
 	/*
@@ -1018,7 +1132,7 @@ void init_btowc_cache()
 {
 	int i;
 
-	for (i = 0; i < 255; i++) {
+	for (i = 0; i <= 255; i++) {
 		btowc_cache[i] = btowc(i);
 	}
 }
@@ -1026,14 +1140,31 @@ void init_btowc_cache()
 #define BLOCKCHUNK 100
 
 struct block_header nextfree[BLOCK_MAX] = {
-	{ NULL, sizeof(NODE) },
-	{ NULL, sizeof(BUCKET) },
-#ifdef HAVE_MPFR
-	{ NULL, sizeof(mpfr_t) },
-	{ NULL, sizeof(mpz_t) },
-#endif
+	{ NULL, sizeof(NODE), "node" },
+	{ NULL, sizeof(BUCKET), "bucket" },
 };
 
+#ifdef MEMDEBUG
+
+void *
+r_getblock(int id)
+{
+	void *res;
+	emalloc(res, void *, nextfree[id].size, "getblock");
+	nextfree[id].active++;
+	if (nextfree[id].highwater < nextfree[id].active)
+		nextfree[id].highwater = nextfree[id].active;
+	return res;
+}
+
+void
+r_freeblock(void *p, int id)
+{
+	nextfree[id].active--;
+	free(p);
+}
+
+#else
 
 /* more_blocks --- get more blocks of memory and add to the free list;
 	size of a block must be >= sizeof(struct block_item)
@@ -1062,5 +1193,29 @@ more_blocks(int id)
 		np->freep = next;
 	}
 	nextfree[id].freep = freep->freep;
+	nextfree[id].highwater += BLOCKCHUNK;
 	return freep;
+}
+
+#endif
+
+/* make_bool_node --- make a boolean-valued node */
+
+extern NODE *
+make_bool_node(bool value)
+{
+	NODE *val;
+	const char *sval;
+	AWKNUM nval;
+
+	sval = (value ? "1" : "0");
+	nval = (value ? 1.0 : 0.0);
+
+	val = make_number(nval);
+	val->stptr = estrdup(sval, strlen(sval));
+	val->stlen = strlen(sval);
+	val->flags |= NUMCUR|STRCUR|BOOLVAL;
+	val->stfmt = STFMT_UNUSED;
+
+	return val;
 }

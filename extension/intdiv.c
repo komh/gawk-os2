@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2017, 2018, the Free Software Foundation, Inc.
+ * Copyright (C) 2017, 2018, 2021, 2022, the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -191,7 +191,7 @@ do_intdiv(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 		/* extended precision */
 		mpz_ptr numer, denom;
 		mpz_t numer_tmp, denom_tmp;
-		mpz_ptr quotient, remainder;
+		mpz_t quotient, remainder;
 
 		/* convert numerator and denominator to integer */
 		if (!(numer = mpz_conv(&nv, numer_tmp))) {
@@ -213,9 +213,8 @@ do_intdiv(int nargs, awk_value_t *result, struct awk_ext_func *unused)
 			return make_number(-1, result);
 		}
 
-		/* ask gawk to allocate return values for us */
-		quotient = get_mpz_ptr();
-		remainder = get_mpz_ptr();
+		mpz_init(quotient);
+		mpz_init(remainder);
 
 		/* do the division */
 		mpz_tdiv_qr(quotient, remainder, numer, denom);

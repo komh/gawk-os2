@@ -4,6 +4,9 @@
 @settitle TCP/IP Internetworking With @command{gawk}
 @c %**end of header (This is for running Texinfo on a region.)
 @c FIXME: web vs. Web
+@c Correct spelling of web is still under discussion.
+@c https://english.stackexchange.com/questions/120869/should-i-capitalize-the-word-web-in-this-sentence
+@c We leave the many occurrences of web in this file as they are.
 
 @dircategory Network applications
 @direntry
@@ -61,10 +64,10 @@
 @c pages, I think this is the right decision.  ADR.
 
 @set TITLE TCP/IP Internetworking with @command{gawk}
-@set EDITION 1.5
-@set UPDATE-MONTH March, 2019
+@set EDITION 1.6
+@set UPDATE-MONTH October, 2021
 @c gawk versions:
-@set VERSION 5.0
+@set VERSION 5.2
 @set PATCHLEVEL 0
 
 @copying
@@ -72,7 +75,7 @@ This is Edition @value{EDITION} of @cite{@value{TITLE}},
 for the @value{VERSION}.@value{PATCHLEVEL} (or later) version of the GNU
 implementation of AWK.
 @sp 2
-Copyright (C) 2000, 2001, 2002, 2004, 2009, 2010, 2016, 2019
+Copyright (C) 2000, 2001, 2002, 2004, 2009, 2010, 2016, 2019, 2020, 2021, 2023
 Free Software Foundation, Inc.
 @sp 2
 Permission is granted to copy, distribute and/or modify this document
@@ -93,12 +96,6 @@ copy and modify this GNU manual.  Buying copies from the FSF
 supports it in developing GNU and promoting software freedom.''
 @end enumerate
 @end copying
-
-@ifinfo
-This file documents the networking features in GNU @command{awk}.
-
-@insertcopying
-@end ifinfo
 
 @setchapternewpage odd
 
@@ -237,6 +234,8 @@ Arnold Robbins @*
 Nof Ayalon, ISRAEL @*
 March, 2001
 
+@c system if test ! -d eg         ; then mkdir eg         ; fi
+@c system if test ! -d eg/network ; then mkdir eg/network ; fi
 @node Introduction, Using Networking, Preface, Top
 @chapter Networking Concepts
 
@@ -411,6 +410,7 @@ All other user-level protocols use either TCP or UDP to do their basic
 communications.  Examples are SMTP (Simple Mail Transfer Protocol),
 FTP (File Transfer Protocol), and HTTP (HyperText Transfer Protocol).
 @cindex SMTP (Simple Mail Transfer Protocol)
+@cindex Simple Mail Transfer Protocol (SMTP)
 @cindex FTP (File Transfer Protocol)
 @cindex HTTP (Hypertext Transfer Protocol)
 
@@ -458,7 +458,7 @@ web server or email server.  It is the @dfn{host} (system) which
 is @emph{connected to} in a transaction.
 For this to work though, the server must be expecting connections.
 Much as there has to be someone at the office building to answer
-the phone@footnote{In the days before voice mail systems!}, the
+the phone,@footnote{In the days before voice mail systems!} the
 server process (usually) has to be started first and be waiting
 for a connection.
 
@@ -490,12 +490,12 @@ In the case of TCP, the synchronicity is enforced by the protocol when
 sending data.  Data writes @dfn{block} until the data have been received on the
 other end.  For both TCP and UDP, data reads block until there is incoming
 data waiting to be read.  This is summarized in the following table,
-where an ``X'' indicates that the given action blocks.
+where an ``x'' indicates that the given action blocks.
 
 @ifnottex
 @multitable {Protocol}  {Reads}  {Writes}
-@item TCP @tab X @tab X
-@item UDP @tab X @tab
+@item TCP @tab x @tab x
+@item UDP @tab x @tab
 @end multitable
 @end ifnottex
 @tex
@@ -518,10 +518,8 @@ UDP&&X&\cr
 @comment node-name, next, previous, up
 @chapter Networking With @command{gawk}
 
-@c STARTOFRANGE netgawk
-@cindex networks, @command{gawk} and
-@c STARTOFRANGE gawknet
-@cindex @command{gawk}, networking
+@cindex networks @subentry @command{gawk} and
+@cindex @command{gawk} @subentry networking
 The @command{awk} programming language was originally developed as a
 pattern-matching language for writing short programs to perform
 data manipulation tasks.
@@ -552,14 +550,14 @@ is very similar to what is described in books such as
 or
 @cite{Web Client Programming with Perl}.
 
-@cindex Perl, @command{gawk} networking and
-@cindex Python, @command{gawk} networking and
-@cindex Tcl/Tk, @command{gawk} and
+@cindex Perl @subentry @command{gawk} networking and
+@cindex Python @subentry @command{gawk} networking and
+@cindex Tcl/Tk @subentry @command{gawk} and
 However, you can do the programming here without first having to learn object-oriented
 ideology; underlying languages such as Tcl/Tk, Perl, Python; or all of
 the libraries necessary to extend these languages before they are ready for the Internet.
 
-@cindex Transmission Control Protocol, See TCP
+@cindex Transmission Control Protocol @seeentry{TCP}
 @cindex TCP (Transmission Control Protocol)
 This @value{CHAPTER} demonstrates how to use the TCP protocol. The
 UDP protocol is much less important for most users.
@@ -598,8 +596,8 @@ is started, @command{gawk} creates the appropriate network
 connection, and then two-way I/O proceeds as usual.
 
 @c last comma is part of see-also
-@cindex input/output, two-way, See Also @command{gawk}@comma{} networking
-@cindex TCP/IP, sockets and
+@cindex input/output, two-way, @seealso{@command{gawk}, networking}
+@cindex TCP/IP @subentry sockets and
 At the C, C++, and Perl level, networking is accomplished
 via @dfn{sockets}, an Application Programming Interface (API) originally
 developed at the University of California at Berkeley that is now used
@@ -611,12 +609,9 @@ The special files provided in @command{gawk} hide the details from
 the programmer, making things much simpler and easier to use.
 @c Who sez we can't toot our own horn occasionally?
 
-@c STARTOFRANGE filenet
 @cindex filenames, for network access
-@c STARTOFRANGE gawnetf
-@cindex @command{gawk}, networking, filenames
-@c STARTOFRANGE netgawf
-@cindex networks, @command{gawk} and, filenames
+@cindex @command{gawk} @subentry networking @subentry filenames
+@cindex networks @subentry @command{gawk} and @subentry filenames
 The special @value{FN} for network access is made up of several fields, all
 of which are mandatory:
 
@@ -625,7 +620,7 @@ of which are mandatory:
 @end example
 
 @cindex @code{/inet/} files (@command{gawk})
-@cindex files, @code{/inet/} (@command{gawk})
+@cindex files @subentry @code{/inet/} (@command{gawk})
 @cindex localport field
 @cindex remoteport field
 The @var{net-type} field lets you specify IPv4 versus IPv6, or lets
@@ -638,15 +633,15 @@ you allow the system to choose.
 
 @node Special File Fields, Comparing Protocols, Gawk Special Files, Gawk Special Files
 @subsection The Fields of the Special @value{FFN}
-This @value{SECTION} explains the meaning of all the other fields,
+This @value{SECTION} explains the meaning of all of the fields,
 as well as the range of values and the defaults.
 All of the fields are mandatory.  To let the system pick a value,
-or if the field doesn't apply to the protocol, specify it as @samp{0}:
+or if the field doesn't apply to the protocol, specify it as @samp{0} (zero):
 
 @table @var
 @cindex network type field
 @c last comma is part of secondary
-@cindex TCP/IP, network type, selecting
+@cindex TCP/IP @subentry network type, selecting
 @item net-type
 This is one of @samp{inet4} for IPv4, @samp{inet6} for IPv6,
 or @samp{inet} to use the system default (which is likely to be IPv4).
@@ -655,7 +650,7 @@ in our descriptions of how @command{gawk}'s networking works.
 
 @cindex protocol field
 @c last comma is part of secondary
-@cindex TCP/IP, protocols, selecting
+@cindex TCP/IP @subentry protocols, selecting
 @item protocol
 Determines which member of the TCP/IP
 family of protocols is selected to transport the data across the
@@ -664,27 +659,31 @@ network. There are two possible values (always written in lowercase):
 explained later in this @value{SECTION}.
 
 @item localport
-@cindex networks, ports, specifying
+@cindex networks @subentry ports @subentry specifying
 Determines which port on the local
 machine is used to communicate across the network.  Application-level clients
 usually use @samp{0} to indicate they do not care which local port is
-used---instead they specify a remote port to connect to. It is vital for
+used---instead they specify a remote port to connect to.
+
+It is vital for
 application-level servers to use a number different from @samp{0} here
 because their service has to be available at a specific publicly known
 port number. It is possible to use a name from @file{/etc/services} here.
 
 @item hostname
 @cindex hostname field
-@cindex servers, as hosts
+@cindex servers @subentry as hosts
 Determines which remote host is to
-be at the other end of the connection. Application-level servers must fill
+be at the other end of the connection.
+Application-level clients must enter a name different from @samp{0}.
+The name can be either symbolic
+(e.g., @samp{jpl-devvax.jpl.nasa.gov}) or numeric (e.g., @samp{128.149.1.143}).
+
+Application-level servers must fill
 this field with a @samp{0} to indicate their being open for all other hosts
 to connect to them and enforce connection level server behavior this way.
 It is not possible for an application-level server to restrict its
 availability to one remote host by entering a host name here.
-Application-level clients must enter a name different from @samp{0}.
-The name can be either symbolic
-(e.g., @samp{jpl-devvax.jpl.nasa.gov}) or numeric (e.g., @samp{128.149.1.143}).
 
 @item remoteport
 Determines which port on the remote
@@ -692,13 +691,15 @@ machine is used to communicate across the network.
 For @file{/inet/tcp} and @file{/inet/udp},
 application-level clients @emph{must} use a number
 other than @samp{0} to indicate to which port on the remote machine
-they want to connect. Application-level servers must not fill this field with
+they want to connect.
+
+Application-level servers must not fill this field with
 a @samp{0}. Instead they specify a local port to which clients connect.
 It is possible to use a name from @file{/etc/services} here.
 @end table
 
-@cindex networks, @command{gawk} and, connections
-@cindex @command{gawk}, networking, connections
+@cindex networks @subentry @command{gawk} and @subentry connections
+@cindex @command{gawk} @subentry networking @subentry connections
 Experts in network programming will notice that the usual
 client/server asymmetry found at the level of the socket API is not visible
 here. This is for the sake of simplicity of the high-level concept. If this
@@ -773,11 +774,10 @@ available and demonstrate the differences between them.
 @node File /inet/tcp, File /inet/udp, Comparing Protocols, Comparing Protocols
 @subsubsection @file{/inet/tcp}
 @cindex @code{/inet/tcp} special files (@command{gawk})
-@cindex files, @code{/inet/tcp} (@command{gawk})
+@cindex files @subentry @code{/inet/tcp} (@command{gawk})
 @cindex TCP (Transmission Control Protocol)
 Once again, always use TCP.
-(Use UDP when low overhead is a necessity, and use RAW for
-network experimentation.)
+(Use UDP when low overhead is a necessity.)
 The first example is the sender
 program:
 
@@ -811,9 +811,9 @@ first, and it waits for the receiver to read a line.
 @node File /inet/udp, , File /inet/tcp, Comparing Protocols
 @subsubsection @file{/inet/udp}
 @cindex @code{/inet/udp} special files (@command{gawk})
-@cindex files, @code{/inet/udp} (@command{gawk})
+@cindex files @subentry @code{/inet/udp} (@command{gawk})
 @cindex UDP (User Datagram Protocol)
-@cindex User Datagram Protocol, See UDP
+@cindex User Datagram Protocol @seeentry{UDP}
 The server and client programs that use UDP are almost identical to their TCP counterparts;
 only the @var{protocol} has changed. As before, it does matter which side
 starts first. The receiving side blocks and waits for the sender.
@@ -855,7 +855,8 @@ network facilities to make them easier to understand and use.}
 
 UDP cannot guarantee that the datagrams at the receiving end will arrive in exactly
 the same order they were sent. Some datagrams could be
-lost, some doubled, and some out of order. But no overhead is necessary to
+lost, some doubled, and some could arrive out of order.
+But no overhead is necessary to
 accomplish this. This unreliable behavior is good enough for tasks
 such as data acquisition, logging, and even stateless services like
 the original versions of NFS.
@@ -863,35 +864,38 @@ the original versions of NFS.
 @node TCP Connecting, Troubleshooting, Gawk Special Files, Using Networking
 @section Establishing a TCP Connection
 
-@c STARTOFRANGE tcpcon
-@cindex TCP (Transmission Control Protocol), connection, establishing
-@c STARTOFRANGE netcon
-@cindex networks, @command{gawk} and, connections
-@c STARTOFRANGE gawcon
-@cindex @command{gawk}, networking, connections
+@cindex TCP (Transmission Control Protocol) @subentry connection, establishing
+@cindex networks @subentry @command{gawk} and @subentry connections
+@cindex @command{gawk} @subentry networking @subentry connections
 Let's observe a network connection at work. Type in the following program
 and watch the output. Within a second, it connects via TCP (@file{/inet/tcp})
-to the machine it is running on (@samp{localhost}) and asks the service
+to a remote server and asks the service
 @samp{daytime} on the machine what time it is:
 
 @cindex @code{getline} command
 @example
+@c file eg/network/daytimeclient.awk
 BEGIN @{
-  "/inet/tcp/0/localhost/daytime" |& getline
+  daytime_server     = "time-a-g.nist.gov"
+  daytime_connection = "/inet/tcp/0/" daytime_server "/daytime"
+  daytime_connection |& getline
   print $0
-  close("/inet/tcp/0/localhost/daytime")
+  daytime_connection |& getline
+  print $0
+  close(daytime_connection)
 @}
+@c endfile
 @end example
 
-Even experienced @command{awk} users will find the second line strange in two
-respects:
+Even experienced @command{awk} users will find the fourth and sixth line
+strange in two respects:
 
 @itemize @bullet
 @item
-A special file is used as a shell command that pipes its output
+A string containing the name of a special file is used as a shell command that pipes its output
 into @code{getline}. One would rather expect to see the special file
 being read like any other file (@samp{getline <
-"/inet/tcp/0/localhost/daytime")}.
+"/inet/tcp/0/time-a-g.nist.gov/daytime"}).
 
 @item
 @cindex @code{|} (vertical bar), @code{|&} operator (I/O)
@@ -923,34 +927,55 @@ like a full-duplex network connection.
 @end itemize
 
 In the earlier example, the @samp{|&} operator tells @code{getline}
-to read a line from the special file @file{/inet/tcp/0/localhost/daytime}.
+to read a line from the special file @file{/inet/tcp/0/time-a-g.nist.gov/daytime}.
 We could also have printed a line into the special file. But instead we just
-read a line with the time, printed it, and closed the connection.
+consumed an empty leading line, printed it, then read a line with the time,
+printed that, and closed the connection.
 (While we could just let @command{gawk} close the connection by finishing
 the program, in this @value{DOCUMENT}
 we are pedantic and always explicitly close the connections.)
+
+Network services like @file{daytime} are not really useful because
+there are so many better ways to print the current time.
+In the early days of TCP networking, such a service may have looked
+like a good idea for testing purposes. Later, simple TCP services
+like these have been used to teach TCP/IP networking and therefore
+you can still find much educational material of good quality on the
+Internet about such outdated services. The
+@uref{https://tf.nist.gov/tf-cgi/servers.cgi, list of servers}
+that still support the legacy service
+@uref{https://en.wikipedia.org/wiki/Daytime_Protocol, daytime}
+can be found at Wikipedia. We hesitated to use this service in
+this manual because it is hard to find servers that still support
+services like @file{daytime} openly to the Internet.
+Later on we will see that some of these nostalgic
+protocols have turned into security risks.
 
 @node Troubleshooting, Interacting, TCP Connecting, Using Networking
 @section Troubleshooting Connection Problems
 @cindex advanced features, network connections
 @c last comma is part of secondary
-@cindex troubleshooting, networks, connections
+@cindex troubleshooting @subentry networks @subentry connections
 It may well be that for some reason the program shown in the previous example does not run on your
 machine. When looking at possible reasons for this, you will learn much
-about typical problems that arise in network programming. First of all,
+about typical problems that arise in network programming.
+@ignore
+First of all,
 your implementation of @command{gawk} may not support network access
 because it is
 a pre-3.1 version or you do not have a network interface in your machine.
 Perhaps your machine uses some other protocol, such as
-DECnet or Novell's IPX. For the rest of this @value{CHAPTER},
-we will assume
-you work on a Unix machine that supports TCP/IP. If the previous example program does
-not run on your machine, it may help to replace the name
-@samp{localhost} with the name of your machine or its IP address. If it
-does, you could replace @samp{localhost} with the name of another machine
-in your vicinity---this way, the program connects to another machine.
+DECnet or Novell's IPX.
+@end ignore
+
+For the rest of this @value{CHAPTER}, we will assume you work on a POSIX-style
+system that supports TCP/IP. If the previous example program does not
+run on your machine, it may help to replace the value assigned to the variable
+@samp{daytime_server} with the name (or the IP address) of another server
+from the list mentioned above.
 Now you should see the date and time being printed by the program,
-otherwise your machine may not support the @samp{daytime} service.
+otherwise you may have run out of servers that support the @samp{daytime} service.
+
 Try changing the service to @samp{chargen} or @samp{ftp}. This way, the program
 connects to other services that should give you some response. If you are
 curious, you should have a look at your @file{/etc/services} file. It could
@@ -989,7 +1014,7 @@ irc         194/udp
 
 @cindex Linux
 @cindex GNU/Linux
-@cindex Microsoft Windows, networking
+@cindex Microsoft Windows @subentry networking
 Here, you find a list of services that traditional Unix machines usually
 support. If your GNU/Linux machine does not do so, it may be that these
 services are switched off in some startup script. Systems running some
@@ -1004,7 +1029,13 @@ their TCP/IP implementation to Microsoft Windows for Workgroups 3.11, but it was
 a rather rudimentary and half-hearted implementation. Nevertheless,
 the equivalent of @file{/etc/services} resides under
 @file{C:\WINNT\system32\drivers\etc\services} on Microsoft Windows 2000
-and Microsoft Windows XP.}
+and Microsoft Windows XP.
+On Microsoft Windows 7, 8 and 10 there is a directory
+@file{%WinDir%\System32\Drivers\Etc}
+that holds the
+@uref{https://support.microsoft.com/en-us/help/972034/how-to-reset-the-hosts-file-back-to-the-default, @file{hosts} file}
+and probably also a
+@uref{https://www.ibm.com/support/knowledgecenter/SSRNYG_7.2.1/com.ibm.rational.synergy.install.win.doc/topics/sg_r_igw_services_file.html, @file{services} file}.}
 The first column of the file gives the name of the service, and
 the second column gives a unique number and the protocol that one can use to connect to
 this service.
@@ -1015,62 +1046,70 @@ well as UDP.
 @node Interacting, Setting Up, Troubleshooting, Using Networking
 @section Interacting with a Network Service
 
-The next program makes use of the possibility to really interact with a
+The next program begins really interacting with a
 network service by printing something into the special file. It asks the
 so-called @command{finger} service if a user of the machine is logged in. When
-testing this program, try to change @samp{localhost} to
-some other machine name in your local network:
+testing this program, try to change the variable @samp{finger_server}
+to some other machine name in your local network:
+@c This really worked in 2020.
+@c Thanks to some people at cmu.edu who keep this service alive.
+@c https://www.techrepublic.com/article/everything-you-need-to-know-about-tcp-ips-finger-utility/
 
-@c system if test ! -d eg         ; then mkdir eg         ; fi
-@c system if test ! -d eg/network ; then mkdir eg/network ; fi
 @example
 @c file eg/network/fingerclient.awk
 BEGIN @{
-  NetService = "/inet/tcp/0/localhost/finger"
-  print "@var{name}" |& NetService
-  while ((NetService |& getline) > 0)
+  finger_server     = "andrew.cmu.edu"
+  finger_connection = "/inet/tcp/0/" finger_server "/finger"
+  print "wnace" |& finger_connection
+  while ((finger_connection |& getline) > 0)
     print $0
-  close(NetService)
+  close(finger_connection)
 @}
 @c endfile
 @end example
 
 After telling the service on the machine which user to look for,
 the program repeatedly reads lines that come as a reply. When no more
-lines are coming (because the service has closed the connection), the
-program also closes the connection. Try replacing @code{"@var{name}"} with your
-login name (or the name of someone else logged in).  For a list
-of all users currently logged in, replace @var{name} with an empty string
-(@code{""}).
+lines are available (because the service has closed the connection), the
+program also closes the connection. If you tried to replace @samp{finger_server}
+with some other server name, the script probably reported being unable to
+open the connection, because most servers today no longer support this
+service.  Try replacing the login name of Professor Nace (@code{wnace})
+with another login name (like @code{help}). You will receive a list of
+login names similar to the one you asked for. In the 1980s you could get
+a list of all users currently logged in by asking for an empty string (@code{""}).
 
 @cindex Linux
 @cindex GNU/Linux
-The final @code{close()} command could be safely deleted from
+The final @code{close()} call could be safely deleted from
 the above script, because the operating system closes any open connection
-by default when a script reaches the end of execution. In order to avoid
+by default when a script reaches the end of execution. But, in order to avoid
 portability problems, it is best to always close connections explicitly.
+@c FIXME: This following statement isn't really true; gawk flushes
+@c and closes all open files before exiting.
 With the Linux kernel,
 for example, proper closing results in flushing of buffers. Letting
 the close happen by default may result in discarding buffers.
 
 When looking at @file{/etc/services} you may have noticed that the
 @samp{daytime} service is also available with @samp{udp}. In the earlier
-example, change @samp{tcp} to @samp{udp},
-and change @samp{finger} to @samp{daytime}.
-After starting the modified program, you see the expected day and time message.
-The program then hangs, because it waits for more lines coming from the
-service. However, they never come. This behavior is a consequence of the
+examples, change @samp{tcp} to @samp{udp} and try if the @samp{finger} and @samp{daytime}
+clients still work as expected. They probably will not respond because
+a wise administrator switched off these services.
+But if they do, you may see the expected day and time message.
+The program then hangs, because it waits for more lines to come from the
+service. However, they never do. This behavior is a consequence of the
 differences between TCP and UDP. When using UDP, neither party is
 automatically informed about the other closing the connection.
 Continuing to experiment this way reveals many other subtle
-differences between TCP and UDP. To avoid such trouble, one should always
+differences between TCP and UDP. To avoid such trouble, you should always
 remember the advice Douglas E.@: Comer and David Stevens give in
 Volume III of their series @cite{Internetworking With TCP}
 (page 14):
 
-@cindex TCP (Transmission Control Protocol), UDP and
-@cindex UDP (User Datagram Protocol), TCP and
-@cindex Internet, See networks
+@cindex TCP (Transmission Control Protocol) @subentry UDP and
+@cindex UDP (User Datagram Protocol) @subentry TCP and
+@cindex Internet @seeentry{networks}
 @quotation
 When designing client-server applications, beginners are strongly
 advised to use TCP because it provides reliable, connection-oriented
@@ -1079,12 +1118,30 @@ reliability, the application requires hardware broadcast or multicast,
 or the application cannot tolerate virtual circuit overhead.
 @end quotation
 
+This advice is actually quite dated and we hesitated to repeat it here.
+But we left it in because we are still observing beginners running
+into this pitfall. While this advice has aged quite well, some other
+ideas from the 1980s have not. The @samp{finger} service may still be
+available in Microsoft
+@uref{https://docs.microsoft.com/en-us/windows-server/administration/windows-commands/finger, Windows Server 2019},
+but it turned out to be a never-ending cause of trouble. First of all,
+it is now obvious that a server should never reveal personal data about
+its users to anonymous client software that connects over the wild wild Internet.
+So every server on the Internet should reject @samp{finger} requests
+(by disabling the port and by disabling the software serving this port).
+But things got even worse in 2020 when it turned out that even the client
+software (the @samp{finger} command documented in the link above) is a
+security problem. A tool called
+@uref{https://seclists.org/fulldisclosure/2020/Sep/30, DarkFinger}
+allows to leverage the Microsoft Windows @samp{finger.exe} as a file downloader
+and help evade network security devices.
+
 @node Setting Up, Email, Interacting, Using Networking
 @section Setting Up a Service
 @c last comma is part of tertiary
-@cindex networks, @command{gawk} and, service@comma{} establishing
+@cindex networks @subentry @command{gawk} and @subentry service@comma{} establishing
 @c last comma is part of tertiary
-@cindex @command{gawk}, networking, service@comma{} establishing
+@cindex @command{gawk} @subentry networking @subentry service@comma{} establishing
 The preceding programs behaved as clients that connect to a server somewhere
 on the Internet and request a particular service. Now we set up such a
 service to mimic the behavior of the @samp{daytime} service.
@@ -1104,32 +1161,36 @@ of the special @value{FN} because we are setting up a server, not a client:
 @cindex @command{finger} utility
 @cindex servers
 @example
+@c file eg/network/daytimeserver.awk
 BEGIN @{
   print strftime() |& "/inet/tcp/8888/0/0"
   close("/inet/tcp/8888/0/0")
 @}
+@c endfile
 @end example
 
 Now open another window on the same machine.
 Copy the client program given as the first example
 (@pxref{TCP Connecting, ,Establishing a TCP Connection})
-to a new file and edit it, changing the name @samp{daytime} to
-@samp{8888}.  Then start the modified client.  You should get a reply
-like this:
+to a new file and edit it, changing the variable @samp{daytime_server} to
+@samp{localhost} and the port name @samp{daytime} to @samp{8888}.
+Then start the modified client.  You should get a reply like this:
 
 @example
-Sat Sep 27 19:08:16 CEST 1997
+$ @kbd{gawk -f awklib/eg/network/daytimeclient.awk}
+@print{} Sun Dec 27 17:33:57 CET 2020
+@print{} Sun Dec 27 17:33:57 CET 2020
 @end example
 
 @noindent
 Both programs explicitly close the connection.
 
 @c first comma is part of primary
-@cindex Microsoft Windows, networking, ports
-@cindex networks, ports, reserved
+@cindex Microsoft Windows @subentry networking @subentry ports
+@cindex networks @subentry ports @subentry reserved
 @cindex Unix, network ports and
 Now we will intentionally make a mistake to see what happens when the name
-@samp{8888} (the so-called port) is already used by another service.
+@samp{8888} (the port) is already used by another service.
 Start the server
 program in both windows. The first one works, but the second one
 complains that it could not open the connection. Each port on a single
@@ -1144,6 +1205,12 @@ than 1024 (@samp{echo} is at port 7) are reserved for @code{root}.
 On machines running some flavor of Microsoft Windows, there is no restriction
 that reserves ports 1 to 1024 for a privileged user; hence, you can start
 an @samp{echo} server there.
+Even in later version of Microsoft Windows, this restriction of
+the Unix world seems to have never been adopted
+@uref{https://social.technet.microsoft.com/Forums/windowsserver/en-US/334f0770-eda9-475a-a27f-46b80ab7e872/does-windows10server2016-have-privileged-ports-?forum=ws2016,
+@cite{Does windows(10/server-2016) have privileged ports?}}.
+In Microsoft Windows it is the level of the firewall that handles
+port access restrictions, not the level of the operating system's kernel.
 
 Turning this short server program into something really useful is simple.
 Imagine a server that first reads a @value{FN} from the client through the
@@ -1152,14 +1219,16 @@ sends a result back to the client. The server-side processing
 could be:
 
 @example
+@c file eg/network/catpipeserver.awk
 BEGIN @{
   NetService = "/inet/tcp/8888/0/0"
-  NetService |& getline
-  CatPipe    = ("cat " $1)    # sets $0 and the fields
+  NetService |& getline       # sets $0 and the fields
+  CatPipe    = ("cat " $1)
   while ((CatPipe | getline) > 0)
     print $0 |& NetService
   close(NetService)
 @}
+@c endfile
 @end example
 
 @noindent
@@ -1172,20 +1241,53 @@ example, you can see how simple it is to open up a security hole on your
 machine. If you allow clients to connect to your machine and
 execute arbitrary commands, anyone would be free to do @samp{rm -rf *}.
 
+The client side connects to port number 8888 on the server side and
+sends the name of the desired file to be sent across the same TCP
+connection. The main loop reads all content coming in from the TCP
+connection line-wise and prints it.
+
+@example
+@c file eg/network/catpipeclient.awk
+BEGIN @{
+  NetService = "/inet/tcp/0/localhost/8888"
+  print "README" |& NetService
+  while ((NetService |& getline) > 0)
+    print $0
+  close(NetService)
+@}
+@c endfile
+@end example
+
 @node Email, Web page, Setting Up, Using Networking
 @section Reading Email
 @cindex RFC 1939
 @cindex RFC 821
-@cindex @command{gawk}, networking, See Also email
-@cindex networks, @command{gawk} and, See Also email
+@cindex @command{gawk} @subentry networking @subentry email
+@cindex networks @subentry @command{gawk} and @subentry email
 @cindex POP (Post Office Protocol)
 @cindex SMTP (Simple Mail Transfer Protocol)
 @cindex Post Office Protocol (POP)
 @cindex Simple Mail Transfer Protocol (SMTP)
 The distribution of email is usually done by dedicated email servers that
-communicate with your machine using special protocols. To receive email, we
-will use the Post Office Protocol (POP).  Sending can be done with the much
-older Simple Mail Transfer Protocol (SMTP).
+communicate with your machine using special protocols.
+In this @value{SECTION} we show how simple the basic steps are.@footnote{No,
+things are @emph{not} that simple any more. Things @emph{were} that simple
+when email was young in the 20th century. These days, unencrypted plaintext
+authentication is usually disallowed on non-secure connections.
+Since encryption of network connections is not supported in @command{gawk},
+you should not use @command{gawk} to write such scripts.
+We left this @value{SECTION} as it is because it demonstrates how
+application level protocols work in principle (a command being issued
+by the client followed by a reply coming back). Unfortunately, modern
+application level protocols are much more flexible in the sequence of
+actions. For example, modern POP3 servers may introduce themselves
+with an unprompted initial line that arrives before the initial command.
+Dealing with such variance is not worth the effort in @command{gawk}.}
+@c FIXME: This would be the proper place to refer to Arnold's work on
+@c writing SMTP client and server.
+
+To receive email, we use the Post Office Protocol (POP).  Sending can
+be done with the much older Simple Mail Transfer Protocol (SMTP).
 
 @cindex email
 When you type in the following program, replace the @var{emailhost} by the
@@ -1197,10 +1299,11 @@ name or password. Replace them in the program and it
 shows you the first email the server has in store:
 
 @example
+@c file eg/network/mailpopclient.awk
 BEGIN @{
   POPService  = "/inet/tcp/0/@var{emailhost}/pop3"
   RS = ORS = "\r\n"
-  print "user @var{name}"            |& POPService
+  print "user @var{name}"             |& POPService
   POPService                    |& getline
   print "pass @var{password}"         |& POPService
   POPService                    |& getline
@@ -1213,14 +1316,15 @@ BEGIN @{
   print $0
   close(POPService)
 @}
+@c endfile
 @end example
 
 @cindex RFC 1939
-@cindex record separators, POP and
-@cindex @code{RS} variable, POP and
-@cindex @code{ORS} variable, POP and
+@cindex record separators @subentry POP and
+@cindex @code{RS} variable @subentry POP and
+@cindex @code{ORS} variable @subentry POP and
 @cindex POP (Post Office Protocol)
-The record separators @code{RS} and @code{ORS} are redefined because the
+We redefine the record separators @code{RS} and @code{ORS} because the
 protocol (POP) requires CR-LF to separate lines. After identifying
 yourself to the email service, the command @samp{retr 1} instructs the
 service to send the first of all your email messages in line. If the service
@@ -1238,7 +1342,7 @@ message it reads, but instead leaves it on the server.
 @section Reading a Web Page
 @cindex web pages
 @cindex HTTP (Hypertext Transfer Protocol)
-@cindex Hypertext Transfer Protocol, See HTTP
+@cindex Hypertext Transfer Protocol @seeentry{HTTP}
 @cindex RFC 2068
 @cindex RFC 2616
 
@@ -1268,10 +1372,10 @@ BEGIN @{
 @end example
 
 @cindex RFC 1945
-@cindex record separators, HTTP and
-@cindex @code{RS} variable, HTTP and
-@cindex @code{ORS} variable, HTTP and
-@cindex HTTP (Hypertext Transfer Protocol), record separators and
+@cindex record separators @subentry HTTP and
+@cindex @code{RS} variable @subentry HTTP and
+@cindex @code{ORS} variable @subentry HTTP and
+@cindex HTTP (Hypertext Transfer Protocol) @subentry record separators and
 @cindex HTML (Hypertext Markup Language)
 @cindex Hypertext Markup Language (HTML)
 Again, lines are separated by a redefined @code{RS} and @code{ORS}.
@@ -1283,7 +1387,18 @@ engine). Version 1.0 added the request methods @code{HEAD} and
 @code{POST}. The current version of HTTP is 1.1,@footnote{Version 1.0 of
 HTTP was defined in RFC 1945.  HTTP 1.1 was initially specified in RFC
 2068. In June 1999, RFC 2068 was made obsolete by RFC 2616, an update
-without any substantial changes.} and knows the additional request
+without any substantial changes.}@footnote{@uref{https://en.wikipedia.org/wiki/HTTP/2,
+Version 2.0 of HTTP}
+was defined in
+@uref{https://tools.ietf.org/html/rfc7540,RFC7540}
+and was derived from Google's
+@uref{https://en.wikipedia.org/wiki/SPDY,SPDY}
+protocol. It is said to be widely supported. As of 2020 the most popular
+web sites still identify themselves as supporting HTTP/1.1.
+@uref{https://en.wikipedia.org/wiki/HTTP/3, Version 3.0 of HTTP}
+is still a draft and was derived from Google's
+@uref{https://en.wikipedia.org/wiki/QUIC,QUIC} protocol.}
+and knows the additional request
 methods @code{OPTIONS}, @code{PUT}, @code{DELETE}, and @code{TRACE}.
 You can fill in any valid web address, and the program prints the
 HTML code of that page to your screen.
@@ -1294,17 +1409,17 @@ then you get the body of the page in HTML.  The lines of the headers also
 have the same form as in POP. There is the name of a parameter,
 then a colon, and finally the value of that parameter.
 
-@cindex CGI (Common Gateway Interface), dynamic web pages and
-@cindex Common Gateway Interface, See CGI
+@cindex CGI (Common Gateway Interface) @subentry dynamic web pages and
+@cindex Common Gateway Interface @seeentry{CGI}
 @cindex GIF image format
 @cindex PNG image format
-@cindex images, retrieving over networks
+@cindex images @subentry retrieving over networks
 Images (@file{.png} or @file{.gif} files) can also be retrieved this way,
 but then you
 get binary data that should be redirected into a file. Another
 application is calling a CGI (Common Gateway Interface) script on some
 server. CGI scripts are used when the contents of a web page are not
-constant, but generated instantly at the moment you send a request
+constant, but generated on demand at the moment you send a request
 for the page. For example, to get a detailed report about the current
 quotes of Motorola stock shares, call a CGI script at Yahoo! with
 the following:
@@ -1318,7 +1433,6 @@ You can also request weather reports this way.
 
 @node Primitive Service, Interacting Service, Web page, Using Networking
 @section A Primitive Web Service
-@c STARTOFRANGE webser
 @cindex web service
 Now we know enough about HTTP to set up a primitive web service that just
 says @code{"Hello, world"} when someone connects to it with a browser.
@@ -1344,8 +1458,8 @@ Send a line to tell the browser how many bytes follow in the
 body of the message. This was not necessary earlier because both
 parties knew that the document ended when the connection closed. Nowadays
 it is possible to stay connected after the transmission of one web page.
-This is to avoid the network traffic necessary for repeatedly establishing
-TCP connections for requesting several images. Thus, there is the need to tell
+This avoids the network traffic necessary for repeatedly establishing
+TCP connections for requesting several images. Thus, it is necessary to tell
 the receiving party how many bytes will be sent. The header is terminated
 as usual with an empty line.
 
@@ -1386,11 +1500,11 @@ use a proxy to connect to your machine.
 
 @node Interacting Service, Simple Server, Primitive Service, Using Networking
 @section A Web Service with Interaction
-@cindex @command{gawk}, web and, See web service
-@cindex web browsers, See web service
+@cindex @command{gawk} @subentry web and @seeentry{web service}
+@cindex web browsers, @seeentry{web service}
 @c comma is part of primary
 @cindex HTTP server, core logic
-@cindex servers, HTTP
+@cindex servers @subentry HTTP
 @ifinfo
 This node shows how to set up a simple web server.
 The subnode is a library file that we will use with all the examples in
@@ -1409,8 +1523,7 @@ graphical user interface (GUI).
 Each HTTP event that the user triggers by some action within the browser
 is received in this central procedure. Parameters and menu choices are
 extracted from this request, and an appropriate measure is taken according to
-the user's choice.
-For example:
+the user's choice:
 
 @cindex HTTP server, core logic
 @example
@@ -1470,7 +1583,7 @@ applies to the port number. These values are inserted later into the
 HTML content of the web pages to refer to the home system.
 
 Each server that is built around this core has to initialize some
-application-dependent variables (such as the default home page) in a procedure
+application-dependent variables (such as the default home page) in a function
 @code{SetUpServer()}, which is called immediately before entering the
 infinite loop of the server. For now, we will write an instance that
 initiates a trivial interaction.  With this home page, the client user
@@ -1499,8 +1612,10 @@ initialized, the server can start communicating to a client browser.
 @cindex RFC 2068
 It does so by printing the HTTP header into the network connection
 (@samp{print @dots{} |& HttpService}). This command blocks execution of
-the server script until a client connects. If this server
-script is compared with the primitive one we wrote before, you will notice
+the server script until a client connects.
+
+If you compare this server
+script with the primitive one we wrote before, you will notice
 two additional lines in the header. The first instructs the browser
 to close the connection after each request. The second tells the
 browser that it should never try to @emph{remember} earlier requests
@@ -1593,8 +1708,8 @@ This program can be started on the same host that runs your browser.
 Then let your browser point to @uref{http://localhost:8080}.
 
 @cindex XBM image format
-@cindex images, in web pages
-@cindex web pages, images in
+@cindex images @subentry in web pages
+@cindex web pages @subentry images in
 @cindex GNUPlot utility
 It is also possible to include images into the HTML pages.
 Most browsers support the not very well-known
@@ -1610,12 +1725,10 @@ by calling the tool with the @code{system()} function or through a pipe.
 @quotation
 @i{HTTP is like being married: you have to be able to handle whatever
 you're given, while being very careful what you send back.}@*
-Phil Smith III,@*
-@uref{http://www.netfunny.com/rhf/jokes/99/Mar/http.html}
+@author Phil Smith III,@* @uref{http://www.netfunny.com/rhf/jokes/99/Mar/http.html}
 @end quotation
 
-@c STARTOFRANGE cgilib
-@cindex CGI (Common Gateway Interface), library
+@cindex CGI (Common Gateway Interface) @subentry library
 In @ref{Interacting Service, ,A Web Service with Interaction},
 we saw the function @code{CGI_setup()} as part of the web server
 ``core logic'' framework. The code presented there handles almost
@@ -1626,7 +1739,7 @@ the hexadecimal value: @samp{%26}.  These encoded values should be
 decoded.
 Following is a simple library to perform these tasks.
 This code is used for all web server examples
-used throughout the rest of this @value{DOCUMENT}.
+throughout the rest of this @value{DOCUMENT}.
 If you want to use it for your own web server, store the source code
 into a file named @file{inetlib.awk}. Then you can include
 these functions into your code by placing the following statement
@@ -1637,6 +1750,7 @@ into your program
 @@include inetlib.awk
 @end example
 
+@c FIXME: Needs revising, now that gawk has @include
 @noindent
 But beware, this mechanism is
 only possible if you invoke your web server script with @command{igawk}
@@ -1711,7 +1825,7 @@ BEGIN @{
   @}
 @}
 
-function CGI_setup(   method, uri, version, i)
+function CGI_setup(method, uri, version,    i)
 @{
     delete GETARG
     delete MENU
@@ -1804,6 +1918,7 @@ BEGIN @{
 @c endfile
 @end example
 
+@c FIXME: Rerun to make sure still correct
 And this is the result when we run it:
 
 @c artificial line wrap in last output line
@@ -1829,10 +1944,8 @@ p2=stuff%26junk&percent=a %25 sign
 
 @node Simple Server, Caveats, Interacting Service, Using Networking
 @section A Simple Web Server
-@c STARTOFRANGE webserx
 @cindex web servers
-@c STARTOFRANGE serweb
-@cindex servers, web
+@cindex servers @subentry web
 In the preceding @value{SECTION}, we built the core logic for event-driven GUIs.
 In this @value{SECTION}, we finally extend the core to a real application.
 No one would actually write a commercial web server in @command{gawk}, but
@@ -1878,6 +1991,7 @@ This approach can be used to implement other kinds of servers.
 The only changes needed to do so are hidden in the functions
 @code{SetUpServer()} and @code{HandleGET()}. Perhaps it might be necessary to
 implement other HTTP methods.
+@c FIXME: @include?
 The @command{igawk} program that comes with @command{gawk}
 may be useful for this process.
 
@@ -1889,7 +2003,7 @@ items, etc.).
 
 The function @code{HandleGET()} is a nested case selection that decides
 which page the user wants to see next.  Each nesting level refers to a menu
-level of the GUI. Each case implements a certain action of the menu. On the
+level of the GUI. Each case implements a certain action of the menu. At the
 deepest level of case selection, the handler essentially knows what the
 user wants and stores the answer into the variable that holds the HTML
 page contents:
@@ -1929,7 +2043,7 @@ function HandleGET() @{
 
 Now we are down to the heart of ELIZA, so you can see how it works.
 Initially the user does not say anything; then ELIZA resets its money
-counter and asks the user to tell what comes to mind open heartedly.
+counter and asks the user to tell what comes to mind open-heartedly.
 The subsequent answers are converted to uppercase characters and stored for
 later comparison. ELIZA presents the bill when being confronted with
 a sentence that contains the phrase ``shut up.'' Otherwise, it looks for
@@ -2197,17 +2311,20 @@ function SetUpEliza() @{
 @cindex Humphrys, Mark
 @cindex ELIZA program
 Some interesting remarks and details (including the original source code
-of ELIZA) are found on Mark Humphrys' home page.  Yahoo!  also has a
-page with a collection of ELIZA-like programs. Many of them are written
-in Java, some of them disclosing the Java source code, and a few even
-explain how to modify the Java source code.
+of ELIZA) are found on Mark Humphrys's home page
+@uref{https://computing.dcu.ie/~humphrys/eliza.html,
+@cite{How my program passed the Turing Test}}.
+Wikipedia provides much background information about
+@uref{https://en.wikipedia.org/wiki/ELIZA, ELIZA},
+including the original design of the software and
+its early implementations.
 
 @node Caveats, Challenges, Simple Server, Using Networking
 @section Network Programming Caveats
 
-@cindex networks, @command{gawk} and, troubleshooting
-@cindex @command{gawk}, networking, troubleshooting
-@cindex troubleshooting, @command{gawk}, networks
+@cindex networks @subentry @command{gawk} and @subentry troubleshooting
+@cindex @command{gawk} @subentry networking @subentry troubleshooting
+@cindex troubleshooting @subentry @command{gawk}, networks
 By now it should be clear
 that debugging a networked application is more
 complicated than debugging a single-process single-hosted application.
@@ -2226,7 +2343,7 @@ If the party at the other end is running or not
 The state of the party at the other end
 @end itemize
 
-@cindex troubleshooting, networks, timeouts
+@cindex troubleshooting @subentry networks @subentry timeouts
 The most difficult problems for a beginner arise from the hidden states of the
 underlying network. After closing a TCP connection, it's often necessary to wait
 a short while before reopening the connection. Even more difficult is the
@@ -2234,7 +2351,7 @@ establishment of a connection that previously ended with a ``broken pipe.''
 Those connections have to ``time out'' for a minute or so
 before they can reopen.
 Check this with the command @samp{netstat -a}, which
-provides a list of still ``active'' connections.
+provides a list of still-active connections.
 
 @node Challenges, , Caveats, Using Networking
 @section Where To Go From Here
@@ -2393,7 +2510,7 @@ of all the newsgroups, mailing lists and FAQs on the Internet.
 @chapter Some Applications and Techniques
 In this @value{CHAPTER}, we look at a number of self-contained
 scripts, with an emphasis on concise networking.  Along the way, we
-work towards creating building blocks that encapsulate often needed
+work towards creating building blocks that encapsulate often-needed
 functions of the networking world, show new techniques that
 broaden the scope of problems that can be solved with @command{gawk}, and
 explore leading edge technology that may shape the future of networking.
@@ -2411,12 +2528,13 @@ execution provides @command{gawk} with an interface to the most widely
 accepted standard for GUIs: the web browser. Now, @command{gawk} can rival even
 Tcl/Tk.
 
-@cindex Tcl/Tk, @command{gawk} and
-Tcl and @command{gawk} have much in common. Both are simple scripting languages
-that allow us to quickly solve problems with short programs. But Tcl has Tk
-on top of it, and @command{gawk} had nothing comparable up to now. While Tcl
-needs a large and ever-changing library (Tk, which was bound to the X Window
-System until recently), @command{gawk} needs just the networking interface
+@cindex Tcl/Tk @subentry @command{gawk} and
+Tcl and @command{gawk} have much in common. Both are simple scripting
+languages that allow us to quickly solve problems with short programs. But
+Tcl has Tk on top of it, and @command{gawk} had nothing comparable up
+to now. While Tcl needs a large and ever-changing library (Tk, which was
+originally bound to the X Window System), @command{gawk} needs just the
+networking interface
 and some kind of browser on the client's side. Besides better portability,
 the most important advantage of this approach (embracing well-established
 standards such HTTP and HTML) is that @emph{we do not need to change the
@@ -2439,7 +2557,7 @@ We can use HTML, JavaScript, VRML, or whatever else comes along to do our work.
 @node PANIC, GETURL, Some Applications and Techniques, Some Applications and Techniques
 @section PANIC: An Emergency Web Server
 @cindex PANIC program
-@cindex networks, See Also web pages
+@cindex networks @seealso{web pages}
 @cindex web service
 At first glance, the @code{"Hello, world"} example in
 @ref{Primitive Service, ,A Primitive Web Service},
@@ -2450,11 +2568,11 @@ site is not working. When a web server breaks down, it makes a difference
 if customers get a strange ``network unreachable'' message, or a short message
 telling them that the server has a problem. In such an emergency,
 the hard disk and everything on it (including the regular web service) may
-be unavailable. Rebooting the web server off a diskette makes sense in this
+be unavailable. Rebooting the web server off a USB drive makes sense in this
 setting.
 
 To use the PANIC program as an emergency web server, all you need are the
-@command{gawk} executable and the program below on a diskette. By default,
+@command{gawk} executable and the program below on a USB drive. By default,
 it connects to port 8080. A different value may be supplied on the
 command line:
 
@@ -2484,7 +2602,7 @@ BEGIN @{
 @node GETURL, REMCONF, PANIC, Some Applications and Techniques
 @section GETURL: Retrieving Web Pages
 @cindex GETURL program
-@cindex web pages, retrieving
+@cindex web pages @subentry retrieving
 GETURL is a versatile building block for shell scripts that need to retrieve
 files from the Internet. It takes a web address as a command-line parameter and
 tries to retrieve the contents of this address. The contents are printed
@@ -2494,7 +2612,7 @@ could analyze the contents and extract the text or the links. An ASCII
 browser could be written around GETURL. But more interestingly, web robots are
 straightforward to write on top of GETURL. On the Internet, you can find
 several programs of the same name that do the same job. They are usually
-much more complex internally and at least 10 times longer.
+much more complex internally and at least 10 times as big.
 
 At first, GETURL checks if it was called with exactly one web address.
 Then, it checks if the user chose to use a special proxy server whose name
@@ -2750,11 +2868,11 @@ BEGIN @{
 Another thing that may look strange is the way GETURL is called.
 Before calling GETURL, we have to check if the proxy variables need
 to be passed on. If so, we prepare strings that will become part
-of the command line later. In @code{GetHeader()}, we store these strings
+of the command line later. In @code{GetHeader}, we store these strings
 together with the longest part of the command line. Later, in the loop
-over the URLs, @code{GetHeader()} is appended with the URL and a redirection
+over the URLs, @code{GetHeader} is appended with the URL and a redirection
 operator to form the command that reads the URL's header over the Internet.
-GETURL always produces the headers over @file{/dev/stderr}. That is
+GETURL always sends the headers to @file{/dev/stderr}. That is
 the reason why we need the redirection operator to have the header
 piped in.
 
@@ -2794,8 +2912,8 @@ of links are missing in the regular expression.
 However, it is straightforward to add them, if doing so is necessary for other tasks.
 
 This program reads an HTML file and prints all the HTTP links that it finds.
-It relies on @command{gawk}'s ability to use regular expressions as record
-separators. With @code{RS} set to a regular expression that matches links,
+It relies on @command{gawk}'s ability to use regular expressions as the record
+separator. With @code{RS} set to a regular expression that matches links,
 the second action is executed each time a non-empty link is found.
 We can find the matching link itself in @code{RT}.
 
@@ -2805,7 +2923,7 @@ This simple program prints shell commands that can be piped into @command{sh}
 for execution.  This way it is possible to first extract
 the links, wrap shell commands around them, and pipe all the shell commands
 into a file. After editing the file, execution of the file retrieves
-exactly those files that we really need. In case we do not want to edit,
+only those files that we really need. In case we do not want to edit,
 we can retrieve all the pages like this:
 
 @smallexample
@@ -2884,9 +3002,8 @@ sure that none of the above reveals too much information about your system.
 @cindex PNG image format
 @cindex PS image format
 @cindex Boutell, Thomas
-@iftex
-@image{statist,3in}
-@end iftex
+@image{gawk_statist,3in}
+
 In the HTTP server examples we've shown thus far, we never present an image
 to the browser and its user. Presenting images is one task. Generating
 images that reflect some user input and presenting these dynamically
@@ -2896,12 +3013,13 @@ files.@footnote{Due to licensing problems, the default
 installation of GNUPlot disables the generation of @file{.gif} files.
 If your installed version does not accept @samp{set term gif},
 just download and install the most recent version of GNUPlot and the
-@uref{http://www.boutell.com/gd/, GD library}
+@uref{https://libgd.github.io/, GD library}
 by Thomas Boutell.
 Otherwise you still have the chance to generate some
 ASCII-art style images with GNUPlot by using @samp{set term dumb}.
 (We tried it and it worked.)}
 
+@cindex Numerical Recipes
 The program we develop takes the statistical parameters of two samples
 and computes the t-test statistics. As a result, we get the probabilities
 that the means and the variances of both samples are the same. In order to
@@ -2915,7 +3033,6 @@ of GNUPlot. As a side effect, we learn how to use GNUPlot as a
 sophisticated calculator. The comparison of means is done as in @code{tutest},
 paragraph 14.2, page 613, and the comparison of variances is done as in @code{ftest},
 page 611 in @cite{Numerical Recipes}.
-@cindex Numerical Recipes
 
 As usual, we take the site-independent code for servers and append
 our own functions @code{SetUpServer()} and @code{HandleGET()}:
@@ -3064,7 +3181,7 @@ transmit, but rather raw image data to contain in the body.
 
 Most of the work is done in the second menu choice. It starts with a
 strange JavaScript code snippet. When first implementing this server,
-we used a short @code{@w{"<IMG SRC="} MyPrefix "/Image>"} here. But then
+we used a short @samp{@w{"<IMG SRC="} MyPrefix "/Image>"} here. But then
 browsers got smarter and tried to improve on speed by requesting the
 image and the HTML code at the same time. When doing this, the browser
 tries to build up a connection for the image request while the request for
@@ -3129,7 +3246,7 @@ where it can be viewed by the user.
 It is probably better not to mix up so many different languages.
 The result is not very readable.  Furthermore, the
 statistical part of the server does not take care of invalid input.
-Among others, using negative variances will cause invalid results.
+Among others, using negative variances causes invalid results.
 
 @node MAZE, MOBAGWHO, STATIST, Some Applications and Techniques
 @section MAZE: Walking Through a Maze In Virtual Reality
@@ -3139,11 +3256,11 @@ Among others, using negative variances will cause invalid results.
 @quotation
 @cindex Perlis, Alan
 @i{In the long run, every program becomes rococo, and then rubble.}@*
-Alan Perlis
+@author Alan Perlis
 @end quotation
 
 By now, we know how to present arbitrary @samp{Content-type}s to a browser.
-In this @value{SECTION}, our server will present a 3D world to our browser.
+In this @value{SECTION}, our server presents a 3D world to our browser.
 The 3D world is described in a scene description language (VRML,
 Virtual Reality Modeling Language) that allows us to travel through a
 perspective view of a 2D maze with our browser. Browsers with a
@@ -3154,7 +3271,7 @@ VRML. If you have never written
 any VRML code, have a look at
 the VRML FAQ.
 Presenting a static VRML scene is a bit trivial; in order to expose
-@command{gawk}'s new capabilities, we will present a dynamically generated
+@command{gawk}'s capabilities, we will present a dynamically generated
 VRML scene. The function @code{SetUpServer()} is very simple because it
 only sets the default HTML page and initializes the random number
 generator. As usual, the surrounding server lets you browse the maze.
@@ -3289,8 +3406,8 @@ function MakeMaze(x, y) @{
 @i{There are two ways of constructing a software design: One way is to
 make it so simple that there are obviously no deficiencies, and the
 other way is to make it so complicated that there are no obvious
-deficiencies.} @*
-C. A. R. Hoare
+deficiencies.}
+@author C.A.R.@: Hoare
 @end quotation
 
 A @dfn{mobile agent} is a program that can be dispatched from a computer and
@@ -3304,7 +3421,7 @@ paradigm that enables us to significantly increase the efficiency
 of our work. Mobile agents could become the mediators between users and
 the networking world. For an unbiased view at this technology,
 see the remarkable paper @cite{Mobile Agents: Are they a good
-idea?}.@footnote{@uref{http://www.research.ibm.com/massive/mobag.ps}}
+idea?}.@footnote{@uref{https://link.springer.com/chapter/10.1007/3-540-62852-5_4}}
 
 When trying to migrate a process from one system to another,
 a server process is needed on the receiving side. Depending on the kind
@@ -3343,9 +3460,7 @@ process with a dedicated protocol specialized for receiving mobile agents.
 Our agent example abuses a common web server as a migration tool. So, it needs a
 universal CGI script on the receiving side (the web server). The receiving script is
 activated with a @code{POST} request when placed into a location like
-@file{/httpd/cgi-bin/PostAgent.sh}. Make sure that the server system uses a
-version of @command{gawk} that supports network access (Version 3.1 or later;
-verify with @samp{gawk --version}).
+@file{/httpd/cgi-bin/PostAgent.sh}.
 
 @example
 @c file eg/network/PostAgent.sh
@@ -3495,7 +3610,7 @@ arrival at its new home site. One of the serious obstacles in implementing
 a framework for mobile agents is that it does not suffice to migrate the
 code. It is also necessary to migrate the state of execution of the agent. In
 contrast to @cite{Agent Tcl}, this program does not try to migrate the complete set
-of variables. The following conventions are used:
+of variables. The following conventions apply:
 
 @itemize @bullet
 @item
@@ -3514,7 +3629,7 @@ takes part in migration has to be an element of this array.
 
 Now it's clear what happens to the @code{Label} parameter of the
 function @code{migrate()}. It is copied into @code{MOBVAR["Label"]} and
-travels alongside the other data. Since travelling takes place via HTTP,
+travels alongside the other data. Since traveling takes place via HTTP,
 records must be separated with @code{"\r\n"} in @code{RS} and
 @code{ORS} as usual. The code assembly for migration takes place in
 three steps:
@@ -3535,7 +3650,7 @@ standard output to avoid irritating the server.
 @end itemize
 
 The application-independent framework is now almost complete. What follows
-is the @code{END} pattern that is executed  when the mobile agent has
+is the @code{END} pattern which executes when the mobile agent has
 finished reading its own code. First, it checks whether it is already
 running on a remote host or not. In case initialization has not yet taken
 place, it starts @code{MyInit()}. Otherwise (later, on a remote host), it
@@ -3607,9 +3722,10 @@ is time to start the real work by appending the host's name to the
 result string, and reading line by line who is logged in on this host.
 A very annoying circumstance is the fact that the elements of
 @code{MOBVAR} cannot hold the newline character (@code{"\n"}). If they
-did, migration of this string did not work because the string didn't
+did, migration of this string would not work because the string wouldn't
 obey the syntax rule for a string in @command{gawk}.
 @code{SUBSEP} is used as a temporary replacement.
+
 If the list of hosts to visit holds
 at least one more entry, the agent migrates to that place to go on
 working there. Otherwise, we replace the @code{SUBSEP}s
@@ -3635,7 +3751,7 @@ Many solutions were suggested for this problem, but most of these were
 largely concerned with the movements of small green pieces of paper,
 which is odd because it wasn't the small green pieces of paper that
 were unhappy.} @*
-Douglas Adams, @cite{The Hitch Hiker's Guide to the Galaxy}
+@author Douglas Adams, @cite{The Hitch Hiker's Guide to the Galaxy}
 @end quotation
 
 @cindex @command{cron} utility
@@ -3646,7 +3762,7 @@ Unix system users can write a list of tasks to be done each day, each
 week, twice a day, or just once. The list is entered into a file named
 @file{crontab}.  For example, to distribute a newsletter on a daily
 basis this way, use @command{cron} for calling a script each day early
-in the morning.
+in the morning:
 
 @example
 # run at 8 am on weekdays, distribute the newsletter
@@ -3899,7 +4015,7 @@ function Prediction() @{
 
 At this point the hard work has been done: the array @code{predict}
 contains the predictions for all the ticker symbols. It is up to the
-function @code{Report()} to find some nice words to introduce the
+function @code{Report()} to find some nice words to present the
 desired information.
 
 @smallexample
@@ -3941,7 +4057,7 @@ function Report() @{
 @end smallexample
 
 The function @code{SendMail()} goes through the list of customers and opens
-a pipe to the @code{mail} command for each of them. Each one receives an
+a pipe to the @command{mail} command for each of them. Each one receives an
 email message with a proper subject heading and is addressed with his full name.
 
 @smallexample
@@ -3981,8 +4097,11 @@ us about it! It is only for the sake of curiosity, of course. @code{:-)}
 @cindex BLAST, Basic Local Alignment Search Tool
 @cindex Hoare, C.A.R.
 @quotation
-@i{Hoare's Law of Large Problems: Inside every large problem is a small
-   problem struggling to get out.}
+@i{Inside every large problem is a small
+problem struggling to get out.}@footnote{What C.A.R.@: Hoare
+actually said was ``Inside every large program is a
+small program struggling to get out.''}
+@author With apologies to C.A.R.@: Hoare
 @end quotation
 
 Yahoo's database of stock market data is just one among the many large
@@ -4001,7 +4120,9 @@ is a very long chain of four base nucleotides. It is the order of
 appearance (the sequence) of nucleotides which contains the information
 about the substance to be produced. Scientists in biotechnology often
 find a specific fragment, determine the nucleotide sequence, and need
-to know where the sequence at hand comes from. This is where the large
+to know where the sequence at hand comes from.
+
+This is where the large
 databases enter the game. At NCBI, databases store the knowledge
 about which sequences have ever been found and where they have been found.
 When the scientist sends his sequence to the BLAST service, the server
@@ -4012,6 +4133,7 @@ the scientist. In order to make access simple, NCBI chose to offer
 their database service through popular Internet protocols. There are
 four basic ways to use the so-called BLAST services:
 
+@c FIXME: Is all of this still true?
 @itemize @bullet
 @item
 The easiest way to use BLAST is through the web. Users may simply point
@@ -4077,7 +4199,7 @@ K --> G T (keto)              N --> A G C T (any)
 @end example
 
 Now you know the alphabet of nucleotide sequences. The last two lines
-of the following example query show you such a sequence, which is obviously
+of the following example query show such a sequence, which is obviously
 made up only of elements of the alphabet just described. Store this example
 query into a file named @file{protbase.request}. You are now ready to send
 it to the server with the demonstration client.
@@ -4261,7 +4383,7 @@ book review
 on the Internet.
 
 @item
-While Waterman's book can explain to you the algorithms employed internally
+While Waterman's book explains the algorithms employed internally
 in the database search engines, most practitioners prefer to approach
 the subject differently. The applied side of Computational Biology is
 called Bioinformatics, and emphasizes the tools available for day-to-day
@@ -4273,20 +4395,20 @@ books on Bioinformatics is
 The sequences @emph{gawk} and @emph{gnuawk} are in widespread use in
 the genetic material of virtually every earthly living being. Let us
 take this as a clear indication that the divine creator has intended
-@command{gawk} to prevail over other scripting languages such as @command{perl},
-@command{tcl}, or @command{python} which are not even proper sequences. (:-)
+@command{gawk} to prevail over other scripting languages such as @samp{perl},
+@samp{tcl}, or @samp{python} which are not even proper sequences. (:-)
 @end enumerate
 
 @node Links, GNU Free Documentation License, Some Applications and Techniques, Top
 @chapter Related Links
 
-This section lists the URLs for various items discussed in this @value{CHAPTER}.
+This section lists the URLs for various items discussed in this @value{DOCUMENT}.
 They are presented in the order in which they appear.
 
 @table @asis
 
 @item @cite{Internet Programming with Python}
-@uref{http://www.fsbassociates.com/books/python.htm}
+@uref{http://cewing.github.io/training.python_web/html/index.html}
 
 @item @cite{Advanced Perl Programming}
 @uref{http://www.oreilly.com/catalog/advperl}
@@ -4295,73 +4417,59 @@ They are presented in the order in which they appear.
 @uref{http://www.oreilly.com/catalog/webclient}
 
 @item Richard Stevens's home page and book
-@uref{http://www.kohala.com/~rstevens}
-
-@item The SPAK home page
-@uref{http://www.userfriendly.net/linux/RPM/contrib/libc6/i386/spak-0.6b-1.i386.html}
+@uref{http://www.kohala.com/start}
 
 @item Volume III of @cite{Internetworking with TCP/IP}, by Comer and Stevens
 @uref{http://www.cs.purdue.edu/homes/dec/tcpip3s.cont.html}
 
 @item XBM Graphics File Format
-@uref{http://www.wotsit.org/download.asp?f=xbm}
+@uref{https://en.wikipedia.org/wiki/X_BitMap}
 
 @item GNUPlot
-@uref{http://www.cs.dartmouth.edu/gnuplot_info.html}
+@uref{http://www.gnuplot.info}
 
 @item Mark Humphrys' Eliza page
-@uref{http://www.compapp.dcu.ie/~humphrys/eliza.html}
+@uref{https://computing.dcu.ie/~humphrys/eliza.html}
 
-@item Yahoo! Eliza Information
-@uref{http://dir.yahoo.com/Recreation/Games/Computer_Games/Internet_Games/Web_Games/Artificial_Intelligence}
-
-@item Java versions of Eliza
-@uref{http://www.tjhsst.edu/Psych/ch1/eliza.html}
+@item Eliza on Wikipedia
+@uref{https://en.wikipedia.org/wiki/ELIZA}
 
 @item Java versions of Eliza with source code
-@uref{http://home.adelphia.net/~lifeisgood/eliza/eliza.htm}
-
-@item Eliza Programs with Explanations
-@uref{http://chayden.net/chayden/eliza/Eliza.shtml}
+@uref{https://github.com/codeanticode/eliza}
 
 @item Loebner Contest
-@uref{http://acm.org/~loebner/loebner-prize.htmlx}
+@uref{https://www.ocf.berkeley.edu/~arihuang/academic/research/loebner.html}
 
 @item Tck/Tk Information
-@uref{http://www.scriptics.com/}
+@uref{https://en.wikipedia.org/wiki/Tcl}
 
 @item Intel 80x86 Processors
-@uref{http://developer.intel.com/design/platform/embedpc/what_is.htm}
+@item Embedded PCs
+@uref{https://en.wikipedia.org/wiki/Embedded_system}
 
 @item AMD Elan Processors
-@uref{http://www.amd.com/products/epd/processors/4.32bitcont/32bitcont/index.html}
+@uref{https://en.wikipedia.org/wiki/Am5x86}
 
 @item XINU
-@uref{http://willow.canberra.edu.au/~chrisc/xinu.html }
+@uref{https://xinu.cs.purdue.edu}
 
 @item GNU/Linux
-@uref{http://uclinux.lineo.com/}
-
-@item Embedded PCs
-@uref{http://dir.yahoo.com/Business_and_Economy/Business_to_Business/Computers/Hardware/Embedded_Control/}
+@uref{https://en.wikipedia.org/wiki/GNU/Linux_naming_controversy}
 
 @item MiniSQL
-@uref{http://www.hughes.com.au/library/}
+@uref{https://hughestech.com.au/products/msql}
 
 @item Market Share Surveys
 @uref{http://www.netcraft.com/survey}
 
 @item @cite{Numerical Recipes in C: The Art of Scientific Computing}
-@uref{http://www.nr.com}
+@uref{http://numerical.recipes/}
 
 @item VRML
-@uref{http://www.vrml.org}
-
-@item The VRML FAQ
-@uref{http://www.vrml.org/technicalinfo/specifications/specifications.htm#FAQ}
+@uref{https://en.wikipedia.org/wiki/VRML}
 
 @item The UMBC Agent Web
-@uref{http://www.cs.umbc.edu/agents }
+@uref{https://agents.umbc.edu}
 
 @item Apache Web Server
 @uref{http://www.apache.org}
@@ -4370,34 +4478,31 @@ They are presented in the order in which they appear.
 @uref{http://www.ncbi.nlm.nih.gov}
 
 @item Basic Local Alignment Search Tool (BLAST)
-@uref{http://www.ncbi.nlm.nih.gov/BLAST/blast_overview.html}
-
-@item NCBI Home Page
-@uref{http://www.ncbi.nlm.nih.gov}
+@uref{https://www.nature.com/scitable/topicpage/basic-local-alignment-search-tool-blast-29096}
 
 @item BLAST Pages
 @uref{http://www.ncbi.nlm.nih.gov/BLAST}
 
 @item BLAST Demonstration Client
-@uref{ftp://ncbi.nlm.nih.gov/blast/blasturl/}
+@uref{http://www.genebee.msu.su/blast/blast_overview.html#Network}
 
 @item BLAST anonymous FTP location
-@uref{ftp://ncbi.nlm.nih.gov/blast/network/netblast/}
+@uref{https://www.ncbi.nlm.nih.gov/books/NBK62345/}
 
 @item BLAST 2.0 Executables
-@uref{ftp://ncbi.nlm.nih.gov/blast/executables/}
+@uref{ftp://ftp.ncbi.nlm.nih.gov/blast/executables/blast+/LATEST}
 
 @item IUB/IUPAC Amino Acid and Nucleic Acid Codes
-@uref{http://www.uthscsa.edu/geninfo/blastmail.html#item6}
+@uref{https://en.wikipedia.org/wiki/Nucleic_acid_notation}
 
 @item FASTA/Pearson Format
-@uref{http://www.ncbi.nlm.nih.gov/BLAST/fasta.html}
+@uref{https://de.wikipedia.org/wiki/FASTA-Format}
 
 @item Fasta/Pearson Sequence in Java
 @uref{http://www.kazusa.or.jp/java/codon_table_java/}
 
 @item Book Review of @cite{Introduction to Computational Biology}
-@uref{http://www.acm.org/crossroads/xrds5-1/introcb.html}
+@uref{https://dl.acm.org/doi/abs/10.1145/332925.332927}
 
 @item @cite{Developing Bioinformatics Computer Skills}
 @uref{http://www.oreilly.com/catalog/bioskills/}
@@ -4930,4 +5035,4 @@ Conventions:
 3. HTTP method names are in @code.
 4. Protocols such as echo, ftp, etc are in @samp.
 5. URLs are in @url.
-6. All RFCs in the index.  Put a space between `RFC' and the number.
+6. All RFCs are in the index.  Put a space between `RFC' and the number.

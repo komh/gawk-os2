@@ -1,7 +1,7 @@
 dnl
 dnl configure.ac --- autoconf input file for gawk
 dnl
-dnl Copyright (C) 1995-2019 the Free Software Foundation, Inc.
+dnl Copyright (C) 1995-2023 the Free Software Foundation, Inc.
 dnl
 dnl This file is part of GAWK, the GNU implementation of the
 dnl AWK Programming Language.
@@ -23,7 +23,7 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk],[5.0.0],[bug-gawk@gnu.org],[gawk])
+AC_INIT([GNU Awk],[5.3.0],[bug-gawk@gnu.org],[gawk])
 
 # This is a hack. Different versions of install on different systems
 # are just too different. Chuck it and use install-sh.
@@ -35,14 +35,16 @@ AC_INIT([GNU Awk],[5.0.0],[bug-gawk@gnu.org],[gawk])
 
 if test "$INSTALL" = ""
 then
-	INSTALL="$srcdir/install-sh -c"
+	INSTALL="$srcdir/build-aux/install-sh -c"
 	export INSTALL
 fi
 
-AC_PREREQ([2.69])
-AM_INIT_AUTOMAKE([1.15 dist-xz dist-lzip])
+AC_PREREQ([2.71])
 
 AC_CONFIG_MACRO_DIR([m4])
+AC_CONFIG_AUX_DIR([build-aux])
+
+AM_INIT_AUTOMAKE([1.16 dist-xz dist-lzip subdir-objects])
 
 AC_ARG_ENABLE([lint],
 	[AS_HELP_STRING([--disable-lint],[do not compile in gawk lint checking])],
@@ -72,6 +74,15 @@ AC_ARG_ENABLE([mpfr],
 	fi
 )
 
+SKIP_PERSIST_MALLOC=no
+AC_ARG_ENABLE([pma],
+	[AS_HELP_STRING([--disable-pma],[do not build gawk with the persistent memory allocator])],
+	if test "$enableval" = no
+	then
+		SKIP_PERSIST_MALLOC=yes
+	fi
+)
+
 EXTENSIONDIR=
 AC_ARG_ENABLE([versioned-extension-dir],
 	[AS_HELP_STRING([--enable-versioned-extension-dir], [use a versioned directory for extensions])],
@@ -88,14 +99,15 @@ AC_ARG_ENABLE([versioned-extension-dir],
 # set default shared library location
 AC_SUBST([pkgextensiondir], ['${pkglibdir}'${EXTENSIONDIR}])
 
-AC_CANONICAL_HOST
+GAWK_CANONICAL_HOST
 AC_USE_SYSTEM_EXTENSIONS
 
 dnl checks for programs
 AC_PROG_EGREP
 AC_PROG_YACC
 AC_PROG_LN_S
-AC_PROG_CC_C99
+AC_PROG_CC
+AC_C_VARARRAYS
 AC_PROG_CPP
 AC_PROG_RANLIB
 
@@ -105,19 +117,26 @@ AC_EXEEXT
 AC_PROG_INSTALL
 AC_PROG_MAKE_SET
 
+# support/ builds libsupport.a, allow for cross version of ar
+AM_PROG_AR
+
+ARFLAGS=cru		# set default
+AC_SUBST(AR)
+
 # This is mainly for my use during testing and development.
 # Yes, it's a bit of a hack.
+# Keep in sync with same code in extension/configure.ac
 AC_MSG_CHECKING([for special development options])
 if test -f $srcdir/.developing
 then
 	# add other debug flags as appropriate, save GAWKDEBUG for emergencies
-	CFLAGS="$CFLAGS -DARRAYDEBUG -DYYDEBUG -DLOCALEDEBUG"
+	CFLAGS="$CFLAGS -DARRAYDEBUG -DYYDEBUG -DLOCALEDEBUG -DMEMDEBUG"
 
 	# turn on compiler warnings if we're doing development
 	# enable debugging using macros also
 	if test "$GCC" = yes
 	then
-		CFLAGS="$CFLAGS -Wall -fno-builtin -g3 -ggdb3"
+		CFLAGS="$CFLAGS -Wall -fno-builtin"
 	fi
 	AC_MSG_RESULT([yes])
 else
@@ -156,7 +175,7 @@ AC_LANG([C])
 
 dnl initialize GNU gettext
 AM_GNU_GETTEXT([external])
-AM_GNU_GETTEXT_VERSION([0.19.8])
+AM_GNU_GETTEXT_VERSION([0.20.2])
 AM_LANGINFO_CODESET
 gt_LC_MESSAGES
 
@@ -165,10 +184,11 @@ AC_CHECK_HEADERS(arpa/inet.h fcntl.h locale.h libintl.h mcheck.h \
 	netdb.h netinet/in.h stddef.h string.h \
 	sys/ioctl.h sys/param.h sys/select.h sys/socket.h sys/time.h unistd.h \
 	termios.h stropts.h wchar.h wctype.h)
-AC_HEADER_STDC
-AC_HEADER_STDBOOL
+
+gl_C_BOOL
 AC_HEADER_SYS_WAIT
-AC_HEADER_TIME
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+
 
 if test "$ac_cv_header_string_h" = yes
 then
@@ -284,27 +304,22 @@ AC_CHECK_FUNC(getaddrinfo, [AC_DEFINE(HAVE_GETADDRINFO, 1, [have getaddrinfo])],
 AC_SEARCH_LIBS(fmod, m)
 AC_SEARCH_LIBS(isinf, m)
 AC_SEARCH_LIBS(ismod, m)
-dnl Don't look for libsigsegv on OSF/1, gives us severe headaches
-case $host_os in
-osf1)	: ;;
-*)
-	gl_LIBSIGSEGV
-	;;
-esac
+AC_SEARCH_LIBS(isnan, m)
 
 # Need the check for mkstemp and tmpfile for missing_d/snprintf.c.
-AC_CHECK_FUNCS(__etoa_l atexit btowc fmod gai_strerror \
-	getgrent getgroups grantpt \
-	fwrite_unlocked \
-	isascii iswctype iswlower iswupper mbrlen \
-	memcmp memcpy memcpy_ulong memmove memset \
-	memset_ulong mkstemp posix_openpt setenv setlocale setsid sigprocmask \
-	snprintf strchr \
-	strerror strftime strcasecmp strncasecmp strcoll strtod strtoul \
-	system timegm tmpfile towlower towupper tzset usleep waitpid wcrtomb \
-	wcscoll wctype)
+AC_CHECK_FUNCS(__etoa_l atexit btowc fmod fwrite_unlocked gai_strerror \
+	getgrent getgroups grantpt isascii isblank iswctype iswlower iswupper \
+	lstat \
+	mbrlen memcmp memcpy memmove memset \
+	mkstemp mtrace posix_openpt setenv setlocale setsid sigprocmask \
+	snprintf strcasecmp strchr strcoll strerror strftime strncasecmp \
+	strsignal strtod strtoul system timegm tmpfile towlower towupper \
+	tzset usleep waitpid wcrtomb wcscoll wctype)
 dnl this check is for both mbrtowc and the mbstate_t type, which is good
 AC_FUNC_MBRTOWC
+
+dnl check if we can use the persistent memory allocator
+GAWK_USE_PERSISTENT_MALLOC
 
 dnl check for dynamic linking
 dnl This is known to be very primitive
@@ -361,6 +376,7 @@ AC_MSG_CHECKING([for printf %F format])
 AC_RUN_IFELSE([
 AC_LANG_SOURCE([
 #include <stdio.h>
+#include <string.h>
 
 int main()
 {
@@ -389,6 +405,7 @@ AC_MSG_CHECKING([for printf %a format])
 AC_RUN_IFELSE([
 AC_LANG_SOURCE([
 #include <stdio.h>
+#include <string.h>
 
 int main()
 {
@@ -462,13 +479,14 @@ dylib)	GAWKLIBEXT=so ;;	# MacOS uses .dylib for shared libraries, but libtool us
 esac
 AC_SUBST(GAWKLIBEXT)
 
-AC_CONFIG_FILES(Makefile
+AC_CONFIG_FILES([Makefile
 	support/Makefile
 	awklib/Makefile
 	doc/Makefile
 	extras/Makefile
 	po/Makefile.in
-	test/Makefile)
+	test/Makefile])
+AC_CONFIG_FILES([gawkbug], [chmod +x gawkbug])
 if test "$enable_extensions" = "yes"
 then
 	AC_CONFIG_SUBDIRS(extension)
@@ -478,9 +496,19 @@ if test "$GCC" = yes &&
    test -f $srcdir/.developing &&
    grep -i debug $srcdir/.developing > /dev/null
 then
-	for i in . support extension
+	for i in awkgram command
 	do
-		sed '/-O2/s///' $i/Makefile > foo
+		rm -f $i.c
+		ed - $i.y << \EOF
+/^%}/a
+%no-lines
+.
+w
+EOF
+	done
+	for i in . support
+	do
+		sed -e '/-O2/s///' -e '/^CFLAGS = /s//&${DEBUG} /' $i/Makefile > foo
 		mv foo $i/Makefile
 	done
 fi

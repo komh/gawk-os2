@@ -3,7 +3,8 @@
  */
 
 /*
- * Copyright (C) 2012, 2013, 2016, 2017, 2018 the Free Software Foundation, Inc.
+ * Copyright (C) 2012, 2013, 2016, 2017, 2018, 2019, 2022, 2023
+ * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -55,7 +56,6 @@ unsigned int getegid (void);
 /* gawkmisc.pc */
 int unsetenv (const char *);
 int setenv (const char *, const char *, int);
-void w32_maybe_set_errno (void);
 char *w32_setlocale (int, const char *);
 /* libintl.h from GNU gettext defines setlocale to redirect that to
    its own function.  Note: this will have to be revisited if MinGW
@@ -65,35 +65,16 @@ char *w32_setlocale (int, const char *);
 #endif
 #define setlocale(c,v) w32_setlocale(c,v)
 
+size_t w32_wc_to_lc (int, char *);
+
+char *strsignal (int);
+
 #endif	/* __MINGW32__ */
 
-#if defined(VMS) || defined(__DJGPP__) || defined(__MINGW32__)
+#if defined(VMS) || defined(__MINGW32__)
 int getpgrp(void);
 #endif
 
-#if defined(__DJGPP__) || defined(__MINGW32__)
+#if defined(__MINGW32__)
 int getppid(void);
 #endif
-
-#ifdef __DJGPP__
-/* Prototypes of for Posix functions for which we define replacements
-   in pc/ files.  */
-wint_t btowc (int c);
-wint_t putwc (wchar_t wc, FILE *stream);
-#endif
-
-#ifdef __EMX__
-
-char *os2_fixdllname(char *dst, const char *src, size_t n);
-
-#ifdef __KLIBC__
-#include <dlfcn.h>
-
-#define dlopen(f, m) os2_dlopen(f, m)
-void *os2_dlopen(const char *file, int mode);
-
-#define dlsym(h, n) os2_dlsym(h, n)
-void *os2_dlsym(void *handle, const char *name);
-#endif /* __KLIBC__ */
-
-#endif /* __EMX__ */

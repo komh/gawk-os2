@@ -1,7 +1,7 @@
 dnl
 dnl configure.ac --- autoconf input file for gawk
 dnl
-dnl Copyright (C) 2012-2018 the Free Software Foundation, Inc.
+dnl Copyright (C) 2012-2021, 2023 the Free Software Foundation, Inc.
 dnl
 dnl This file is part of GAWK, the GNU implementation of the
 dnl AWK Programming Language.
@@ -23,16 +23,25 @@ dnl
 
 dnl Process this file with autoconf to produce a configure script.
 
-AC_INIT([GNU Awk Bundled Extensions],[5.0.0],[bug-gawk@gnu.org],[gawk-extensions])
+AC_INIT([GNU Awk Bundled Extensions],[5.3.0],[bug-gawk@gnu.org],[gawk-extensions])
 
-AC_PREREQ([2.69])
+AC_PREREQ([2.71])
 
-AC_CONFIG_MACRO_DIR([m4])
-AC_CONFIG_AUX_DIR([build-aux])
+AC_CONFIG_MACRO_DIR([../m4])
+AC_CONFIG_AUX_DIR([../build-aux])
 
-AM_INIT_AUTOMAKE([1.15 -Wall -Werror])
+AM_INIT_AUTOMAKE([1.16 -Wall -Werror])
 
+SKIP_PERSIST_MALLOC=no
+AC_ARG_ENABLE([pma],
+	[AS_HELP_STRING([--disable-pma],[do not build gawk with the persistent memory allocator])],
+	if test "$enableval" = no
+	then
+		SKIP_PERSIST_MALLOC=yes
+	fi
+)
 
+GAWK_CANONICAL_HOST
 AC_USE_SYSTEM_EXTENSIONS
 AC_ZOS_USS
 
@@ -55,7 +64,7 @@ AC_LANG([C])
 dnl initialize GNU gettext
 dnl this seems to help with finding MPFR on some systems, too.
 AM_GNU_GETTEXT([external])
-AM_GNU_GETTEXT_VERSION([0.19.7])
+AM_GNU_GETTEXT_VERSION([0.20.2])
 AM_LANGINFO_CODESET
 gt_LC_MESSAGES
 
@@ -64,8 +73,8 @@ AC_CHECK_MEMBERS([struct stat.st_blksize])
 
 AM_PROG_AR
 AC_SYS_LARGEFILE
-AC_DISABLE_STATIC
-LT_INIT
+GAWK_USE_PERSISTENT_MALLOC
+LT_INIT([win32-dll disable-static])
 dnl AC_PROG_INSTALL
 
 dnl use the same definition as the main configure script.
@@ -84,21 +93,20 @@ if test -f $srcdir/../.developing
 then
 	if test "$GCC" = yes
 	then
-		CFLAGS="$CFLAGS -Wall -fno-builtin -g3 -gdwarf-2"
+		CFLAGS="$CFLAGS -Wall -fno-builtin"
 	fi
 	AC_MSG_RESULT([yes])
 else
 	AC_MSG_RESULT([no])
+	CFLAGS="$CFLAGS -DNDEBUG"	# turn off assertions
 fi
 
 AC_CHECK_HEADERS(fnmatch.h limits.h sys/mkdev.h sys/param.h sys/select.h \
 		sys/statvfs.h sys/sysmacros.h sys/time.h)
 
 AC_HEADER_DIRENT
-dnl 12/2017: AC_HEADER_MAJOR no longer works on recent Fedora / GLIBC.
-dnl Instead we just check for the headers in the call above.
-dnl AC_HEADER_MAJOR
-AC_HEADER_TIME
+AC_CHECK_HEADERS_ONCE([sys/time.h])
+
 
 dnl check for mpfr support
 case `uname -m` in
@@ -115,7 +123,7 @@ esac
 AC_SEARCH_LIBS(fmod, m)
 AC_CHECK_FUNCS(fdopendir fmod fnmatch getdtablesize \
 		gettimeofday nanosleep select statvfs \
-		GetSystemTimeAsFileTime)
+		GetSystemTimeAsFileTime strptime)
 
 GAWK_FUNC_DIRFD
 GAWK_PREREQ_DIRFD
@@ -128,3 +136,10 @@ AH_BOTTOM([#include "ext_custom.h"])
 
 AC_CONFIG_FILES(Makefile po/Makefile.in)
 AC_OUTPUT
+if test "$GCC" = yes &&
+   test -f $srcdir/../.developing &&
+   grep -i debug $srcdir/../.developing > /dev/null
+then
+	sed -e '/-O2/s///' -e '/^CFLAGS = /s//&${DEBUG} /' Makefile > foo
+	mv foo Makefile
+fi

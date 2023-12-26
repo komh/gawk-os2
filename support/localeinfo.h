@@ -1,10 +1,10 @@
 /* locale information
 
-   Copyright 2016-2019 Free Software Foundation, Inc.
+   Copyright 2016-2023 Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 3, or (at your option)
+   the Free Software Foundation, either version 3, or (at your option)
    any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -20,13 +20,25 @@
 /* Written by Paul Eggert.  */
 
 #include <limits.h>
-#include <stdbool.h>
 #include <wchar.h>
+#if GAWK
+/* Use ISO C 99 API.  */
+# define char32_t wchar_t
+#else
+/* Use ISO C 11 + gnulib API.  */
+# include <uchar.h>
+#endif
 
 struct localeinfo
 {
   /* MB_CUR_MAX > 1.  */
   bool multibyte;
+
+  /* The locale is simple, like the C locale.  These locales can be
+     processed more efficiently, as they are single-byte, their native
+     character set is in collating-sequence order, and they do not
+     have multi-character collating elements.  */
+  bool simple;
 
   /* The locale uses UTF-8.  */
   bool using_utf8;
@@ -38,8 +50,8 @@ struct localeinfo
   signed char sbclen[UCHAR_MAX + 1];
 
   /* An array indexed by byte values B that contains the corresponding
-     wide character (if any) for B if sbclen[B] == 1.  WEOF means the
-     byte is not a valid single-byte character, i.e., sbclen[B] == -1
+     32-bit wide character (if any) for B if sbclen[B] == 1.  WEOF means
+     the byte is not a valid single-byte character, i.e., sbclen[B] == -1
      or -2.  */
   wint_t sbctowc[UCHAR_MAX + 1];
 };
@@ -51,4 +63,4 @@ extern void init_localeinfo (struct localeinfo *);
    itself.  This is a generous upper bound.  */
 enum { CASE_FOLDED_BUFSIZE = 32 };
 
-extern int case_folded_counterparts (wint_t, wchar_t[CASE_FOLDED_BUFSIZE]);
+extern int case_folded_counterparts (wint_t, char32_t[CASE_FOLDED_BUFSIZE]);

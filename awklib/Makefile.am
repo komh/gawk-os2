@@ -1,7 +1,7 @@
 #
 # awklib/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 1995-2006 the Free Software Foundation, Inc.
+# Copyright (C) 1995-2006, 2022 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -23,7 +23,8 @@
 
 ## process this file with automake to produce Makefile.in
 
-EXTRA_DIST = ChangeLog ChangeLog.0 extract.awk eg $(srcdir)/stamp-eg
+EXTRA_DIST = ChangeLog ChangeLog.0 ChangeLog.1 \
+		extract.awk eg $(srcdir)/stamp-eg
 # With some locales, the script extract.awk fails.
 # So we fix the locale to some sensible value.
 
@@ -34,7 +35,7 @@ AWKPROG = LC_ALL=C LANG=C "$(abs_top_builddir)/gawk$(EXEEXT)"
 endif
 
 # Get config.h from the build directory and custom.h from the source directory.
-AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir)
+AM_CPPFLAGS = -I$(top_builddir) -I$(top_srcdir) -I$(top_srcdir)/support
 
 pkgdatadir = $(datadir)/awk
 pkglibexecdir = $(libexecdir)/awk
@@ -64,11 +65,11 @@ clean-local:
 	rm -fr eg.old
 	rm -fr grcat.dSYM pwcat.dSYM
 
-$(srcdir)/stamp-eg: $(srcdir)/../doc/gawktexi.in $(srcdir)/../doc/gawkinet.texi
+$(srcdir)/stamp-eg: $(srcdir)/../doc/gawk.texi $(srcdir)/../doc/gawkinet.texi
 	cd $(srcdir) && \
 	rm -fr eg && \
 	rm -fr stamp-eg && \
-	$(AWKPROG) -f ./extract.awk ../doc/gawktexi.in ../doc/gawkinet.texi
+	$(AWKPROG) -f ./extract.awk ../doc/gawk.texi ../doc/gawkinet.texi
 	@echo 'some makes are stupid and will not check a directory' > $(srcdir)/stamp-eg
 	@echo 'against a file, so this file is a place holder. gack.' >> $(srcdir)/stamp-eg
 

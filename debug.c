@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2004, 2010-2013, 2016-2019 the Free Software Foundation, Inc.
+ * Copyright (C) 2004, 2010-2013, 2016-2023 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -54,9 +54,9 @@ static char *linebuf = NULL;	/* used to print a single line of source */
 static size_t linebuf_len;
 
 FILE *out_fp;
-char *dbg_prompt;
-char *commands_prompt = "> ";	/* breakpoint or watchpoint commands list */
-char *eval_prompt = "@> ";	/* awk statement(s) */
+const char *dbg_prompt;
+const char *commands_prompt = "> ";	/* breakpoint or watchpoint commands list */
+const char *eval_prompt = "@> ";	/* awk statement(s) */
 
 bool input_from_tty = false;
 int input_fd;
@@ -64,7 +64,7 @@ int input_fd;
 static SRCFILE *cur_srcfile;
 static long cur_frame = 0;
 static INSTRUCTION *cur_pc;
-int cur_rule = 0;
+static int cur_rule = 0;
 
 static bool prog_running = false;
 
@@ -198,12 +198,12 @@ extern char **d_argv;	/* copy of argv array */
 static bool need_restart = false;
 enum { BREAK=1, WATCH, DISPLAY, HISTORY, OPTION };
 static const char *const env_variable[] = {
-"",
-"DGAWK_BREAK",
-"DGAWK_WATCH",
-"DGAWK_DISPLAY",
-"DGAWK_HISTORY",
-"DGAWK_OPTION",
+	"",
+	"DGAWK_BREAK",
+	"DGAWK_WATCH",
+	"DGAWK_DISPLAY",
+	"DGAWK_HISTORY",
+	"DGAWK_OPTION",
 };
 static void serialize_list(int type);
 static void unserialize_list(int type);
@@ -219,7 +219,7 @@ static char line_sep;
 struct dbg_option {
 	const char *name;
 	int *num_val;
-	char **str_val;
+	const char **str_val;
 	void (*assign)(const char *);
 	const char *help_txt;
 };
@@ -244,8 +244,8 @@ static const char *history_file = DEFAULT_HISTFILE;
 
 /* debugger option related variables */
 
-static char *output_file = "/dev/stdout";  /* gawk output redirection */
-char *dgawk_prompt = NULL;                 /* initialized in interpret */
+static const char *output_file = "/dev/stdout";  /* gawk output redirection */
+const char *dgawk_prompt = NULL;                 /* initialized in interpret */
 static int list_size = DEFAULT_LISTSIZE;   /* # of lines that 'list' prints */
 static int do_trace = false;
 static int do_save_history = true;
@@ -254,19 +254,19 @@ static int history_size = DEFAULT_HISTSIZE;  /* max # of lines in history file *
 
 static const struct dbg_option option_list[] = {
 {"history_size", &history_size, NULL, &set_history_size,
-	gettext_noop("set or show the number of lines to keep in history file.") },
+	gettext_noop("set or show the number of lines to keep in history file") },
 {"listsize", &list_size, NULL, &set_listsize,
-	gettext_noop("set or show the list command window size.") },
+	gettext_noop("set or show the list command window size") },
 {"outfile", NULL, &output_file, &set_gawk_output,
-	gettext_noop("set or show gawk output file.") },
+	gettext_noop("set or show gawk output file") },
 {"prompt", NULL, &dgawk_prompt, &set_prompt,
-	gettext_noop("set or show debugger prompt."), },
+	gettext_noop("set or show debugger prompt"), },
 {"save_history", &do_save_history, NULL, &set_save_history,
-	gettext_noop("(un)set or show saving of command history (value=on|off).") },
+	gettext_noop("(un)set or show saving of command history (value=on|off)") },
 {"save_options", &do_save_options, NULL, &set_save_options,
-	gettext_noop("(un)set or show saving of options (value=on|off).") },
+	gettext_noop("(un)set or show saving of options (value=on|off)") },
 {"trace", &do_trace, NULL, &set_trace,
-	gettext_noop("(un)set or show instruction tracing (value=on|off).") },
+	gettext_noop("(un)set or show instruction tracing (value=on|off)") },
 {0, NULL, NULL, NULL, 0},
 };
 
@@ -355,10 +355,19 @@ if (--val) \
 #define CHECK_PROG_RUNNING() \
 	do { \
 		if (! prog_running) { \
-			d_error(_("program not running.")); \
+			d_error(_("program not running")); \
 			return false; \
 		} \
 	} while (false)
+
+// On z/OS, one needs to use %#p to get the leading 0x in the output.
+// Having that makes it consistent with Linux and makes the use of
+// helper scripts easier.
+#ifdef USE_EBCDIC
+#define PTRFMT	"%#p"
+#else
+#define PTRFMT	"%p"
+#endif
 
 
 /* g_readline --  read a line of text; the interface is like 'readline' but
@@ -458,7 +467,7 @@ find_lines(SRCFILE *s)
 	efree(buf);
 
 	if (n == -1) {
-		d_error(_("can't read source file `%s' (%s)"),
+		d_error(_("cannot read source file `%s': %s"),
 					s->src, strerror(errno));
 		return -1;
 	}
@@ -490,7 +499,7 @@ source_find(char *src)
 	int errno_val = 0;
 
 	if (src == NULL || *src == '\0') {
-		d_error(_("no current source file."));
+		d_error(_("no current source file"));
 		return NULL;
 	}
 
@@ -515,7 +524,7 @@ source_find(char *src)
 		efree(path);
 	}
 
-	d_error(_("cannot find source file named `%s' (%s)"), src, strerror(errno_val));
+	d_error(_("cannot find source file named `%s': %s"), src, strerror(errno_val));
 	return NULL;
 }
 
@@ -533,13 +542,13 @@ print_lines(char *src, int start_line, int nlines)
 	if (s == NULL)
 		return -1;
 	if (s->fd <= INVALID_HANDLE && (s->fd = srcopen(s)) <= INVALID_HANDLE) {
-		d_error(_("can't open source file `%s' for reading (%s)"),
+		d_error(_("cannot open source file `%s' for reading: %s"),
 				src, strerror(errno));
 		return -1;
 	}
 
 	if (fstat(s->fd, &sbuf) == 0 && s->mtime < sbuf.st_mtime) {
-		fprintf(out_fp, _("WARNING: source file `%s' modified since program compilation.\n"),
+		fprintf(out_fp, _("warning: source file `%s' modified since program compilation.\n"),
 				src);
 		efree(s->line_offset);
 		s->line_offset = NULL;
@@ -549,7 +558,7 @@ print_lines(char *src, int start_line, int nlines)
 		close(s->fd);
 		s->fd = INVALID_HANDLE;
 		if ((s->fd = srcopen(s)) <= INVALID_HANDLE) {
-			d_error(_("can't open source file `%s' for reading (%s)"),
+			d_error(_("cannot open source file `%s' for reading: %s"),
 					src, strerror(errno));
 			return -1;
 		}
@@ -616,7 +625,7 @@ print_lines(char *src, int start_line, int nlines)
 		len = read(s->fd, p, supposed_len);
 		switch (len) {
 		case -1:
-			d_error(_("can't read source file `%s' (%s)"),
+			d_error(_("cannot read source file `%s': %s"),
 						src, strerror(errno));
 			return -1;
 
@@ -766,7 +775,7 @@ do_info(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 
 			gprintf(out_fp, _("Number  Disp  Enabled  Location\n\n"));
 			for (b = breakpoints.prev; b != &breakpoints; b = b->prev) {
-				char *disp = "keep";
+				const char *disp = "keep";
 				if ((b->flags & BP_ENABLE_ONCE) != 0)
 					disp = "dis";
 				else if ((b->flags & BP_TEMP) != 0)
@@ -775,7 +784,7 @@ do_info(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 						b->number, disp, (b->flags & BP_ENABLE) != 0 ? "yes" : "no",
 					 	b->src,	b->bpi->source_line);
 				if (b->hit_count > 0)
-					gprintf(out_fp, _("\tno of hits = %ld\n"), b->hit_count);
+					gprintf(out_fp, _("\tnumber of hits = %ld\n"), b->hit_count);
 				if ((b->flags & BP_IGNORE) != 0)
 					gprintf(out_fp, _("\tignore next %ld hit(s)\n"), b->ignore_count);
 				if (b->cndn.code != NULL)
@@ -958,13 +967,16 @@ print_symbol(NODE *r, bool isparam)
 	case Node_var_new:
 		fprintf(out_fp, "untyped variable\n");
 		break;
+	case Node_elem_new:
+		fprintf(out_fp, "untyped element\n");
+		break;
 	case Node_var:
 		if (! isparam && r->var_update)
 			r->var_update();
 		valinfo(r->var_value, fprintf, out_fp);
 		break;
 	case Node_var_array:
-		fprintf(out_fp, "array, %ld elements\n", assoc_length(r));
+		fprintf(out_fp, "array, %ld elements\n", (long) assoc_length(r));
 		break;
 	case Node_func:
 		fprintf(out_fp, "`function'\n");
@@ -1129,7 +1141,7 @@ print_subscript(NODE *arr, char *arr_name, CMDARG *a, int count)
 	subs = a->a_node;
 	r = in_array(arr, subs);
 	if (r == NULL)
-		fprintf(out_fp, _("[\"%.*s\"] not in array `%s'\n"), (int) subs->stlen, subs->stptr, arr_name);
+		fprintf(out_fp, _("subscript \"%.*s\" is not in array `%s'\n"), (int) subs->stlen, subs->stptr, arr_name);
 	else if (r->type == Node_var_array) {
 		if (count > 1)
 			print_subscript(r, r->vname, a->next, count - 1);
@@ -1181,7 +1193,7 @@ do_print_var(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 					subs = a->a_node;
 					value = in_array(r, subs);
 					if (value == NULL) {
-						fprintf(out_fp, _("[\"%.*s\"] not in array `%s'\n"),
+						fprintf(out_fp, _("subscript \"%.*s\" is not in array `%s'\n"),
 									(int) subs->stlen, subs->stptr, name);
 						break;
 					} else if (value->type != Node_var_array) {
@@ -1232,6 +1244,7 @@ do_set_var(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 
 		switch (r->type) {
 		case Node_var_new:
+		case Node_elem_new:
 			r->type = Node_var;
 			r->var_value = dupnode(Nnull_string);
 			/* fall through */
@@ -1511,10 +1524,10 @@ do_delete_item(struct list_item *list, CMDARG *arg)
 			if ((d = find_item(list, arg->a_int)) == NULL) {
 				/* split into two for easier message translation */
 				if (list == &display_list)
-					d_error(_("No display item numbered %ld"),
+					d_error(_("no display item numbered %ld"),
 						arg->a_int);
 				else
-					d_error(_("No watch item numbered %ld"),
+					d_error(_("no watch item numbered %ld"),
 						arg->a_int);
 			} else
 				delete_item(d);
@@ -1540,7 +1553,7 @@ display(struct list_item *d)
 			sub = d->subs[i];
 			r = in_array(symbol, sub);
 			if (r == NULL) {
-				fprintf(out_fp, _("%d: [\"%.*s\"] not in array `%s'\n"),
+				fprintf(out_fp, _("%d: subscript \"%.*s\" is not in array `%s'\n"),
 							d->number, (int) sub->stlen, sub->stptr, d->sname);
 				break;
 			}
@@ -1616,7 +1629,7 @@ condition_triggered(struct condition *cndn)
 		return false;   /* not triggered */
 
 	force_number(r);
-	di = ! iszero(r);
+	di = ! is_zero(r);
 	DEREF(r);
 	return di;
 }
@@ -1721,9 +1734,10 @@ watchpoint_triggered(struct list_item *w)
 			t2 = symbol;
 			break;
 		case Node_var_new:
+		case Node_elem_new:
 			break;
 		default:
-			cant_happen();
+			cant_happen("unexpected symbol type %s", nodetype2str(symbol->type));
 		}
 	}
 
@@ -1797,7 +1811,7 @@ initialize_watch_item(struct list_item *w)
 		r = *get_field(field_num, NULL);
 		w->cur_value = dupnode(r);
 	} else {
-		if (symbol->type == Node_var_new)
+		if (symbol->type == Node_var_new || symbol->type == Node_elem_new)
 			w->cur_value = (NODE *) 0;
 		else if (symbol->type == Node_var) {
 			r = symbol->var_value;
@@ -2354,7 +2368,7 @@ set_breakpoint(CMDARG *arg, bool temporary)
 		rp = find_rule(src, ip->source_line);
 		assert(rp != NULL);
 		if ((b = set_breakpoint_next(rp, ip)) == NULL)
-			fprintf(out_fp, _("Can't set breakpoint in file `%s'\n"), src);
+			fprintf(out_fp, _("cannot set breakpoint in file `%s'\n"), src);
 		else {
 			if (cur_frame == 0) {	/* stop next time */
 				b->flags |= BP_IGNORE;
@@ -2383,13 +2397,13 @@ set_breakpoint(CMDARG *arg, bool temporary)
 	case D_int:		/* break lineno */
 		lineno = (int) arg->a_int;
 		if (lineno <= 0 || lineno > s->srclines)
-			d_error(_("line number %d in file `%s' out of range"), lineno, src);
+			d_error(_("line number %d in file `%s' is out of range"), lineno, src);
 		else {
 			rp = find_rule(src, lineno);
 			if (rp == NULL)
-				fprintf(out_fp, _("Can't find rule!!!\n"));
+				fprintf(out_fp, _("internal error: cannot find rule\n"));
 			if (rp == NULL || (b = set_breakpoint_at(rp, lineno, false)) == NULL)
-				fprintf(out_fp, _("Can't set breakpoint at `%s':%d\n"),
+				fprintf(out_fp, _("cannot set breakpoint at `%s':%d\n"),
 						src, lineno);
 			if (b != NULL && temporary)
 				b->flags |= BP_TEMP;
@@ -2401,11 +2415,13 @@ func:
 		func = arg->a_node;
 		rp = func->code_ptr;
 		if ((b = set_breakpoint_at(rp, rp->source_line, false)) == NULL)
-			fprintf(out_fp, _("Can't set breakpoint in function `%s'\n"),
+			fprintf(out_fp, _("cannot set breakpoint in function `%s'\n"),
 						func->vname);
-		else if (temporary)
-			b->flags |= BP_TEMP;
-		lineno = b->bpi->source_line;
+		else {
+			if (temporary)
+				b->flags |= BP_TEMP;
+			lineno = b->bpi->source_line;
+		}
 		break;
 
 	default:
@@ -2501,8 +2517,7 @@ do_clear(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 		src = s->src;
 		if (arg->type == D_func)
 			goto func;
-		/* else
-			fall through */
+		/* fall through */
 	case D_int:	/* clear lineno */
 		lineno = (int) arg->a_int;
 		if (lineno <= 0 || lineno > s->srclines) {
@@ -2817,7 +2832,7 @@ debug_prog(INSTRUCTION *pc)
 		unserialize_list(HISTORY);
 		unserialize_list(OPTION);
 		unsetenv("DGAWK_RESTART");
-		fprintf(out_fp, "Restarting ...\n");
+		fprintf(out_fp, _("Restarting ...\n"));
 		if (strcasecmp(run, "true") == 0)
 			(void) do_run(NULL, 0);
 
@@ -2826,7 +2841,7 @@ debug_prog(INSTRUCTION *pc)
 		int fd;
 		fd = open_readfd(command_file);
 		if (fd == INVALID_HANDLE) {
-			fprintf(stderr, _("can't open source file `%s' for reading (%s)"),
+			fprintf(stderr, _("cannot open source file `%s' for reading: %s"),
 						command_file, strerror(errno));
 			exit(EXIT_FAILURE);
 		}
@@ -2964,7 +2979,7 @@ do_run(CMDARG *arg ATTRIBUTE_UNUSED, int cmd ATTRIBUTE_UNUSED)
 		restart(true);	/* does not return */
 	}
 
-	fprintf(out_fp, _("Starting program: \n"));
+	fprintf(out_fp, _("Starting program:\n"));
 
 	prog_running = true;
 	fatal_tag_valid = 1;
@@ -3029,7 +3044,7 @@ do_continue(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	}
 	b = find_breakpoint(stop.break_point);
 	if (b == NULL) {
-		d_error(_("invalid breakpoint number %d."), stop.break_point);
+		d_error(_("invalid breakpoint number %d"), stop.break_point);
 		return false;
 	}
 	b->flags |= BP_IGNORE;
@@ -3049,7 +3064,7 @@ next_step(CMDARG *arg, int cmd)
 		stop.repeat_count = arg->a_int;
 	else
 		stop.repeat_count = 1;
-	stop.command = cmd;
+	stop.command = (enum argtype) cmd;
 	return true;
 }
 
@@ -3226,10 +3241,10 @@ do_finish(CMDARG *arg ATTRIBUTE_UNUSED, int cmd)
 	}
 	stop.fcall_count = fcall_count - cur_frame - 1;
 	assert(stop.fcall_count >= 0);
-	fprintf(out_fp, _("Run till return from "));
+	fprintf(out_fp, _("Run until return from "));
 	print_numbered_frame(cur_frame);
 	stop.check_func = check_finish;
-	stop.command = cmd;
+	stop.command = (enum argtype) cmd;
 	stop.print_ret = true;
 	return true;
 }
@@ -3277,7 +3292,7 @@ do_return(CMDARG *arg, int cmd)
 	assert(stop.fcall_count >= 0);
 	stop.pc = (func->code_ptr + 1)->lasti;
 	assert(stop.pc->opcode == Op_K_return);
-	stop.command = cmd;
+	stop.command = (enum argtype) cmd;
 
 	stop.check_func = check_return;
 
@@ -3292,7 +3307,7 @@ do_return(CMDARG *arg, int cmd)
 
 /* check_until --- process until, returns true if stopping */
 
-int
+static int
 check_until(INSTRUCTION **pi)
 {
 	if (fcall_count < stop.fcall_count) { /* current stack frame returned */
@@ -3340,7 +3355,7 @@ do_until(CMDARG *arg, int cmd)
 		stop.sourceline = sourceline;
 		stop.fcall_count = fcall_count - cur_frame;
 		stop.check_func = check_until;
-		stop.command = cmd;
+		stop.command = (enum argtype) cmd;
 		return true;
 	}
 
@@ -3359,8 +3374,7 @@ do_until(CMDARG *arg, int cmd)
 		src = s->src;
 		if (arg->type == D_func)
 			goto func;
-		/* else
-			fall through */
+		/* fall through */
 	case D_int:	/* until lineno */
 		lineno = arg->a_int;
 		if (lineno <= 0 || lineno > s->srclines) {
@@ -3379,11 +3393,11 @@ func:
 				stop.pc = ip;
 				stop.fcall_count = fcall_count - cur_frame;
 				stop.check_func = check_until;
-				stop.command = cmd;
+				stop.command = (enum argtype) cmd;
 				return true;
 			}
 		}
-		fprintf(out_fp, _("Can't find specified location in function `%s'\n"),
+		fprintf(out_fp, _("cannot find specified location in function `%s'\n"),
 				func->vname);
 		/* fall through */
 	default:
@@ -3400,13 +3414,13 @@ func:
 			stop.pc = ip;
 			stop.fcall_count = fcall_count - cur_frame;
 			stop.check_func = check_until;
-			stop.command = cmd;
+			stop.command = (enum argtype) cmd;
 			return true;
 		}
 		if (ip == (rp + 1)->lasti)
 			break;
 	}
-	fprintf(out_fp, _("Can't find specified location %d in file `%s'\n"),
+	fprintf(out_fp, _("cannot find specified location %d in file `%s'\n"),
 				lineno, src);
 	return false;
 }
@@ -3742,6 +3756,10 @@ print_memory(NODE *m, NODE *func, Func_print print_func, FILE *fp)
 		print_func(fp, "%s", m->vname);
 		break;
 
+	case Node_elem_new:
+		print_func(fp, "element - %p", m);
+		break;
+
 	default:
 		print_func(fp, "?");  /* can't happen */
 	}
@@ -3759,7 +3777,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 	if (noffset == 0) {
 		static char buf[50];
 		/* offset for 2nd to last lines in a multi-line output */
-		noffset = sprintf(buf, "[      :%p] %-20.20s: ", (void *) pc,
+		noffset = sprintf(buf, "[      :" PTRFMT "] %-20.20s: ", (void *) pc,
 				opcode2str(pc->opcode));
 	}
 
@@ -3785,9 +3803,9 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		print_func(fp, "\n");
 
 	if (pc->source_line <= 0)
-		print_func(fp, "[      :%p] %-20.20s: ", pc, opcode2str(pc->opcode));
+		print_func(fp, "[      :" PTRFMT "] %-20.20s: ", pc, opcode2str(pc->opcode));
 	else
-		print_func(fp, "[%6d:%p] %-20.20s: ",
+		print_func(fp, "[%6d:" PTRFMT "] %-20.20s: ",
 		                pc->source_line, pc, opcode2str(pc->opcode));
 
 	if (prog_running && ! in_dump) {
@@ -3798,35 +3816,35 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 
 	switch (pc->opcode) {
 	case Op_K_if:
-		print_func(fp, "[branch_if = %p] [branch_else = %p] [branch_else->lasti = %p]\n",
+		print_func(fp, "[branch_if = " PTRFMT "] [branch_else = " PTRFMT "] [branch_else->lasti = " PTRFMT "]\n",
 				pc->branch_if, pc->branch_else, pc->branch_else->lasti);
 		break;
 
 	case Op_K_else:
-		print_func(fp, "[branch_end = %p]\n", pc->branch_end);
+		print_func(fp, "[branch_end = " PTRFMT "]\n", pc->branch_end);
 		break;
 
 	case Op_K_while:
-		print_func(fp, "[while_body = %p] [target_break = %p]\n", (pc+1)->while_body, pc->target_break);
+		print_func(fp, "[while_body = " PTRFMT "] [target_break = " PTRFMT "]\n", (pc+1)->while_body, pc->target_break);
 		break;
 
 	case Op_K_do:
-		print_func(fp, "[doloop_cond = %p] [target_break = %p]", (pc+1)->doloop_cond, pc->target_break);
+		print_func(fp, "[doloop_cond = " PTRFMT "] [target_break = " PTRFMT "]", (pc+1)->doloop_cond, pc->target_break);
 		if (pc->comment)
-			print_func(fp, " [comment = %p]", pc->comment);
+			print_func(fp, " [comment = " PTRFMT "]", pc->comment);
 		print_func(fp, "\n");
 		if (pc->comment)
 			print_instruction(pc->comment, print_func, fp, in_dump);
 		break;
 
 	case Op_K_for:
-		print_func(fp, "[forloop_cond = %p] ", (pc+1)->forloop_cond);
+		print_func(fp, "[forloop_cond = " PTRFMT "] ", (pc+1)->forloop_cond);
 		/* fall through */
 	case Op_K_arrayfor:
-		print_func(fp, "[forloop_body = %p] ", (pc+1)->forloop_body);
-		print_func(fp, "[target_break = %p] [target_continue = %p]", pc->target_break, pc->target_continue);
+		print_func(fp, "[forloop_body = " PTRFMT "] ", (pc+1)->forloop_body);
+		print_func(fp, "[target_break = " PTRFMT "] [target_continue = " PTRFMT "]", pc->target_break, pc->target_continue);
 		if (pc->comment != NULL) {
-			print_func(fp, " [comment = %p]\n", (pc)->comment);
+			print_func(fp, " [comment = " PTRFMT "]\n", (pc)->comment);
 			print_instruction(pc->comment, print_func, fp, in_dump);
 		} else
 			print_func(fp, "\n");
@@ -3835,15 +3853,15 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 	case Op_K_switch:
 	{
 		bool need_newline = false;
-		print_func(fp, "[switch_start = %p] [switch_end = %p]\n", (pc+1)->switch_start, (pc+1)->switch_end);
+		print_func(fp, "[switch_start = " PTRFMT "] [switch_end = " PTRFMT "]\n", (pc+1)->switch_start, (pc+1)->switch_end);
 		if (pc->comment || (pc+1)->switch_end->comment)
 			print_func(fp, "%*s", noffset, "");
 		if (pc->comment) {
-			print_func(fp, "[start_comment = %p]", pc->comment);
+			print_func(fp, "[start_comment = " PTRFMT "]", pc->comment);
 			need_newline = true;
 		}
 		if ((pc+1)->switch_end->comment) {
-			print_func(fp, "[end_comment = %p]", (pc + 1)->switch_end->comment);
+			print_func(fp, "[end_comment = " PTRFMT "]", (pc + 1)->switch_end->comment);
 			need_newline = true;
 		}
 		if (need_newline)
@@ -3856,9 +3874,9 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_K_default:
-		print_func(fp, "[stmt_start = %p] [stmt_end = %p]", pc->stmt_start, pc->stmt_end);
+		print_func(fp, "[stmt_start = " PTRFMT "] [stmt_end = " PTRFMT "]", pc->stmt_start, pc->stmt_end);
 		if (pc->comment) {
-			print_func(fp, " [comment = %p]\n", pc->comment);
+			print_func(fp, " [comment = " PTRFMT "]\n", pc->comment);
 			print_instruction(pc->comment, print_func, fp, in_dump);
 		} else
 			print_func(fp, "\n");
@@ -3871,7 +3889,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 	case Op_var_assign:
 		print_func(fp, "[set_%s()]", get_spec_varname(pc->assign_var));
 		if (pc->assign_ctxt != 0)
-			print_func(fp, " [assign_ctxt = %s]", opcode2str(pc->assign_ctxt));
+			print_func(fp, " [assign_ctxt = %s]", opcode2str((OPCODE) pc->assign_ctxt));
 		print_func(fp, "\n");
 		break;
 
@@ -3881,7 +3899,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_field_spec_lhs:
-		print_func(fp, "[target_assign = %p] [do_reference = %s]\n",
+		print_func(fp, "[target_assign = " PTRFMT "] [do_reference = %s]\n",
 				pc->target_assign, pc->do_reference ? "true" : "false");
 		break;
 
@@ -3889,7 +3907,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		print_func(fp, "[param_cnt = %d] [source_file = %s]", pcount,
 				pc->source_file ? pc->source_file : "cmd. line");
 		if (pc[3].nexti != NULL) {
-			print_func(fp, "[ns_list = %p]\n", pc[3].nexti);
+			print_func(fp, "[ns_list = " PTRFMT "]\n", pc[3].nexti);
 			print_ns_list(pc[3].nexti, print_func, fp, in_dump);
 		} else
 			print_func(fp, "\n");
@@ -3903,7 +3921,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 
 	case Op_K_getline:
 		print_func(fp, "[into_var = %s]\n", pc->into_var ? "true" : "false");
-		print_func(fp, "%*s[target_beginfile = %p] [target_endfile = %p]\n",
+		print_func(fp, "%*s[target_beginfile = " PTRFMT "] [target_endfile = " PTRFMT "]\n",
 		                noffset, "",
 		                (pc + 1)->target_beginfile, (pc + 1)->target_endfile);
 		break;
@@ -3925,19 +3943,19 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_K_nextfile:
-		print_func(fp, "[target_newfile = %p] [target_endfile = %p]\n",
+		print_func(fp, "[target_newfile = " PTRFMT "] [target_endfile = " PTRFMT "]\n",
 		                pc->target_newfile, pc->target_endfile);
 		break;
 
 	case Op_newfile:
-		print_func(fp, "[target_jmp = %p] [target_endfile = %p]\n",
+		print_func(fp, "[target_jmp = " PTRFMT "] [target_endfile = " PTRFMT "]\n",
 		                pc->target_jmp, pc->target_endfile);
-		print_func(fp, "%*s[target_get_record = %p]\n",
+		print_func(fp, "%*s[target_get_record = " PTRFMT "]\n",
 		                noffset, "", (pc + 1)->target_get_record);
 		break;
 
 	case Op_get_record:
-		print_func(fp, "[target_newfile = %p]\n", pc->target_newfile);
+		print_func(fp, "[target_newfile = " PTRFMT "]\n", pc->target_newfile);
 		break;
 
 	case Op_jmp:
@@ -3949,19 +3967,19 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 	case Op_arrayfor_init:
 	case Op_K_break:
 	case Op_K_continue:
-		print_func(fp, "[target_jmp = %p]\n", pc->target_jmp);
+		print_func(fp, "[target_jmp = " PTRFMT "]\n", pc->target_jmp);
 		break;
 
 	case Op_K_exit:
-		print_func(fp, "[target_end = %p] [target_atexit = %p]\n",
+		print_func(fp, "[target_end = " PTRFMT "] [target_atexit = " PTRFMT "]\n",
 						pc->target_end, pc->target_atexit);
 		break;
 
 	case Op_K_case:
-		print_func(fp, "[target_jmp = %p] [match_exp = %s]",
+		print_func(fp, "[target_jmp = " PTRFMT "] [match_exp = %s]",
 						pc->target_jmp,	(pc + 1)->match_exp ? "true" : "false");
 		if (pc->comment) {
-			print_func(fp, " [comment = %p]\n", pc->comment);
+			print_func(fp, " [comment = " PTRFMT "]\n", pc->comment);
 			print_instruction(pc->comment, print_func, fp, in_dump);
 		} else
 			print_func(fp, "\n");
@@ -3970,26 +3988,26 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 	case Op_K_namespace:
 		print_func(fp, "[namespace = %s]", pc->ns_name);
 		if (pc->nexti)
-			print_func(fp, "[nexti = %p]", pc->nexti);
+			print_func(fp, "[nexti = " PTRFMT "]", pc->nexti);
 		if (pc->comment)
-			print_func(fp, "[comment = %p]", pc->comment);
+			print_func(fp, "[comment = " PTRFMT "]", pc->comment);
 		print_func(fp, "\n");
 		break;
 
 	case Op_arrayfor_incr:
-		print_func(fp, "[array_var = %s] [target_jmp = %p]\n",
+		print_func(fp, "[array_var = %s] [target_jmp = " PTRFMT "]\n",
 		                pc->array_var->type == Node_param_list ?
 		                   func->fparms[pc->array_var->param_cnt].param : pc->array_var->vname,
 		                pc->target_jmp);
 		break;
 
 	case Op_line_range:
-		print_func(fp, "[triggered = %ld] [target_jmp = %p]\n",
+		print_func(fp, "[triggered = %ld] [target_jmp = " PTRFMT "]\n",
 		                pc->triggered, pc->target_jmp);
 		break;
 
 	case Op_cond_pair:
-		print_func(fp, "[line_range = %p] [target_jmp = %p]\n",
+		print_func(fp, "[line_range = " PTRFMT "] [target_jmp = " PTRFMT "]\n",
 		                pc->line_range, pc->target_jmp);
 		break;
 
@@ -4056,7 +4074,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		                ruletab[pc->in_rule],
 		                pc->source_file ? pc->source_file : "cmd. line");
 		if (pc[3].nexti != NULL) {
-			print_func(fp, "[ns_list = %p]\n", pc[3].nexti);
+			print_func(fp, "[ns_list = " PTRFMT "]\n", pc[3].nexti);
 			print_ns_list(pc[3].nexti, print_func, fp, in_dump);
 		} else
 			print_func(fp, "\n");
@@ -4074,7 +4092,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 		break;
 
 	case Op_exec_count:
-		print_func(fp, "[exec_count = %ld]\n", pc->exec_count);
+		print_func(fp, "[exec_count = " EXEC_COUNT_FMT "]\n", pc->exec_count);
 		break;
 
  	case Op_store_var:
@@ -4098,7 +4116,7 @@ print_instruction(INSTRUCTION *pc, Func_print print_func, FILE *fp, int in_dump)
 			pc->memory->comment_type == EOL_COMMENT ?
 						"EOL" : "BLOCK");
 		if (pc->comment) {
-			print_func(fp, " [comment = %p]\n", pc->comment);
+			print_func(fp, " [comment = " PTRFMT "]\n", pc->comment);
 			print_instruction(pc->comment, print_func, fp, in_dump);
 		} else
 			print_func(fp, "\n");
@@ -4176,7 +4194,7 @@ do_dump_instructions(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	if (arg != NULL && arg->type == D_string) {
 		/* dump to a file */
 		if ((fp = fopen(arg->a_string, "w")) == NULL) {
-			d_error(_("could not open `%s' for writing (%s)"),
+			d_error(_("could not open `%s' for writing: %s"),
 					arg->a_string, strerror(errno));
 			return false;
 		}
@@ -4219,7 +4237,7 @@ do_save(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	int i;
 
 	if ((fp = fopen(arg->a_string, "w")) == NULL) {
-		d_error(_("could not open `%s' for writing (%s)"),
+		d_error(_("could not open `%s' for writing: %s"),
 				arg->a_string, strerror(errno));
 		return false;
 	}
@@ -4320,8 +4338,9 @@ prompt_continue(FILE *fp)
 
 	if (os_isatty(fileno(fp)) && input_fd == 0)
 		quit_pager = prompt_yes_no(
-	                _("\t------[Enter] to continue or q [Enter] to quit------"),
-	                _("q")[0], false, fp);
+			// TRANSLATORS: don't translate the 'q' inside the brackets.
+	                _("\t------[Enter] to continue or [q] + [Enter] to quit------"),
+	                'q', false, fp);
 	if (quit_pager)
 		longjmp(pager_quit_tag, 1);
 	pager_lines_printed = 0;
@@ -4430,8 +4449,8 @@ serialize_subscript(char *buf, int buflen, struct list_item *item)
 }
 
 
-
-/* serialize_list--- convert a list structure to a byte stream and
+/*
+ * serialize_list--- convert a list structure to a byte stream and
  *               save in environment.
  */
 
@@ -4604,10 +4623,10 @@ enlarge_buffer:
 			}
 
 			if (nchar > 0) {	/* non-empty commands list */
-				nchar += (strlen("commands ") + 20 + strlen("end") + 1); /* 20 for cnum (an int) */
-				if (nchar > buflen - bl) {
-					buflen = bl + nchar;
-					erealloc(buf, char *, buflen + 3, "serialize_list");
+				nchar += (strlen("commands ") + 20 /*cnum*/ + 1 /*CSEP*/ + strlen("end") + 1 /*FSEP*/);
+				if (nchar >= buflen - bl) {
+					buflen = bl + nchar + 1 /*RSEP*/;
+					erealloc(buf, char *, buflen + 1, "serialize_list");
 				}
 				nchar = sprintf(buf + bl, "commands %d", cnum);
 				bl += nchar;
@@ -4633,8 +4652,8 @@ enlarge_buffer:
 				nchar = strlen("end");	/* end of 'commands' */
 				memcpy(buf + bl, "end", nchar);
 				bl += nchar;
+				buf[bl++] = FSEP;		/* field */
 			}
-			buf[bl++] = FSEP;		/* field */
 			buf[bl++] = RSEP;		/* record */
 			buf[bl] = '\0';
 
@@ -4642,9 +4661,9 @@ enlarge_buffer:
 			if (cndn->expr) {
 				bl--;	/* undo RSEP from above */
 				nchar = strlen(cndn->expr);
-				if (nchar > buflen - bl) {
-					buflen = bl + nchar;
-					erealloc(buf, char *, buflen + 3, "serialize_list");
+				if (nchar + 1 /*FSEP*/ >= buflen - bl) {
+					buflen = bl + nchar + 1 /*FSEP*/ + 1 /*RSEP*/;
+					erealloc(buf, char *, buflen + 1, "serialize_list");
 				}
 				memcpy(buf + bl, cndn->expr, nchar);
 				bl += nchar;
@@ -4861,7 +4880,7 @@ unserialize_list(int type)
 			field_cnt++;
 			if (field_cnt == MAX_FIELD)
 #ifdef GAWKDEBUG
-				fatal("Increase MAX_FIELD and recompile.");
+				fatal("Increase MAX_FIELD and recompile");
 #else
 				return;
 #endif
@@ -5097,7 +5116,7 @@ do_print_f(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 			r = find_symbol(name, NULL);
 			if (r == NULL)
 				goto done;
-			if (r->type == Node_var_new)
+			if (r->type == Node_var_new || r->type == Node_elem_new)
 				tmp[i] = Nnull_string;
 			else if (r->type != Node_var) {
 				d_error(_("`%s' is not a scalar variable"), name);
@@ -5191,7 +5210,7 @@ do_source(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 
 	fd = open_readfd(file);
 	if (fd <= INVALID_HANDLE) {
-		d_error(_("can't open source file `%s' for reading (%s)"),
+		d_error(_("cannot open source file `%s' for reading: %s"),
 					file, strerror(errno));
 		return false;
 	}
@@ -5281,7 +5300,7 @@ set_gawk_output(const char *file)
 	if (output_fp != stdout) {
 		if (output_fp != stderr) {
 			fclose(output_fp);
-			efree(output_file);
+			efree((void*) output_file);
 		}
 		output_fp = stdout;
 		output_is_tty = os_isatty(fileno(stdout));
@@ -5340,7 +5359,7 @@ set_gawk_output(const char *file)
 		setbuf(fp, (char *) NULL);
 		output_is_tty = os_isatty(fileno(fp));
 	} else {
-		d_error(_("could not open `%s' for writing (%s)"),
+		d_error(_("could not open `%s' for writing: %s"),
 					file,
 					errno != 0 ? strerror(errno) : _("reason unknown"));
 		fprintf(out_fp, _("sending output to stdout\n"));
@@ -5352,7 +5371,7 @@ set_gawk_output(const char *file)
 static void
 set_prompt(const char *value)
 {
-	efree(dgawk_prompt);
+	efree((void *) dgawk_prompt);
 	dgawk_prompt = estrdup(value, strlen(value));
 	dbg_prompt = dgawk_prompt;
 }
@@ -5546,7 +5565,7 @@ execute_code(volatile INSTRUCTION *code)
 {
 	volatile NODE *r = NULL;
 	volatile jmp_buf fatal_tag_stack;
-	long save_stack_size;
+	// long save_stack_size;	// see comment below
 	int save_flags = do_flags;
 
 	/* We use one global stack for all contexts.
@@ -5554,15 +5573,29 @@ execute_code(volatile INSTRUCTION *code)
 	 * a fatal error, pop stack until it has that many items.
 	 */
 
-	save_stack_size = (stack_ptr  - stack_bottom) + 1;
+	// save_stack_size = (stack_ptr  - stack_bottom) + 1;	// see comment below
 	do_flags = false;
 
 	PUSH_BINDING(fatal_tag_stack, fatal_tag, fatal_tag_valid);
 	if (setjmp(fatal_tag) == 0) {
 		(void) interpret((INSTRUCTION *) code);
 		r = POP_SCALAR();
-	} else	/* fatal error */
-		(void) unwind_stack(save_stack_size);
+	} else {	/* fatal error */
+		/*
+		 * 9/2022:
+		 * Initially, the code did this:
+		 *
+		 * (void) unwind_stack(save_stack_size);
+		 *
+		 * to attempt to recover and keep going. But a fatal error
+		 * can corrupt memory. Instead of trying to recover, just
+		 * start over.
+		 */
+		// Let the user know, but DON'T use the fatal() function!
+		fprintf(stderr, _("fatal error during eval, need to restart.\n"));
+		// Go back to debugger
+		restart(false);		// does not return
+	}
 
 	POP_BINDING(fatal_tag_stack, fatal_tag, fatal_tag_valid);
 	do_flags = save_flags;
@@ -5599,13 +5632,19 @@ do_eval(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 	ctxt->install_func = append_symbol;	/* keep track of newly installed globals */
 	push_context(ctxt);
 	the_source = add_srcfile(SRC_CMDLINE, arg->a_string, srcfiles, NULL, NULL);
-	do_flags = false;
+	do_flags &= DO_MPFR;	// preserve this flag only
 	ret = parse_program(&code, true);
 	do_flags = save_flags;
 	remove_params(this_func);
 	if (ret != 0) {
 		pop_context();	/* switch to prev context */
 		free_context(ctxt, false /* keep_globals */);
+
+		/* Remove @eval from FUNCTAB. */
+		NODE *s = make_string("@eval", 5);
+		(void) assoc_remove(func_table, s);
+		unref(s);
+
 		return false;
 	}
 
@@ -5718,6 +5757,9 @@ do_eval(CMDARG *arg, int cmd ATTRIBUTE_UNUSED)
 		unref(s);
 	}
 
+	free(f->vname);
+	freenode(f);
+
 	free_srcfile(the_source);
 
 	return false;
@@ -5740,7 +5782,7 @@ static void
 check_symbol(NODE *r)
 {
 	invalid_symbol++;
-	d_error(_("No symbol `%s' in current context"), r->vname);
+	d_error(_("no symbol `%s' in current context"), r->vname);
 	/* install anyway, but keep track of it */
 	append_symbol(r);
 }

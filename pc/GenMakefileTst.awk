@@ -12,16 +12,6 @@
 
 # Process the bits in Makefile.in we need to generate the tests properly
 
-# Tests that fail on DJGPP
-/^EXPECTED_FAIL_DJGPP *=/,/[^\\]$/ {
-	print
-	gsub(/(^EXPECTED_FAIL_DJGPP *=|\\$)/,"")
-	for (i = 1; i <= NF; i++)
-		djgpp[$i]
-
-	next
-}
-
 # Tests that fail on MinGW
 /^EXPECTED_FAIL_MINGW *=/,/[^\\]$/ {
 	print
@@ -86,7 +76,7 @@ function substitutions(test, string)
 	gsub(/ru_RU.UTF-8/, "RUS_RUS.1251", string)
 
 	# command for `ls'
-	gsub(/@ls/, "@$(LS)", string)
+	gsub(/@-ls/, "@-$(LS)", string)
 
 	# MSYS needs "/" to be doubled
 	gsub(/-F\//, "-F$(SLASH)", string)
@@ -109,18 +99,14 @@ function print_recipe(		i, start)
 		return
 
 	# First line if it's @echo $@
-	if (recipe_lines[2] == "\t@echo $@") {
+	if (recipe_lines[2] ~ /\t@echo [$]@/) {
 		start = 3
 		print recipe_lines[2]
 	} else
 		start = 2
 
 	# print the right warning
-	if (name in djgpp && name in mingw) {
-		print "\t@echo Expect $@ to fail with DJGPP and MinGW."
-	} else if (name in djgpp) {
-		print "\t@echo Expect $@ to fail with DJGPP."
-	} else if (name in mingw) {
+	if (name in mingw) {
 		print "\t@echo Expect $@ to fail with MinGW."
 	}
 

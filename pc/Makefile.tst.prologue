@@ -1,6 +1,6 @@
 # Makefile for GNU Awk test suite.
 #
-# Copyright (C) 1988-2018 the Free Software Foundation, Inc.
+# Copyright (C) 1988-2023 the Free Software Foundation, Inc.
 # 
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -60,7 +60,7 @@
 SHELL = /bin/sh
 
 # Point to gawk
-AWK = AWKLIBPATH=../extension $(AWKPROG)
+AWK = AWKLIBPATH=../extension GAWK_NO_MPFR_WARN=1 $(AWKPROG)
 AWKPROG = ../gawk.exe
 # Point $(LS) to a version of ls.exe that reports true Windows file
 # index numbers, because this is what the readdir test expects.
@@ -113,6 +113,7 @@ DATE = gdate
 
 # Set sort command
 SORT = sort
+SORT2 = sort
 
 # MS-DOS and OS/2 use ; as a PATH delimiter
 PATH_SEPARATOR = ;

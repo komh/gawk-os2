@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2019 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2023 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -35,6 +35,7 @@
 #endif
 
 static void yyerror(const char *m, ...) ATTRIBUTE_PRINTF_1;
+#define  YYERROR_IS_DECLARED	1	/* for bison 3.8. sigh. */
 static void error_ln(int line, const char *m, ...) ATTRIBUTE_PRINTF_2;
 static void lintwarn_ln(int line, const char *m, ...) ATTRIBUTE_PRINTF_2;
 static void warning_ln(int line, const char *m, ...) ATTRIBUTE_PRINTF_2;
@@ -56,6 +57,7 @@ static void dumpintlstr2(const char *str1, size_t len1, const char *str2, size_t
 static bool include_source(INSTRUCTION *file, void **srcfile_p);
 static bool load_library(INSTRUCTION *file, void **srcfile_p);
 static void set_namespace(INSTRUCTION *ns, INSTRUCTION *comment);
+static void change_namespace(const char *new_namespace);
 static void next_sourcefile(void);
 static char *tokexpand(void);
 static NODE *set_profile_text(NODE *n, const char *str, size_t len);
@@ -109,8 +111,9 @@ static void merge_comments(INSTRUCTION *c1, INSTRUCTION *c2);
 static INSTRUCTION *make_braced_statements(INSTRUCTION *lbrace, INSTRUCTION *stmts, INSTRUCTION *rbrace);
 static void add_sign_to_num(NODE *n, char sign);
 
-static bool at_seen = false;
+static int at_seen = 0;
 static bool want_source = false;
+static bool want_namespace = false;
 static bool want_regexp = false;	/* lexical scanning kludge */
 static enum {
 	FUNC_HEADER,
@@ -154,7 +157,7 @@ static int continue_allowed;	/* kludge for continue */
 static char *tokstart = NULL;
 static char *tok = NULL;
 static char *tokend;
-static int errcount = 0;
+int errcount = 0;
 
 extern char *source;
 extern int sourceline;
@@ -167,7 +170,7 @@ const char awk_namespace[] = "awk";
 const char *current_namespace = awk_namespace;
 bool namespace_changed = false;
 
-static INSTRUCTION *rule_block[sizeof(ruletab)];
+static INSTRUCTION *rule_block[sizeof(ruletab)/sizeof(ruletab[0])];
 
 static INSTRUCTION *ip_rec;
 static INSTRUCTION *ip_newfile;
@@ -297,7 +300,7 @@ rule
 	| '@' LEX_INCLUDE source statement_term
 	  {
 		want_source = false;
-		at_seen = false;
+		at_seen--;
 		if ($3 != NULL && $4 != NULL) {
 			SRCFILE *s = (SRCFILE *) $3;
 			s->comment = $4;
@@ -307,7 +310,7 @@ rule
 	| '@' LEX_LOAD library statement_term
 	  {
 		want_source = false;
-		at_seen = false;
+		at_seen--;
 		if ($3 != NULL && $4 != NULL) {
 			SRCFILE *s = (SRCFILE *) $3;
 			s->comment = $4;
@@ -316,8 +319,21 @@ rule
 	  }
 	| '@' LEX_NAMESPACE namespace statement_term
 	  {
+		/*
+		 * 1/2022:
+		 * We have an interesting isssue here.  This production isn't
+		 * reduced until after the token following the statement_term
+		 * is seen. As a result, the change in namespace doesn't take
+		 * effect until then. That's fine if the first token is 'function'
+		 * or BEGIN or some such, but it's a disaster if it's an identifer;
+		 * that identifier will be in the previous namespace.
+		 * Therefore, the actual setting of the namespace is done immediately
+		 * down in the scanner.
+		 */
+
 		want_source = false;
-		at_seen = false;
+		want_namespace = false;
+		at_seen--;
 
 		// this frees $3 storage in all cases
 		set_namespace($3, $4);
@@ -415,7 +431,7 @@ pattern
 		static int begin_seen = 0;
 
 		if (do_lint_old && ++begin_seen == 2)
-			warning_ln($1->source_line,
+			lintwarn_ln($1->source_line,
 				_("old awk does not support multiple `BEGIN' or `END' rules"));
 
 		$1->in_rule = rule = BEGIN;
@@ -427,7 +443,7 @@ pattern
 		static int end_seen = 0;
 
 		if (do_lint_old && ++end_seen == 2)
-			warning_ln($1->source_line,
+			lintwarn_ln($1->source_line,
 				_("old awk does not support multiple `BEGIN' or `END' rules"));
 
 		$1->in_rule = rule = END;
@@ -488,7 +504,7 @@ func_name
 	| '@' LEX_EVAL
 	  {
 		$$ = $2;
-		at_seen = false;
+		at_seen--;
 	  }
 	;
 
@@ -625,7 +641,7 @@ statement
 
 			merge_comments($2, NULL);
 			ip = list_create(instruction(Op_no_op));
-			$$ = list_append(ip, $2); 
+			$$ = list_append(ip, $2);
 		} else
 			$$ = NULL;
 	  }
@@ -992,6 +1008,7 @@ regular_loop:
 		}
 		if ($11 != NULL)
 			$12 = list_prepend($12, $11);
+		add_lint($6, LINT_assign_in_cond);
 		$$ = mk_for_loop($1, $3, $6, $9, $12);
 
 		break_allowed--;
@@ -1093,7 +1110,7 @@ non_compound_stmt
 	  {
 		if (! in_function)
 			yyerror(_("`return' used outside function context"));
-	  } opt_exp statement_term {
+	  } opt_fcall_exp statement_term {
 		if (called_from_eval)
 			$1->opcode = Op_K_return_from_eval;
 
@@ -1153,7 +1170,7 @@ simple_stmt
 			if ($3 != NULL) {
 				NODE *n = $3->nexti->nexti->memory;
 
-				if (! iszero(n))
+				if ((n->flags & (STRING|STRCUR)) != 0 || ! is_zero(n))
 					goto regular_print;
 
 				bcfree($3->lasti);			/* Op_field_spec */
@@ -1423,6 +1440,7 @@ if_statement
 	  {
 		if ($5 != NULL)
 			$1->comment = $5;
+		add_lint($3, LINT_assign_in_cond);
 		$$ = mk_condition($3, $1, $6, NULL, NULL);
 	  }
 	| LEX_IF '(' exp r_paren opt_nls statement
@@ -1432,6 +1450,7 @@ if_statement
 			$1->comment = $5;
 		if ($8 != NULL)
 			$7->comment = $8;
+		add_lint($3, LINT_assign_in_cond);
 		$$ = mk_condition($3, $1, $6, $7, $9);
 	  }
 	;
@@ -1611,6 +1630,12 @@ fcall_exp
 	| typed_regexp { $$ = list_create($1); }
 	;
 
+opt_fcall_exp
+	: /* empty */
+	  { $$ = NULL; }
+	| fcall_exp { $$ = $1; }
+	;
+
 /* Expressions, not including the comma operator.  */
 exp
 	: variable assign_operator exp %prec ASSIGNOP
@@ -1661,7 +1686,7 @@ exp
 	| exp LEX_IN simple_variable
 	  {
 		if (do_lint_old)
-			warning_ln($2->source_line,
+			lintwarn_ln($2->source_line,
 				_("old awk does not support the keyword `in' except after `for'"));
 		$3->nexti->opcode = Op_push_array;
 		$2->opcode = Op_in_array;
@@ -1810,9 +1835,10 @@ simp_exp
 	| '(' expression_list r_paren LEX_IN simple_variable
 	  {
 		if (do_lint_old) {
+		    /* first one is warning so that second one comes out if warnings are fatal */
 		    warning_ln($4->source_line,
 				_("old awk does not support the keyword `in' except after `for'"));
-		    warning_ln($4->source_line,
+		    lintwarn_ln($4->source_line,
 				_("old awk does not support multidimensional arrays"));
 		}
 		$5->nexti->opcode = Op_push_array;
@@ -1994,7 +2020,7 @@ func_call
 
 		if (do_traditional || do_posix)
 			yyerror("%s", msg);
-		else if (do_lint && ! warned) {
+		else if (do_lint_extensions && ! warned) {
 			warned = true;
 			lintwarn("%s", msg);
 		}
@@ -2003,7 +2029,7 @@ func_call
 		f->opcode = Op_indirect_func_call;
 		name = estrdup(f->func_name, strlen(f->func_name));
 		if (is_std_var(name))
-			yyerror(_("can not use special variable `%s' for indirect function call"), name);
+			yyerror(_("cannot use special variable `%s' for indirect function call"), name);
 		indirect_var = variable(f->source_line, name, Node_var_new);
 		t = instruction(Op_push);
 		t->memory = indirect_var;
@@ -2015,7 +2041,7 @@ func_call
 		 */
 
 		$$ = list_prepend($2, t);
-		at_seen = false;
+		at_seen--;
 	  }
 	;
 
@@ -2137,6 +2163,7 @@ simple_variable
 	  {
 		char *arr = $1->lextok;
 
+		// Don't use Node_var_array here; breaks rwarray:readall extension.
 		$1->memory = variable($1->source_line, arr, Node_var_new);
 		$1->opcode = Op_push_array;
 		$$ = list_prepend($2, $1);
@@ -2303,6 +2330,7 @@ static const struct token tokentab[] = {
 {"log",		Op_builtin,	 LEX_BUILTIN,	A(1),		do_log,	MPF(log)},
 {"lshift",	Op_builtin,    LEX_BUILTIN,	GAWKX|A(2),	do_lshift,	MPF(lshift)},
 {"match",	Op_builtin,	 LEX_BUILTIN,	NOT_OLD|A(2)|A(3), do_match,	0},
+{"mkbool",	Op_builtin,    LEX_BUILTIN,	GAWKX|A(1),	do_mkbool,	0},
 {"mktime",	Op_builtin,	 LEX_BUILTIN,	GAWKX|A(1)|A(2), do_mktime, 0},
 {"namespace",  	Op_symbol,	 LEX_NAMESPACE,	GAWKX,		0,	0},
 {"next",	Op_K_next,	 LEX_NEXT,	0,		0,	0},
@@ -2389,7 +2417,7 @@ negate_num(NODE *n)
 
 #ifdef HAVE_MPFR
 	if (is_mpg_integer(n)) {
-		if (! iszero(n)) {
+		if (! is_zero(n)) {
 			mpz_neg(n->mpg_i, n->mpg_i);
 			return;
 		}
@@ -2595,6 +2623,8 @@ yyerror(const char *m, ...)
 	err(false, "", buf, args);
 	va_end(args);
 	efree(buf);
+	/* we don't use fatal(), that changes the exit status to 2 */
+	exit(EXIT_FAILURE);
 }
 
 /* mk_program --- create a single list of instructions */
@@ -2769,7 +2799,7 @@ parse_program(INSTRUCTION **pcode, bool from_eval)
 	lexeof = false;
 	lexptr = NULL;
 	lasttok = 0;
-	memset(rule_block, 0, sizeof(ruletab) * sizeof(INSTRUCTION *));
+	memset(rule_block, 0, sizeof(rule_block));
 	errcount = 0;
 	tok = tokstart != NULL ? tokstart : tokexpand();
 
@@ -2848,8 +2878,8 @@ add_srcfile(enum srctype stype, char *src, SRCFILE *thisfile, bool *already_incl
 		}
 		/* use full messages to ease translation */
 		fatal(stype != SRC_EXTLIB
-			? _("can't open source file `%s' for reading (%s)")
-			: _("can't open shared library `%s' for reading (%s)"),
+			? _("cannot open source file `%s' for reading: %s")
+			: _("cannot open shared library `%s' for reading: %s"),
 				src,
 				errno_val ? strerror(errno_val) : _("reason unknown"));
 	}
@@ -2860,7 +2890,7 @@ add_srcfile(enum srctype stype, char *src, SRCFILE *thisfile, bool *already_incl
 			if (stype == SRC_INC || stype == SRC_EXTLIB) {
 				/* eliminate duplicates */
 				if ((stype == SRC_INC) && (s->stype == SRC_FILE))
-					fatal(_("can't include `%s' and use it as a program file"), src);
+					fatal(_("cannot include `%s' and use it as a program file"), src);
 
 				if (do_lint) {
 					int line = sourceline;
@@ -2884,7 +2914,7 @@ add_srcfile(enum srctype stype, char *src, SRCFILE *thisfile, bool *already_incl
 			} else {
 				/* duplicates are allowed for -f */
 				if (s->stype == SRC_INC)
-					fatal(_("can't include `%s' and use it as a program file"), src);
+					fatal(_("cannot include `%s' and use it as a program file"), src);
 				/* no need to scan for further matches, since
 				 * they must be of homogeneous type */
 				break;
@@ -2926,7 +2956,7 @@ include_source(INSTRUCTION *file, void **srcfile_p)
 		if (already_included)
 			return true;
 		error_ln(file->source_line,
-			_("can't open source file `%s' for reading (%s)"),
+			_("cannot open source file `%s' for reading: %s"),
 			src, errcode ? strerror(errcode) : _("reason unknown"));
 		return false;
 	}
@@ -2986,7 +3016,7 @@ load_library(INSTRUCTION *file, void **srcfile_p)
 			if (already_included)
 				return true;
 			error_ln(file->source_line,
-				_("can't open shared library `%s' for reading (%s)"),
+				_("cannot open shared library `%s' for reading: %s"),
 				src, errcode ? strerror(errcode) : _("reason unknown"));
 			return false;
 		}
@@ -3080,7 +3110,7 @@ get_src_buf()
 	 * avoids problems with some ancient systems where
 	 * the types of arguments to read() aren't up to date.
 	 */
-	static ssize_t (*readfunc)() = 0;
+	static ssize_t (*readfunc)(int, void *, size_t) = NULL;
 
 	if (readfunc == NULL) {
 		char *cp = getenv("AWKREADFUNC");
@@ -3091,7 +3121,7 @@ get_src_buf()
 			 * cast is to remove warnings on systems with
 			 * different return types for read.
 			 */
-			readfunc = ( ssize_t(*)() ) read;
+			readfunc = ( ssize_t(*)(int, void *, size_t) ) read;
 		else
 			readfunc = read_one_line;
 	}
@@ -3164,7 +3194,7 @@ get_src_buf()
 			/* suppress file name and line no. in error mesg */
 			in = source;
 			source = NULL;
-			error(_("can't open source file `%s' for reading (%s)"),
+			error(_("cannot open source file `%s' for reading: %s"),
 				in, strerror(errno));
 			errcount++;
 			lexeof = true;
@@ -3185,6 +3215,7 @@ get_src_buf()
 		sourcefile->bufsize = l;
 		newfile = true;
 		emalloc(sourcefile->buf, char *, sourcefile->bufsize, "get_src_buf");
+		memset(sourcefile->buf, '\0', sourcefile->bufsize);	// keep valgrind happy
 		lexptr = lexptr_begin = lexeme = sourcefile->buf;
 		savelen = 0;
 		sourceline = 1;
@@ -3231,7 +3262,7 @@ get_src_buf()
 
 	n = (*readfunc)(sourcefile->fd, lexptr, sourcefile->bufsize - savelen);
 	if (n == -1) {
-		error(_("can't read sourcefile `%s' (%s)"),
+		error(_("cannot read source file `%s': %s"),
 				source, strerror(errno));
 		errcount++;
 		lexeof = true;
@@ -3259,7 +3290,7 @@ get_src_buf()
 static char *
 tokexpand()
 {
-	static int toksize;
+	static size_t toksize;
 	int tokoffset;
 
 	if (tokstart != NULL) {
@@ -3301,7 +3332,8 @@ check_bad_char(int c)
 	}
 
 	if (iscntrl(c) && ! isspace(c))
-		fatal(_("PEBKAC error: invalid character '\\%03o' in source code"), c & 0xFF);
+		// This is a PEBKAC error, but we'll be nice and not say so.
+		fatal(_("error: invalid character '\\%03o' in source code"), c & 0xFF);
 }
 
 /* nextc --- get the next input character */
@@ -3448,7 +3480,7 @@ get_comment(enum commenttype flag, INSTRUCTION **comment_instruction)
 					sourceline++;
 					tokadd(c);
 				}
-			} while (isspace(c) && c != END_FILE);
+			} while (c != END_FILE && isspace(c));
 			if (c == END_FILE)
 				break;
 			else if (c != '#') {
@@ -3582,17 +3614,6 @@ yylex(void)
 	if (c == END_FILE)
 		return lasttok = NEWLINE_EOF;
 	pushback();
-
-#if defined __EMX__
-	/*
-	 * added for OS/2's extproc feature of cmd.exe
-	 * (like #! in BSD sh)
-	 */
-	if (strncasecmp(lexptr, "extproc ", 8) == 0) {
-		while (*lexptr && *lexptr != '\n')
-			lexptr++;
-	}
-#endif
 
 	lexeme = lexptr;
 	thisline = NULL;
@@ -3762,7 +3783,7 @@ retry:
 			goto collect_regexp;
 		}
 		pushback();
-		at_seen = true;
+		at_seen++;
 		return lasttok = '@';
 
 	case '\\':
@@ -3846,17 +3867,18 @@ retry:
 	case '{':
 		if (++in_braces == 1)
 			firstline = sourceline;
+		/* fall through */
 	case ';':
 	case ',':
 	case '[':
-			return lasttok = c;
+		return lasttok = c;
 	case ']':
 		c = nextc(true);
 		pushback();
 		if (c == '[') {
 			if (do_traditional)
 				fatal(_("multidimensional arrays are a gawk extension"));
-			if (do_lint)
+			if (do_lint_extensions)
 				lintwarn(_("multidimensional arrays are a gawk extension"));
 			yylval = GET_INSTRUCTION(Op_sub_array);
 			lasttok = ']';
@@ -3882,9 +3904,9 @@ retry:
 				if (! did_warn_assgn) {
 					did_warn_assgn = true;
 					if (do_lint)
-						lintwarn(_("POSIX does not allow operator `**='"));
+						lintwarn(_("POSIX does not allow operator `%s'"), "**=");
 					if (do_lint_old)
-						warning(_("old awk does not support operator `**='"));
+						lintwarn(_("operator `%s' is not supported in old awk"), "**=");
 				}
 				yylval = GET_INSTRUCTION(Op_assign_exp);
 				return ASSIGNOP;
@@ -3893,9 +3915,9 @@ retry:
 				if (! did_warn_op) {
 					did_warn_op = true;
 					if (do_lint)
-						lintwarn(_("POSIX does not allow operator `**'"));
+						lintwarn(_("POSIX does not allow operator `%s'"), "**");
 					if (do_lint_old)
-						warning(_("old awk does not support operator `**'"));
+						lintwarn(_("operator `%s' is not supported in old awk"), "**");
 				}
 				yylval = GET_INSTRUCTION(Op_exp);
 				return lasttok = '^';
@@ -3930,7 +3952,7 @@ retry:
 		if (nextc(true) == '=') {
 			if (do_lint_old && ! did_warn_assgn) {
 				did_warn_assgn = true;
-				warning(_("operator `^=' is not supported in old awk"));
+				lintwarn(_("operator `%s' is not supported in old awk"), "^=");
 			}
 			yylval = GET_INSTRUCTION(Op_assign_exp);
 			return lasttok = ASSIGNOP;
@@ -3938,7 +3960,7 @@ retry:
 		pushback();
 		if (do_lint_old && ! did_warn_op) {
 			did_warn_op = true;
-			warning(_("operator `^' is not supported in old awk"));
+			lintwarn(_("operator `%s' is not supported in old awk"), "^");
 		}
 		yylval = GET_INSTRUCTION(Op_exp);
 		return lasttok = '^';
@@ -4065,6 +4087,9 @@ retry:
 		yylval = GET_INSTRUCTION(Op_token);
 		if (want_source) {
 			yylval->lextok = estrdup(tokstart, tok - tokstart);
+			// See the comment in the production for @namespace.
+			if (want_namespace)
+				change_namespace(yylval->lextok);
 			return lasttok = FILENAME;
 		}
 
@@ -4373,13 +4398,13 @@ retry:
 				/* regular code */
 				break;
 			default:
-				cant_happen();
+				cant_happen("bad value %d for want_param_names", (int) want_param_names);
 				break;
 			}
 		}
 
 		if (do_lint) {
-			if ((tokentab[mid].flags & GAWKX) != 0 && (warntab[mid] & GAWKX) == 0) {
+			if (do_lint_extensions && (tokentab[mid].flags & GAWKX) != 0 && (warntab[mid] & GAWKX) == 0) {
 				lintwarn(_("`%s' is a gawk extension"),
 					tokentab[mid].operator);
 				warntab[mid] |= GAWKX;
@@ -4393,7 +4418,7 @@ retry:
 		if (do_lint_old && (tokentab[mid].flags & NOT_OLD) != 0
 				 && (warntab[mid] & NOT_OLD) == 0
 		) {
-			warning(_("`%s' is not supported in old awk"),
+			lintwarn(_("`%s' is not supported in old awk"),
 					tokentab[mid].operator);
 			warntab[mid] |= NOT_OLD;
 		}
@@ -4405,6 +4430,8 @@ retry:
 
 		switch (class) {
 		case LEX_NAMESPACE:
+			want_namespace = true;
+			// fall through
 		case LEX_INCLUDE:
 		case LEX_LOAD:
 			want_source = true;
@@ -4595,7 +4622,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 			ip = arg->lasti;
 			if (ip->opcode == Op_push_i) {
 				if (do_lint)
-					lintwarn(_("%s: string literal as last arg of substitute has no effect"),
+					lintwarn(_("%s: string literal as last argument of substitute has no effect"),
 						operator);
 				r->sub_flags |=	LITERAL;
 			} else {
@@ -4702,7 +4729,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 		(void) mk_rexp(arg);
 
 		if (nexp == 3) {	/* 3rd argument there */
-			if (do_lint && ! warned) {
+			if (do_lint_extensions && ! warned) {
 				warned = true;
 				lintwarn(_("match: third argument is a gawk extension"));
 			}
@@ -4759,7 +4786,7 @@ snode(INSTRUCTION *subn, INSTRUCTION *r)
 	} else if (r->builtin == do_close) {
 		static bool warned = false;
 		if (nexp == 2) {
-			if (do_lint && ! warned) {
+			if (do_lint_extensions && ! warned) {
 				warned = true;
 				lintwarn(_("close: second argument is a gawk extension"));
 			}
@@ -4912,7 +4939,7 @@ dump_vars(const char *fname)
 	else if (strcmp(fname, "-") == 0)
 		fp = stdout;
 	else if ((fp = fopen(fname, "w")) == NULL) {
-		warning(_("could not open `%s' for writing (%s)"), fname, strerror(errno));
+		warning(_("could not open `%s' for writing: %s"), fname, strerror(errno));
 		warning(_("sending variable list to standard error"));
 		fp = stderr;
 	}
@@ -4921,7 +4948,7 @@ dump_vars(const char *fname)
 	print_vars(vars, fprintf, fp);
 	efree(vars);
 	if (fp != stdout && fp != stderr && fclose(fp) != 0)
-		warning(_("%s: close failed (%s)"), fname, strerror(errno));
+		warning(_("%s: close failed: %s"), fname, strerror(errno));
 }
 
 /* dump_funcs --- print all functions */
@@ -4954,7 +4981,7 @@ shadow_funcs()
 
 	/* End with fatal if the user requested it.  */
 	if (shadow && lintfunc == r_fatal)
-		lintwarn(_("there were shadowed variables."));
+		lintwarn(_("there were shadowed variables"));
 }
 
 
@@ -5082,10 +5109,10 @@ check_params(char *fname, int pcount, INSTRUCTION *list)
 		if (strcmp(name, fname) == 0) {
 			/* check for function foo(foo) { ... }.  bleah. */
 			error_ln(p->source_line,
-				_("function `%s': can't use function name as parameter name"), fname);
+				_("function `%s': cannot use function name as parameter name"), fname);
 		} else if (is_std_var(name)) {
 			error_ln(p->source_line,
-				_("function `%s': can't use special variable `%s' as a function parameter"),
+				_("function `%s': cannot use special variable `%s' as a function parameter"),
 					fname, name);
 		} else if (strchr(name, ':') != NULL)
 			error_ln(p->source_line,
@@ -5249,7 +5276,7 @@ variable(int location, char *name, NODETYPE type)
 /* make_regnode --- make a regular expression node */
 
 NODE *
-make_regnode(int type, NODE *exp)
+make_regnode(NODETYPE type, NODE *exp)
 {
 	NODE *n;
 
@@ -5262,12 +5289,6 @@ make_regnode(int type, NODE *exp)
 	if (type == Node_regex) {
 		n->re_reg[0] = make_regexp(exp->stptr, exp->stlen, false, true, false);
 		if (n->re_reg[0] == NULL) {
-			freenode(n);
-			return NULL;
-		}
-		n->re_reg[1] = make_regexp(exp->stptr, exp->stlen, true, true, false);
-		if (n->re_reg[1] == NULL) {
-			refree(n->re_reg[0]);
 			freenode(n);
 			return NULL;
 		}
@@ -5337,6 +5358,17 @@ isnoeffect(OPCODE type)
 	case Op_not:
 	case Op_in_array:
 		return true;
+	// Additional opcodes that can be part of an expression
+	// that has no effect:
+	case Op_and:
+	case Op_or:
+	case Op_push:
+	case Op_push_i:
+	case Op_push_array:
+	case Op_pop:
+	case Op_lint_plus:
+	case Op_exec_count:
+		return true;
 	default:
 		break;	/* keeps gcc -Wall happy */
 	}
@@ -5360,6 +5392,10 @@ make_assignable(INSTRUCTION *ip)
 		return ip;
 	case Op_subscript:
 		ip->opcode = Op_subscript_lhs;
+		return ip;
+	case Op_field_assign:
+		// no need to change the opcode, but do need to return
+		// a non-NULL pointer.
 		return ip;
 	default:
 		break;	/* keeps gcc -Wall happy */
@@ -5429,7 +5465,7 @@ dumpintlstr2(const char *str1, size_t len1, const char *str2, size_t len2)
 static INSTRUCTION *
 mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 {
-	INSTRUCTION *ip1,*ip2;
+	INSTRUCTION *ip1,*ip2, *lint_plus;
 	AWKNUM res;
 
 	ip2 = s2->nexti;
@@ -5449,7 +5485,7 @@ mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 				res *= n2->numbr;
 				break;
 			case Op_quotient:
-				if (n2->numbr == 0.0) {
+				if ((n2->flags & NUMBER) != 0 && n2->numbr == 0.0) {
 					/* don't fatalize, allow parsing rest of the input */
 					error_ln(op->source_line, _("division by zero attempted"));
 					goto regular;
@@ -5458,7 +5494,7 @@ mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 				res /= n2->numbr;
 				break;
 			case Op_mod:
-				if (n2->numbr == 0.0) {
+				if ((n2->flags & NUMBER) != 0 && n2->numbr == 0.0) {
 					/* don't fatalize, allow parsing rest of the input */
 					error_ln(op->source_line, _("division by zero attempted in `%%'"));
 					goto regular;
@@ -5502,12 +5538,26 @@ mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 				op->opcode = Op_times_i;
 				break;
 			case Op_quotient:
+				if ((ip2->memory->flags & NUMBER) != 0 && ip2->memory->numbr == 0.0) {
+					/* don't fatalize, allow parsing rest of the input */
+					error_ln(op->source_line, _("division by zero attempted"));
+					goto regular;
+				}
+
 				op->opcode = Op_quotient_i;
 				break;
 			case Op_mod:
+				if ((ip2->memory->flags & NUMBER) != 0 && ip2->memory->numbr == 0.0) {
+					/* don't fatalize, allow parsing rest of the input */
+					error_ln(op->source_line, _("division by zero attempted in `%%'"));
+					goto regular;
+				}
+
 				op->opcode = Op_mod_i;
 				break;
 			case Op_plus:
+				if (do_lint)
+					goto regular;
 				op->opcode = Op_plus_i;
 				break;
 			case Op_minus:
@@ -5530,6 +5580,10 @@ mk_binary(INSTRUCTION *s1, INSTRUCTION *s2, INSTRUCTION *op)
 regular:
 	/* append lists s1, s2 and add `op' bytecode */
 	(void) list_merge(s1, s2);
+	if (do_lint && op->opcode == Op_plus) {
+		lint_plus = instruction(Op_lint_plus);
+		(void) list_append(s1, lint_plus);
+	}
 	return list_append(s1, op);
 }
 
@@ -5778,6 +5832,22 @@ append_rule(INSTRUCTION *pattern, INSTRUCTION *action)
 	return rule_block[rule];
 }
 
+/*
+ * 3/2023:
+ * mk_assignment() is called when an assignment statement is seen,
+ * as an expression.  optimize_assignment() is called when an expression
+ * is seen as statement (inside braces).
+ *
+ * When a field assignment is seen, it needs to be optizimed into
+ * Op_store_field_exp or Op_store_field to avoid memory management
+ * issues. Thus, the Op_field_spec_lhs -> Op_store_field_expr
+ * change is done in mk_assignment. (Consider foo && $0 = $1, the
+ * assignment is part of an expression.)
+ *
+ * If the assignment is in a statement, then optimize_assignment()
+ * turn Op_store_field_expr into Op_store_field.
+ */
+
 /* mk_assignment --- assignment bytecodes */
 
 static INSTRUCTION *
@@ -5814,7 +5884,8 @@ mk_assignment(INSTRUCTION *lhs, INSTRUCTION *rhs, INSTRUCTION *op)
 	else
 		ip = lhs;
 
-	(void) list_append(ip, op);
+	if (tp->opcode != Op_field_spec_lhs || op->opcode != Op_assign)
+		(void) list_append(ip, op);
 
 	if (tp->opcode == Op_push_lhs
 			&& tp->memory->type == Node_var
@@ -5826,9 +5897,14 @@ mk_assignment(INSTRUCTION *lhs, INSTRUCTION *rhs, INSTRUCTION *op)
 		(void) list_append(ip, instruction(Op_var_assign));
 		ip->lasti->assign_var = tp->memory->var_assign;
 	} else if (tp->opcode == Op_field_spec_lhs) {
-		(void) list_append(ip, instruction(Op_field_assign));
-		ip->lasti->field_assign = (Func_ptr) 0;
-		tp->target_assign = ip->lasti;
+		if (op->opcode == Op_assign) {
+			bcfree(op);
+			tp->opcode = Op_store_field_exp;
+		} else {
+			(void) list_append(ip, instruction(Op_field_assign));
+			ip->lasti->field_assign = (Func_ptr) 0;
+			tp->target_assign = ip->lasti;
+		}
 	} else if (tp->opcode == Op_subscript_lhs) {
 		(void) list_append(ip, instruction(Op_subscript_assign));
 	}
@@ -5874,6 +5950,11 @@ optimize_assignment(INSTRUCTION *exp)
 	i2 = NULL;
 	i1 = exp->lasti;
 
+	if (i1->opcode == Op_store_field_exp) {
+		i1->opcode = Op_store_field;
+		return exp;
+	}
+
 	if (   i1->opcode != Op_assign
 	    && i1->opcode != Op_field_assign)
 		return list_append(exp, instruction(Op_pop));
@@ -5917,21 +5998,6 @@ optimize_assignment(INSTRUCTION *exp)
 				i3->nexti = NULL;
 				bcfree(i1);          /* Op_assign */
 				exp->lasti = i3;     /* update Op_list */
-				return exp;
-			}
-			break;
-
-		case Op_field_spec_lhs:
-			if (i2->nexti->opcode == Op_assign
-					&& i2->nexti->nexti == i1
-					&& i1->opcode == Op_field_assign
-			) {
-				/* $n = .. */
-				i2->opcode = Op_store_field;
-				bcfree(i2->nexti);  /* Op_assign */
-				i2->nexti = NULL;
-				bcfree(i1);          /* Op_field_assign */
-				exp->lasti = i2;    /* update Op_list */
 				return exp;
 			}
 			break;
@@ -6144,6 +6210,7 @@ add_lint(INSTRUCTION *list, LINTTYPE linttype)
 {
 #ifndef NO_LINT
 	INSTRUCTION *ip;
+	bool no_effect = true;
 
 	switch (linttype) {
 	case LINT_assign_in_cond:
@@ -6164,26 +6231,33 @@ add_lint(INSTRUCTION *list, LINTTYPE linttype)
 		if (list->lasti->opcode == Op_pop && list->nexti != list->lasti) {
 			int line = 0;
 
-			// Get down to the last instruction (FIXME: why?)
+			// Get down to the last instruction ...
 			for (ip = list->nexti; ip->nexti != list->lasti; ip = ip->nexti) {
-				// along the way track line numbers, we will use the line
+				// ... along the way track line numbers, we will use the line
 				// closest to the opcode if that opcode doesn't have one
 				if (ip->source_line != 0)
 					line = ip->source_line;
+
+				// And check each opcode for no effect
+				no_effect = no_effect && isnoeffect(ip->opcode);
 			}
 
-			if (do_lint) {		/* compile-time warning */
-				if (isnoeffect(ip->opcode)) {
+			// check the last one also
+			no_effect = no_effect && isnoeffect(ip->opcode);
+
+			// Only if all the traversed opcodes have no effect do we
+			// produce a warning. This avoids warnings for things like
+			// a == b && b = c.
+			if (do_lint) {		/* parse-time warning */
+				if (no_effect) {
 					if (ip->source_line != 0)
 						line = ip->source_line;
-					lintwarn_ln(line, ("statement may have no effect"));
+					lintwarn_ln(line, _("statement has no effect"));
 				}
 			}
 
-			if (ip->opcode == Op_push || ip->opcode == Op_push_i) {		/* run-time warning */
-				list_append(list, instruction(Op_lint));
-				list->lasti->lint_type = linttype;
-			}
+			// We no longer place a run-time warning also. One warning
+			// at parse time is enough.
 		}
 		break;
 
@@ -6312,7 +6386,7 @@ list_append(INSTRUCTION *l, INSTRUCTION *x)
 {
 #ifdef GAWKDEBUG
 	if (l->opcode != Op_list)
-		cant_happen();
+		cant_happen("unexpected value %s for opcode", opcode2str(l->opcode));
 #endif
 	l->lasti->nexti = x;
 	l->lasti = x;
@@ -6324,7 +6398,7 @@ list_prepend(INSTRUCTION *l, INSTRUCTION *x)
 {
 #ifdef GAWKDEBUG
 	if (l->opcode != Op_list)
-		cant_happen();
+		cant_happen("unexpected value %s for opcode", opcode2str(l->opcode));
 #endif
 	x->nexti = l->nexti;
 	l->nexti = x;
@@ -6336,9 +6410,9 @@ list_merge(INSTRUCTION *l1, INSTRUCTION *l2)
 {
 #ifdef GAWKDEBUG
 	if (l1->opcode != Op_list)
-		cant_happen();
+		cant_happen("unexpected value %s for opcode", opcode2str(l1->opcode));
 	if (l2->opcode != Op_list)
-		cant_happen();
+		cant_happen("unexpected value %s for opcode", opcode2str(l2->opcode));
 #endif
 	l1->lasti->nexti = l2->nexti;
 	l1->lasti = l2->lasti;
@@ -6464,7 +6538,7 @@ lookup_builtin(const char *name)
 		return (builtin_func_t) do_sub;
 
 #ifdef HAVE_MPFR
-	if (do_mpfr)
+	if (do_mpfr && tokentab[mid].ptr2 != NULL)
 		return tokentab[mid].ptr2;
 #endif
 
@@ -6624,7 +6698,6 @@ merge_comments(INSTRUCTION *c1, INSTRUCTION *c2)
 	}
 
 	if (c2 != NULL) {
-		strcat(buffer, "\n");
 		strcat(buffer, c2->memory->stptr);
 		if (c2->comment != NULL) {
 			strcat(buffer, "\n");
@@ -6734,8 +6807,8 @@ check_qualified_special(char *token)
 	 * Now it's more complicated.  Here are the rules.
 	 *
 	 * 1. Namespace name cannot be a standard awk reserved word or function.
-	 * 2. Subordinate part of the name cannot be standard awk reserved word or function.
-	 * 3. If namespace part is explicitly "awk", return result of check_special().
+	 * 2. Subordinate part of the name cannot be a standard awk reserved word or function.
+	 * 3. If the namespace part is explicitly "awk", return the result of check_special().
 	 * 4. Else return -1 (gawk extensions allowed, we check standard awk in step 2).
 	 */
 
@@ -6767,12 +6840,12 @@ check_qualified_special(char *token)
 
 	// Now check the subordinate part
 	i = check_special(subname);
-	if (i >= 0 && (tokentab[i].flags & GAWKX) == 0 && strcmp(ns, "awk") != 0) {
+	if (i >= 0 && (tokentab[i].flags & GAWKX) == 0 && strcmp(ns, awk_namespace) != 0) {
 		error_ln(sourceline, _("using reserved identifier `%s' as second component of a qualified name is not allowed"), subname);
 		goto done;
 	}
 
-	if (strcmp(ns, "awk") == 0) {
+	if (strcmp(ns, awk_namespace) == 0) {
 		i = check_special(subname);
 		if (i >= 0) {
 			if ((tokentab[i].flags & GAWKX) != 0 && tokentab[i].class == LEX_BUILTIN)
@@ -6787,7 +6860,7 @@ done:
 	return i;
 }
 
-/* set_namespace --- change the current namespace */
+/* set_namespace --- update namespace data structures */
 
 static void
 set_namespace(INSTRUCTION *ns, INSTRUCTION *comment)
@@ -6818,13 +6891,9 @@ set_namespace(INSTRUCTION *ns, INSTRUCTION *comment)
 		return;
 	}
 
-	if (strcmp(ns->lextok, current_namespace) == 0)
-		;	// nothing to do
-	else if (strcmp(ns->lextok, awk_namespace) == 0) {
-		set_current_namespace(awk_namespace);
-	} else {
-		set_current_namespace(estrdup(ns->lextok, strlen(ns->lextok)));
-	}
+	// Actual changing of namespace is done earlier.
+	// See comments in the production and in yylex().
+
 	efree(ns->lextok);
 
 	// save info and push on front of list of namespaces seen
@@ -6837,9 +6906,33 @@ set_namespace(INSTRUCTION *ns, INSTRUCTION *comment)
 	ns->lextok = NULL;
 	bcfree(ns);
 
-	namespace_changed = true;
-
 	return;
+}
+
+/* change_namespace --- change the current namespace */
+
+static void
+change_namespace(const char *new_namespace)
+{
+	/* error messages will come from set_namespace(), above */
+
+	if (! is_valid_identifier(new_namespace))
+		return;
+
+	int mid = check_special(new_namespace);
+
+	if (mid >= 0)
+		return;
+
+	if (strcmp(new_namespace, current_namespace) == 0)
+		;	// nothing to do
+	else if (strcmp(new_namespace, awk_namespace) == 0) {
+		set_current_namespace(awk_namespace);
+	} else {
+		set_current_namespace(estrdup(new_namespace, strlen(new_namespace)));
+	}
+
+	namespace_changed = true;
 }
 
 /* qualify_name --- put name into namespace */

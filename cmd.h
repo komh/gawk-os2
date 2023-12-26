@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2004, 2010, 2011, 2013, 2014, 2017,
+ * Copyright (C) 2004, 2010, 2011, 2013, 2014, 2017, 2021,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -43,10 +43,10 @@ extern bool output_is_tty;
 extern int input_fd;
 extern bool input_from_tty;
 extern FILE *out_fp;
-extern char *dbg_prompt;
-extern char *commands_prompt;
-extern char *eval_prompt;
-extern char *dgawk_prompt;
+extern const char *dbg_prompt;
+extern const char *commands_prompt;
+extern const char *eval_prompt;
+extern const char *dgawk_prompt;
 
 enum argtype {
 	D_illegal,
@@ -148,9 +148,9 @@ typedef int (*Func_cmd)(CMDARG *, int);
 
 struct cmdtoken {
 	const char *name;
-	char *abbrvn;	/* abbreviation */
+	const char *abbrvn;	/* abbreviation */
 	enum argtype type;
-	int class;
+	int lex_class;
 	Func_cmd cf_ptr;
 	const char *help_txt;
 };

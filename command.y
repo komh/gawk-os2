@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 2004, 2010, 2011, 2014, 2016, 2017
+ * Copyright (C) 2004, 2010, 2011, 2014, 2016, 2017, 2019-2021, 2023,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -22,7 +22,7 @@
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335,
- * USA 
+ * USA
  */
 
 %{
@@ -36,6 +36,7 @@ int yydebug = 2;
 
 static int yylex(void);
 static void yyerror(const char *mesg, ...);
+#define YYERROR_IS_DECLARED	1	/* for bison 3.8. sigh. */
 
 static int find_command(const char *token, size_t toklen);
 
@@ -44,7 +45,7 @@ static bool want_nodeval = false;
 static int cmd_idx = -1;		/* index of current command in cmd table */
 static int repeat_idx = -1;		/* index of last repeatable command in command table */
 static CMDARG *arg_list = NULL;		/* list of arguments */
-static long errcount = 0;
+static long dbg_errcount = 0;
 static char *lexptr_begin = NULL;
 static bool in_commands = false;
 static int num_dim;
@@ -128,7 +129,7 @@ line
 	: nls
 	| command nls
 	  {
-		if (errcount == 0 && cmd_idx >= 0) {
+		if (dbg_errcount == 0 && cmd_idx >= 0) {
 			Func_cmd cmdfunc;
 			bool terminate = false;
 			CMDARG *args;
@@ -217,14 +218,14 @@ set_want_nodeval
 eval_prologue
 	: D_EVAL set_want_nodeval opt_param_list nls
 	  {
-		if (errcount == 0) {
+		if (dbg_errcount == 0) {
 			/* don't free arg_list;	passed on to statement_list
 			 * non-terminal (empty rule action). See below.
 			 */
 			if (input_from_tty) {
 				dbg_prompt = eval_prompt;
 				fprintf(out_fp,
-		_("Type (g)awk statement(s). End with the command \"end\"\n"));
+		_("Type (g)awk statement(s). End with the command `end'\n"));
 				rl_inhibit_completion = 1;
 			}
 			cmd_idx = -1;
@@ -286,7 +287,7 @@ command
 	| control_cmd opt_plus_integer
 	| frame_cmd opt_integer
 	  {
-		if (cmdtab[cmd_idx].class == D_FRAME
+		if (cmdtab[cmd_idx].lex_class == D_FRAME
 				&& $2 != NULL && $2->a_int < 0)
 			yyerror(_("invalid frame number: %d"), $2->a_int);
 	  }
@@ -294,7 +295,7 @@ command
 	  {
 		int idx = find_argument($2);
 		if (idx < 0)
-			yyerror(_("info: invalid option - \"%s\""), $2->a_string);
+			yyerror(_("info: invalid option - `%s'"), $2->a_string);
 		else {
 			efree($2->a_string);
 			$2->a_string = NULL;
@@ -320,12 +321,12 @@ command
 	| D_SOURCE D_STRING
 	  {
 		if (in_cmd_src($2->a_string))
-			yyerror(_("source \"%s\": already sourced."), $2->a_string);
+			yyerror(_("source: `%s': already sourced"), $2->a_string);
 	  }
 	| D_SAVE D_STRING
 	  {
 		if (! input_from_tty)
-			yyerror(_("save \"%s\": command not permitted."), $2->a_string);
+			yyerror(_("save: `%s': command not permitted"), $2->a_string);
 	  }
 	| D_COMMANDS commands_arg
 	  {
@@ -335,10 +336,10 @@ command
 		if ($2 != NULL)
 			num = $2->a_int;
 
-		if (errcount != 0)
+		if (dbg_errcount != 0)
 			;
 		else if (in_commands)
-			yyerror(_("Can't use command `commands' for breakpoint/watchpoint commands"));
+			yyerror(_("cannot use command `commands' for breakpoint/watchpoint commands"));
 		else if ($2 == NULL &&  ! (type = has_break_or_watch_point(&num, true)))
 			yyerror(_("no breakpoint/watchpoint has been set yet"));
 		else if ($2 != NULL && ! (type = has_break_or_watch_point(&num, false)))
@@ -349,7 +350,7 @@ command
 				dbg_prompt = commands_prompt;
 				fprintf(out_fp, _("Type commands for when %s %d is hit, one per line.\n"),
 								(type == D_break) ? "breakpoint" : "watchpoint", num);
-				fprintf(out_fp, _("End with the command \"end\"\n"));
+				fprintf(out_fp, _("End with the command `end'\n"));
 			}
 		}
 	  }
@@ -372,7 +373,7 @@ command
 	  {
 		int idx = find_argument($2);
 		if (idx < 0)
-			yyerror(_("trace: invalid option - \"%s\""), $2->a_string);
+			yyerror(_("trace: invalid option - `%s'"), $2->a_string);
 		else {
 			efree($2->a_string);
 			$2->a_string = NULL;
@@ -458,12 +459,12 @@ option_args
 	| D_STRING
 	  {
 		if (find_option($1->a_string) < 0)
-			yyerror(_("option: invalid parameter - \"%s\""), $1->a_string);
+			yyerror(_("option: invalid parameter - `%s'"), $1->a_string);
  	  }
 	| D_STRING '=' D_STRING
 	  {
 		if (find_option($1->a_string) < 0)
-			yyerror(_("option: invalid parameter - \"%s\""), $1->a_string);
+			yyerror(_("option: invalid parameter - `%s'"), $1->a_string);
  	  }
 	;
 
@@ -473,7 +474,7 @@ func_name
 		NODE *n;
 		n = lookup($1->a_string);
 		if (n == NULL || n->type != Node_func)
-			yyerror(_("no such function - \"%s\""), $1->a_string);
+			yyerror(_("no such function - `%s'"), $1->a_string);
 		else {
 			$1->type = D_func;
 			efree($1->a_string);
@@ -530,7 +531,7 @@ enable_args
 	  {
 		int idx = find_argument($1);
 		if (idx < 0)
-			yyerror(_("enable: invalid option - \"%s\""), $1->a_string);
+			yyerror(_("enable: invalid option - `%s'"), $1->a_string);
 		else {
 			efree($1->a_string);
 			$1->a_string = NULL;
@@ -816,93 +817,93 @@ append_statement(CMDARG *stmt_list, char *stmt)
 
 struct cmdtoken cmdtab[] = {
 { "backtrace", "bt", D_backtrace, D_BACKTRACE, do_backtrace,
-	gettext_noop("backtrace [N] - print trace of all or N innermost (outermost if N < 0) frames.") },
+	gettext_noop("backtrace [N] - print trace of all or N innermost (outermost if N < 0) frames") },
 { "break", "b", D_break, D_BREAK, do_breakpoint,
-	gettext_noop("break [[filename:]N|function] - set breakpoint at the specified location.") },
+	gettext_noop("break [[filename:]N|function] - set breakpoint at the specified location") },
 { "clear", "", D_clear, D_CLEAR, do_clear,
-	gettext_noop("clear [[filename:]N|function] - delete breakpoints previously set.") },
+	gettext_noop("clear [[filename:]N|function] - delete breakpoints previously set") },
 { "commands", "", D_commands, D_COMMANDS, do_commands,
-	gettext_noop("commands [num] - starts a list of commands to be executed at a breakpoint(watchpoint) hit.") },
+	gettext_noop("commands [num] - starts a list of commands to be executed at a breakpoint(watchpoint) hit") },
 { "condition", "", D_condition, D_CONDITION, do_condition,
-	gettext_noop("condition num [expr] - set or clear breakpoint or watchpoint condition.") },
+	gettext_noop("condition num [expr] - set or clear breakpoint or watchpoint condition") },
 { "continue", "c", D_continue, D_CONTINUE, do_continue,
-	gettext_noop("continue [COUNT] - continue program being debugged.") },
+	gettext_noop("continue [COUNT] - continue program being debugged") },
 { "delete", "d", D_delete, D_DELETE, do_delete_breakpoint,
-	gettext_noop("delete [breakpoints] [range] - delete specified breakpoints.") },
+	gettext_noop("delete [breakpoints] [range] - delete specified breakpoints") },
 { "disable", "", D_disable, D_DISABLE, do_disable_breakpoint,
-	gettext_noop("disable [breakpoints] [range] - disable specified breakpoints.") },
+	gettext_noop("disable [breakpoints] [range] - disable specified breakpoints") },
 { "display", "", D_display, D_DISPLAY, do_display,
-	gettext_noop("display [var] - print value of variable each time the program stops.") },
+	gettext_noop("display [var] - print value of variable each time the program stops") },
 { "down", "", D_down, D_DOWN, do_down,
-	gettext_noop("down [N] - move N frames down the stack.") },
+	gettext_noop("down [N] - move N frames down the stack") },
 { "dump", "", D_dump, D_DUMP, do_dump_instructions,
-	gettext_noop("dump [filename] - dump instructions to file or stdout.") },
+	gettext_noop("dump [filename] - dump instructions to file or stdout") },
 { "enable", "e", D_enable, D_ENABLE, do_enable_breakpoint,
-	gettext_noop("enable [once|del] [breakpoints] [range] - enable specified breakpoints.") },
+	gettext_noop("enable [once|del] [breakpoints] [range] - enable specified breakpoints") },
 { "end", "", D_end, D_END, do_commands,
-	gettext_noop("end - end a list of commands or awk statements.") },
+	gettext_noop("end - end a list of commands or awk statements") },
 { "eval", "", D_eval, D_EVAL, do_eval,
-	gettext_noop("eval stmt|[p1, p2, ...] - evaluate awk statement(s).") },
+	gettext_noop("eval stmt|[p1, p2, ...] - evaluate awk statement(s)") },
 { "exit", "", D_quit, D_QUIT, do_quit,
-	gettext_noop("exit - (same as quit) exit debugger.") },
+	gettext_noop("exit - (same as quit) exit debugger") },
 { "finish", "", D_finish, D_FINISH, do_finish,
-	gettext_noop("finish - execute until selected stack frame returns.") },
+	gettext_noop("finish - execute until selected stack frame returns") },
 { "frame", "f", D_frame, D_FRAME, do_frame,
-	gettext_noop("frame [N] - select and print stack frame number N.") },
+	gettext_noop("frame [N] - select and print stack frame number N") },
 { "help", "h", D_help, D_HELP, do_help,
-	gettext_noop("help [command] - print list of commands or explanation of command.") },
+	gettext_noop("help [command] - print list of commands or explanation of command") },
 { "ignore", "", D_ignore, D_IGNORE, do_ignore_breakpoint,
-	gettext_noop("ignore N COUNT - set ignore-count of breakpoint number N to COUNT.") },
+	gettext_noop("ignore N COUNT - set ignore-count of breakpoint number N to COUNT") },
 { "info", "i", D_info, D_INFO, do_info,
-	gettext_noop("info topic - source|sources|variables|functions|break|frame|args|locals|display|watch.") },
+	gettext_noop("info topic - source|sources|variables|functions|break|frame|args|locals|display|watch") },
 { "list", "l", D_list, D_LIST, do_list,
-	gettext_noop("list [-|+|[filename:]lineno|function|range] - list specified line(s).") },
+	gettext_noop("list [-|+|[filename:]lineno|function|range] - list specified line(s)") },
 { "next", "n", D_next, D_NEXT, do_next,
-	gettext_noop("next [COUNT] - step program, proceeding through subroutine calls.") },
+	gettext_noop("next [COUNT] - step program, proceeding through subroutine calls") },
 { "nexti", "ni", D_nexti, D_NEXTI, do_nexti,
-	gettext_noop("nexti [COUNT] - step one instruction, but proceed through subroutine calls.") },
+	gettext_noop("nexti [COUNT] - step one instruction, but proceed through subroutine calls") },
 { "option", "o", D_option, D_OPTION, do_option,
-	gettext_noop("option [name[=value]] - set or display debugger option(s).") },
+	gettext_noop("option [name[=value]] - set or display debugger option(s)") },
 { "print", "p", D_print, D_PRINT, do_print_var,
-	gettext_noop("print var [var] - print value of a variable or array.") },
+	gettext_noop("print var [var] - print value of a variable or array") },
 { "printf", "", D_printf, D_PRINTF, do_print_f,
-	gettext_noop("printf format, [arg], ... - formatted output.") },
+	gettext_noop("printf format, [arg], ... - formatted output") },
 { "quit", "q", D_quit, D_QUIT, do_quit,
-	gettext_noop("quit - exit debugger.") },
+	gettext_noop("quit - exit debugger") },
 { "return", "", D_return, D_RETURN, do_return,
-	gettext_noop("return [value] - make selected stack frame return to its caller.") },
+	gettext_noop("return [value] - make selected stack frame return to its caller") },
 { "run", "r", D_run, D_RUN, do_run,
-	gettext_noop("run - start or restart executing program.") },
+	gettext_noop("run - start or restart executing program") },
 #ifdef HAVE_LIBREADLINE
 { "save", "", D_save, D_SAVE, do_save,
-	gettext_noop("save filename - save commands from the session to file.") },
+	gettext_noop("save filename - save commands from the session to file") },
 #endif
 { "set", "", D_set, D_SET, do_set_var,
-	gettext_noop("set var = value - assign value to a scalar variable.") },
+	gettext_noop("set var = value - assign value to a scalar variable") },
 { "silent", "", D_silent, D_SILENT, do_commands,
-	gettext_noop("silent - suspends usual message when stopped at a breakpoint/watchpoint.") },
+	gettext_noop("silent - suspends usual message when stopped at a breakpoint/watchpoint") },
 { "source", "", D_source, D_SOURCE, do_source,
-	gettext_noop("source file - execute commands from file.") },
+	gettext_noop("source file - execute commands from file") },
 { "step", "s", D_step, D_STEP, do_step,
-	gettext_noop("step [COUNT] - step program until it reaches a different source line.") },
+	gettext_noop("step [COUNT] - step program until it reaches a different source line") },
 { "stepi", "si", D_stepi, D_STEPI, do_stepi,
-	gettext_noop("stepi [COUNT] - step one instruction exactly.") },
+	gettext_noop("stepi [COUNT] - step one instruction exactly") },
 { "tbreak", "t", D_tbreak, D_TBREAK, do_tmp_breakpoint,
-	gettext_noop("tbreak [[filename:]N|function] - set a temporary breakpoint.") },
+	gettext_noop("tbreak [[filename:]N|function] - set a temporary breakpoint") },
 { "trace", "", D_trace, D_TRACE, do_trace_instruction,
-	gettext_noop("trace on|off - print instruction before executing.") },
+	gettext_noop("trace on|off - print instruction before executing") },
 { "undisplay",	"", D_undisplay, D_UNDISPLAY, do_undisplay,
-	gettext_noop("undisplay [N] - remove variable(s) from automatic display list.") },
+	gettext_noop("undisplay [N] - remove variable(s) from automatic display list") },
 { "until", "u", D_until, D_UNTIL, do_until,
-	gettext_noop("until [[filename:]N|function] - execute until program reaches a different line or line N within current frame.") },
+	gettext_noop("until [[filename:]N|function] - execute until program reaches a different line or line N within current frame") },
 { "unwatch", "", D_unwatch, D_UNWATCH, do_unwatch,
-	gettext_noop("unwatch [N] - remove variable(s) from watch list.") },
+	gettext_noop("unwatch [N] - remove variable(s) from watch list") },
 { "up",	"", D_up, D_UP, do_up,
-	gettext_noop("up [N] - move N frames up the stack.") },
+	gettext_noop("up [N] - move N frames up the stack") },
 { "watch", "w", D_watch, D_WATCH, do_watch,
-	gettext_noop("watch var - set a watchpoint for a variable.") },
+	gettext_noop("watch var - set a watchpoint for a variable") },
 { "where", "", D_backtrace, D_BACKTRACE, do_backtrace,
-	gettext_noop("where [N] - (same as backtrace) print trace of all or N innermost (outermost if N < 0) frames.") },
+	gettext_noop("where [N] - (same as backtrace) print trace of all or N innermost (outermost if N < 0) frames") },
 { NULL, NULL, D_illegal, 0, (Func_cmd) 0,
 	 NULL },
 };
@@ -1017,7 +1018,7 @@ yyerror(const char *mesg, ...)
 	vfprintf(out_fp, mesg, args);
 	fprintf(out_fp, "\n");
 	va_end(args);
-	errcount++;
+	dbg_errcount++;
 	repeat_idx = -1;
 }
 
@@ -1039,9 +1040,9 @@ yylex(void)
 
 	yylval = (CMDARG *) NULL;
 
-	if (errcount > 0 && lexptr_begin == NULL) {
+	if (dbg_errcount > 0 && lexptr_begin == NULL) {
 		/* fake a new line */
-		errcount = 0;
+		dbg_errcount = 0;
 		return '\n';
 	}
 
@@ -1057,7 +1058,7 @@ again:
 				/* force a quit, and let do_quit (in debug.c) exit */
 				if (! seen_eof) {
 					if (errno != 0)	{
-						fprintf(stderr, _("can't read command (%s)\n"), strerror(errno));
+						fprintf(stderr, _("cannot read command: %s\n"), strerror(errno));
 						exit_val = EXIT_FAILURE;
 					} /* else
 						exit_val = EXIT_SUCCESS; */
@@ -1071,7 +1072,7 @@ again:
 					return '\n';	/* end command 'quit' */
 			}
 			if (errno != 0)
-				d_error(_("can't read command (%s)"), strerror(errno));
+				d_error(_("cannot read command: %s"), strerror(errno));
 			if (pop_cmd_src() == 0)
 				goto again;
 			exit(EXIT_FATAL);	/* shouldn't happen */
@@ -1096,7 +1097,7 @@ again:
 				add_history(h->line);
 #endif
 			cmd_idx = repeat_idx;
-			return cmdtab[cmd_idx].class;	/* repeat last command */
+			return cmdtab[cmd_idx].lex_class;	/* repeat last command */
 		}
 		repeat_idx = -1;
 	}
@@ -1156,9 +1157,9 @@ again:
 				arg->a_string = estrdup(lexptr_begin, lexend - lexptr_begin);
 				append_cmdarg(arg);
 			}
-			return cmdtab[cmd_idx].class;
+			return cmdtab[cmd_idx].lex_class;
 		} else {
-			yyerror(_("unknown command - \"%.*s\", try help"), toklen, tokstart);
+			yyerror(_("unknown command - `%.*s', try help"), toklen, tokstart);
 			return '\n';
 		}
 	}
@@ -1417,7 +1418,7 @@ concat_args(CMDARG *arg, int count)
 static int
 find_command(const char *token, size_t toklen)
 {
-	char *name, *abrv;
+	const char *name, *abrv;
 	int i, k;
 	bool try_exact = true;
 	int abrv_match = -1;

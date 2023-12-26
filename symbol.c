@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2015, 2017, 2018, 2019,
+ * Copyright (C) 1986, 1988, 1989, 1991-2015, 2017-2020, 2022, 2023,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -31,14 +31,12 @@ extern INSTRUCTION *rule_list;
 
 #define HASHSIZE	1021
 
-static int func_count;	/* total number of functions */
-static int var_count;	/* total number of global variables and functions */
-
 static NODE *symbol_list;
 static void (*install_func)(NODE *) = NULL;
 static NODE *make_symbol(const char *name, NODETYPE type);
 static NODE *install(const char *name, NODE *parm, NODETYPE type);
 static void free_bcpool(INSTRUCTION_POOL *pl);
+static NODE *get_name_from_awk_ns(const char *name);
 
 static AWK_CONTEXT *curr_ctxt = NULL;
 static int ctxt_level;
@@ -49,10 +47,21 @@ NODE *symbol_table, *func_table;
 /* Use a flag to avoid a strcmp() call inside install() */
 static bool installing_specials = false;
 
-/* init_symbol_table --- make sure the symbol tables are initialized */
+// Using persistent memory, manage the root pointer
+// which holds this struct:
+struct root_pointers {
+	NODE *global_table;
+	NODE *func_table;
+	NODE *symbol_table;
+	struct block_header nextfree[BLOCK_MAX];
+	int mpfr;
+	bool first;
+} *root_pointers = NULL;
 
-void
-init_symbol_table()
+/* init_the_tables --- deal with the tables for in memory use */
+
+static void
+init_the_tables(void)
 {
 	getnode(global_table);
 	memset(global_table, '\0', sizeof(NODE));
@@ -64,9 +73,81 @@ init_symbol_table()
 
 	installing_specials = true;
 	func_table = install_symbol(estrdup("FUNCTAB", 7), Node_var_array);
-
 	symbol_table = install_symbol(estrdup("SYMTAB", 6), Node_var_array);
 	installing_specials = false;
+}
+
+/* init_symbol_table --- make sure the symbol tables are initialized */
+
+void
+init_symbol_table()
+{
+	if (! using_persistent_malloc) {
+		// normal case, initialize regularly, return
+		init_the_tables();
+		return;
+	}
+
+	root_pointers = (struct root_pointers *) pma_get_root();
+
+	if (root_pointers == NULL) {
+		// very first time!
+
+		// set up the tables
+		init_the_tables();
+
+		// save the pointers for the next time.
+		emalloc(root_pointers, struct root_pointers *, sizeof(struct root_pointers), "init_symbol_table");
+		memset(root_pointers, 0, sizeof(struct root_pointers));
+		root_pointers->global_table = global_table;
+		root_pointers->func_table = func_table;
+		root_pointers->symbol_table = symbol_table;
+		root_pointers->first = true;
+		root_pointers->mpfr = 0;
+		pma_set_root(root_pointers);
+	} else {
+		// this is the next time, get the saved pointers and put them back in place
+		global_table = root_pointers->global_table;
+		func_table = root_pointers->func_table;
+		symbol_table = root_pointers->symbol_table;
+		memcpy(nextfree, root_pointers->nextfree, sizeof(nextfree));
+
+		// still need to set this one up as usual
+		getnode(param_table);
+		memset(param_table, '\0', sizeof(NODE));
+		null_array(param_table);
+	}
+}
+
+/* pma_mpfr_check --- check that -M is same between invocations */
+
+void
+pma_mpfr_check(void)
+{
+	if (! using_persistent_malloc)
+		return;
+
+	if (root_pointers->first) {
+		root_pointers->first = false;
+		root_pointers->mpfr = do_mpfr;
+		return;
+	}
+
+	if (root_pointers->mpfr != do_mpfr)
+		fatal(_("current setting of -M/--bignum does not match saved setting in PMA backing file"));
+}
+
+/* pma_save_free_lists --- save the free lists in the root pointer */
+
+void
+pma_save_free_lists(void)
+{
+	if (! using_persistent_malloc)
+		return;
+
+	assert(! root_pointers->first);
+
+	memcpy(root_pointers->nextfree, nextfree, sizeof(nextfree));
 }
 
 /*
@@ -102,10 +183,7 @@ lookup(const char *name)
 	tables[3] = symbol_table;	/* then globals */
 	tables[4] = NULL;
 
-	if (strncmp(name, "awk::", 5) == 0)
-		tmp = make_string(name + 5, strlen(name) - 5);
-	else
-		tmp = make_string(name, strlen(name));
+	tmp = get_name_from_awk_ns(name);
 
 	n = NULL;
 	for (i = 0; tables[i] != NULL; i++) {
@@ -292,6 +370,7 @@ make_symbol(const char *name, NODETYPE type)
 		r->var_value = dupnode(Nnull_string);
 	r->vname = (char *) name;
 	r->type = type;
+	r->valref = 1;
 
 	return r;
 }
@@ -306,7 +385,7 @@ install(const char *name, NODE *parm, NODETYPE type)
 	NODE *n_name;
 	NODE *prev;
 
-	n_name = make_string(name, strlen(name));
+	n_name = get_name_from_awk_ns(name);
 
 	table = symbol_table;
 
@@ -325,10 +404,6 @@ install(const char *name, NODE *parm, NODETYPE type)
 	else {
 		/* global symbol */
 		r = make_symbol(name, type);
-		if (type == Node_func)
-			func_count++;
-		if (type != Node_ext_func && type != Node_builtin_func && table != global_table)
-			var_count++;	/* total, includes Node_func */
 	}
 
 	if (type == Node_param_list) {
@@ -363,7 +438,18 @@ comp_symbol(const void *v1, const void *v2)
 	n1 = *npp1;
 	n2 = *npp2;
 
-	return strcmp(n1->vname, n2->vname);
+	// names in awk namespace come out first
+	bool n1_is_in_ns = (strchr(n1->vname, ':') != NULL);
+	bool n2_is_in_ns = (strchr(n2->vname, ':') != NULL);
+
+	if (n1_is_in_ns && n2_is_in_ns)
+		return strcmp(n1->vname, n2->vname);
+	else if (n1_is_in_ns && ! n2_is_in_ns)
+		return 1;
+	else if (! n1_is_in_ns && n2_is_in_ns)
+		return -1;
+	else
+		return strcmp(n1->vname, n2->vname);
 }
 
 
@@ -394,7 +480,7 @@ get_symbols(SYMBOL_TYPE what, bool sort)
 		max = the_table->table_size * 2;
 
 		list = assoc_list(the_table, "@unsorted", ASORTI);
-		emalloc(table, NODE **, (func_count + 1) * sizeof(NODE *), "get_symbols");
+		emalloc(table, NODE **, (the_table->table_size + 1) * sizeof(NODE *), "get_symbols");
 
 		for (i = count = 0; i < max; i += 2) {
 			r = list[i+1];
@@ -411,7 +497,7 @@ get_symbols(SYMBOL_TYPE what, bool sort)
 
 		list = assoc_list(the_table, "@unsorted", ASORTI);
 		/* add three: one for FUNCTAB, one for SYMTAB, and one for a final NULL */
-		emalloc(table, NODE **, (var_count + 1 + 1 + 1) * sizeof(NODE *), "get_symbols");
+		emalloc(table, NODE **, (the_table->table_size + 1 + 1 + 1) * sizeof(NODE *), "get_symbols");
 
 		for (i = count = 0; i < max; i += 2) {
 			r = list[i+1];
@@ -469,6 +555,8 @@ print_vars(NODE **table, int (*print_func)(FILE *, const char *, ...), FILE *fp)
 			print_func(fp, "untyped variable\n");
 		else if (r->type == Node_var)
 			valinfo(r->var_value, print_func, fp);
+		else
+			cant_happen("unexpected node type: %s", nodetype2str(r->type));
 	}
 }
 
@@ -594,7 +682,10 @@ load_symbols()
 			    || r->type == Node_var
 			    || r->type == Node_var_array
 			    || r->type == Node_var_new) {
-				tmp = make_string(r->vname, strlen(r->vname));
+				if (strncmp(r->vname, "awk::", 5) == 0)
+					tmp = make_string(r->vname + 5, strlen(r->vname) - 5);
+				else
+					tmp = make_string(r->vname, strlen(r->vname));
 				aptr = assoc_lookup(sym_array, tmp);
 				unref(tmp);
 				unref(*aptr);
@@ -618,7 +709,7 @@ load_symbols()
 					*aptr = dupnode(untyped);
 					break;
 				default:
-					cant_happen();
+					cant_happen("unexpected node type %s", nodetype2str(r->type));
 					break;
 				}
 			}
@@ -631,6 +722,7 @@ load_symbols()
 	unref(scalar);
 	unref(untyped);
 	unref(array);
+	unref(built_in);
 }
 
 /* check_param_names --- make sure no parameter is the name of a function */
@@ -685,7 +777,7 @@ check_param_names(void)
 
 			if (in_array(func_table, & n)) {
 				error(
-			_("function `%s': can't use function `%s' as a parameter name"),
+			_("function `%s': cannot use function `%s' as a parameter name"),
 					list[i]->stptr,
 					f->fparms[j].param);
 				result = false;
@@ -815,7 +907,7 @@ pop_context()
 
 	assert(curr_ctxt != NULL);
 	if (curr_ctxt->prev == NULL)
-		fatal(_("can not pop main context"));
+		fatal(_("cannot pop main context"));
 	ctxt = curr_ctxt->prev;
 	/* restore source and sourceline */
 	sourceline = ctxt->sourceline;
@@ -908,7 +1000,7 @@ free_bc_internal(INSTRUCTION *cp)
 			unref(m);
 		break;
 	case Op_illegal:
-		cant_happen();
+		cant_happen("unexpected opcode %s", opcode2str(cp->opcode));
 	default:
 		break;
 	}
@@ -972,4 +1064,19 @@ is_all_upper(const char *name)
 	}
 
 	return true;
+}
+
+/* get_name_from_awk_ns --- get the name after awk:: or the full name */
+
+static NODE *
+get_name_from_awk_ns(const char *name)
+{
+	NODE *tmp;
+
+	if (strncmp(name, "awk::", 5) == 0)
+		tmp = make_string(name + 5, strlen(name) - 5);
+	else
+		tmp = make_string(name, strlen(name));
+
+	return tmp;
 }

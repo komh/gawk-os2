@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2014, 2016, 2018, 2019,
+ * Copyright (C) 1986, 1988, 1989, 1991-2014, 2016, 2018-2023,
  * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
@@ -35,6 +35,7 @@ static size_t SUBSEPlen;
 static char *SUBSEP;
 static char indent_char[] = "    ";
 
+static int sort_up_value_type(const void *p1, const void *p2);
 static NODE **null_lookup(NODE *symbol, NODE *subs);
 static NODE **null_dump(NODE *symbol, NODE *subs);
 static const array_funcs_t null_array_func = {
@@ -110,7 +111,8 @@ null_array(NODE *symbol)
 	symbol->type = Node_var_array;
 	symbol->array_funcs = & null_array_func;
 	symbol->buckets = NULL;
-	symbol->table_size = symbol->array_size = 0;
+	symbol->table_size = 0;
+	symbol->array_size = 0;
 	symbol->array_capacity = 0;
 	symbol->flags = 0;
 
@@ -313,7 +315,7 @@ array_vname(const NODE *symbol)
 
 /*
  *  force_array --- proceed to the actual Node_var_array,
- *	change Node_var_new to an array.
+ *	change Node_var_new or Node_elem_new to an array.
  *	If canfatal and type isn't good, die fatally,
  *	otherwise return the final actual value.
  */
@@ -332,6 +334,11 @@ force_array(NODE *symbol, bool canfatal)
 	}
 
 	switch (symbol->type) {
+	case Node_elem_new:
+		efree(symbol->stptr);
+		symbol->stptr = NULL;
+		symbol->stlen = 0;
+		/* fall through */
 	case Node_var_new:
 		symbol->xarray = NULL;	/* make sure union is as it should be */
 		null_array(symbol);
@@ -708,7 +715,7 @@ value_info(NODE *n)
 					n->stfmt == STFMT_UNUSED ? "<unused>"
 					: fmt_list[n->stfmt]->stptr);
 #ifdef HAVE_MPFR
-		fprintf(output_fp, ", RNDMODE=\"%c\"", n->strndmode);
+		fprintf(output_fp, ", ROUNDMODE=\"%c\"", n->strndmode);
 #endif
 	}
 
@@ -741,10 +748,16 @@ assoc_info(NODE *subs, NODE *val, NODE *ndump, const char *aname)
 	fprintf(output_fp, "]\n");
 
 	indent(indent_level);
-	if (val->type == Node_val) {
+	switch (val->type) {
+	case Node_val:
 		fprintf(output_fp, "V: [scalar: ");
 		value_info(val);
-	} else {
+		break;
+	case Node_var:
+		fprintf(output_fp, "V: [scalar: ");
+		value_info(val->var_value);
+		break;
+	case Node_var_array:
 		fprintf(output_fp, "V: [");
 		ndump->alevel++;
 		ndump->adepth--;
@@ -752,6 +765,19 @@ assoc_info(NODE *subs, NODE *val, NODE *ndump, const char *aname)
 		ndump->adepth++;
 		ndump->alevel--;
 		indent(indent_level);
+		break;
+	case Node_func:
+		fprintf(output_fp, "V: [user_defined_function");
+		break;
+	case Node_ext_func:
+		fprintf(output_fp, "V: [external_function");
+		break;
+	case Node_builtin_func:
+		fprintf(output_fp, "V: [builtin_function");
+		break;
+	default:
+		cant_happen("unexpected node type %s", nodetype2str(val->type));
+		break;
 	}
 	fprintf(output_fp, "]\n");
 }
@@ -779,7 +805,7 @@ do_adump(int nargs)
 	}
 	symbol = POP_PARAM();
 	if (symbol->type != Node_var_array)
-		fatal(_("adump: first argument not an array"));
+		fatal(_("%s: first argument is not an array"), "adump");
 
 	ndump.type = Node_dump_array;
 	ndump.adepth = depth;
@@ -800,6 +826,7 @@ asort_actual(int nargs, sort_context_t ctxt)
 	unsigned long num_elems, i;
 	const char *sort_str;
 	char save;
+	const char *name = (ctxt == ASORT ? "asort" : "asorti");	// D.R.Y.
 
 	if (nargs == 3)  /* 3rd optional arg */
 		s = POP_STRING();
@@ -820,31 +847,38 @@ asort_actual(int nargs, sort_context_t ctxt)
 	if (nargs >= 2) {  /* 2nd optional arg */
 		dest = POP_PARAM();
 		if (dest->type != Node_var_array) {
-			fatal(ctxt == ASORT ?
-				_("asort: second argument not an array") :
-				_("asorti: second argument not an array"));
+			fatal(_("%s: second argument is not an array"), name);
 		}
+		check_symtab_functab(dest, name,
+				_("%s: cannot use %s as second argument"));
 	}
 
 	array = POP_PARAM();
 	if (array->type != Node_var_array) {
-		fatal(ctxt == ASORT ?
-			_("asort: first argument not an array") :
-			_("asorti: first argument not an array"));
+		fatal(_("%s: first argument is not an array"), name);
 	}
+	else if (array == symbol_table && dest == NULL)
+		fatal(_("%s: first argument cannot be SYMTAB without a second argument"), name);
+	else if (array == func_table && dest == NULL)
+		fatal(_("%s: first argument cannot be FUNCTAB without a second argument"), name);
 
 	if (dest != NULL) {
+		static bool warned = false;
+
+		if (nargs == 2 && array == dest && ! warned) {
+			warned = true;
+			lintwarn(_("asort/asorti: using the same array as source and destination without "
+				   "a third argument is silly."));
+		}
 		for (r = dest->parent_array; r != NULL; r = r->parent_array) {
 			if (r == array)
-				fatal(ctxt == ASORT ?
-					_("asort: cannot use a subarray of first arg for second arg") :
-					_("asorti: cannot use a subarray of first arg for second arg"));
+				fatal(_("%s: cannot use a subarray of first argument for second argument"),
+					name);
 		}
 		for (r = array->parent_array; r != NULL; r = r->parent_array) {
 			if (r == dest)
-				fatal(ctxt == ASORT ?
-					_("asort: cannot use a subarray of second arg for first arg") :
-					_("asorti: cannot use a subarray of second arg for first arg"));
+				fatal(_("%s: cannot use a subarray of second argument for first argument"),
+					name);
 		}
 	}
 
@@ -899,12 +933,30 @@ asort_actual(int nargs, sort_context_t ctxt)
 			/* value node */
 			r = *ptr++;
 
-			NODE *value;
+			NODE *value = NULL;
 
-			if (r->type == Node_val)
+			switch (r->type) {
+			case Node_val:
 				value = dupnode(r);
-			else {
+				break;
+			case Node_var:
+				/* SYMTAB ... */
+				value = dupnode(r->var_value);
+				break;
+			case Node_var_new:
+			case Node_elem_new:
+				value = dupnode(Nnull_string);
+				break;
+			case Node_builtin_func:
+			case Node_func:
+			case Node_ext_func:
+				/* FUNCTAB ... */
+				value = make_string(r->vname, strlen(r->vname));
+				break;
+			case Node_var_array:
+			{
 				NODE *arr;
+
 				arr = make_array();
 				subs = force_string(subs);
 				arr->vname = subs->stptr;
@@ -914,6 +966,10 @@ asort_actual(int nargs, sort_context_t ctxt)
 				arr->parent_array = array; /* actual parent, not the temporary one. */
 
 				value = assoc_copy(r, arr);
+				break;
+			}
+			default:
+				cant_happen("asort_actual: got unexpected type %s", nodetype2str(r->type));
 			}
 			assoc_set(result, subs, value);
 		}
@@ -1073,19 +1129,19 @@ static int
 sort_up_value_string(const void *p1, const void *p2)
 {
 	const NODE *t1, *t2;
+	int ret;
 
 	t1 = *((const NODE *const *) p1 + 1);
 	t2 = *((const NODE *const *) p2 + 1);
 
-	if (t1->type == Node_var_array) {
-		/* return 0 if t2 is a sub-array too, else return 1 */
-		return (t2->type != Node_var_array);
-	}
-	if (t2->type == Node_var_array)
-		return -1;		/* t1 (scalar) < t2 (sub-array) */
+	if (t1->type != Node_val || t2->type != Node_val)
+		return sort_up_value_type(p1, p2);
 
 	/* t1 and t2 both have string values */
-	return cmp_strings(t1, t2);
+	ret = cmp_strings(t1, t2);
+	if (ret != 0)
+		return ret;
+	return sort_up_index_string(p1, p2);
 }
 
 
@@ -1109,12 +1165,8 @@ sort_up_value_number(const void *p1, const void *p2)
 	t1 = *((NODE *const *) p1 + 1);
 	t2 = *((NODE *const *) p2 + 1);
 
-	if (t1->type == Node_var_array) {
-		/* return 0 if t2 is a sub-array too, else return 1 */
-		return (t2->type != Node_var_array);
-	}
-	if (t2->type == Node_var_array)
-		return -1;		/* t1 (scalar) < t2 (sub-array) */
+	if (t1->type != Node_val || t2->type != Node_val)
+		return sort_up_value_type(p1, p2);
 
 	ret = cmp_numbers(t1, t2);
 	if (ret != 0)
@@ -1124,9 +1176,10 @@ sort_up_value_number(const void *p1, const void *p2)
 	 * Use string value to guarantee same sort order on all
 	 * versions of qsort().
 	 */
-	t1 = force_string(t1);
-	t2 = force_string(t2);
-	return cmp_strings(t1, t2);
+	ret = cmp_strings(force_string(t1), force_string(t2));
+	if (ret != 0)
+		return ret;
+	return sort_up_index_string(p1, p2);
 }
 
 
@@ -1139,35 +1192,71 @@ sort_down_value_number(const void *p1, const void *p2)
 }
 
 
-/* sort_up_value_type --- qsort comparison function; ascending value type */
+/* do_sort_up_value_type --- backend comparison on ascending value type */
 
 static int
-sort_up_value_type(const void *p1, const void *p2)
+do_sort_up_value_type(const void *p1, const void *p2)
 {
 	NODE *n1, *n2;
+
+	static const NODETYPE element_types[] = {
+		Node_builtin_func,
+		Node_func,
+		Node_ext_func,
+		Node_var_new,
+		Node_elem_new,
+		Node_var,
+		Node_var_array,
+		Node_val,
+		Node_illegal
+	};
 
 	/* we want to compare the element values */
 	n1 = *((NODE *const *) p1 + 1);
 	n2 = *((NODE *const *) p2 + 1);
 
-	/* 1. Arrays vs. scalar, scalar is less than array */
+	if (n1->type == Node_var && n2->type == Node_var) {
+		/* compare the values of the variables */
+		n1 = n1->var_value;
+		n2 = n2->var_value;
+	}
+
+	/* 1. Arrays vs. everything else, everything else is less than array */
 	if (n1->type == Node_var_array) {
 		/* return 0 if n2 is a sub-array too, else return 1 */
 		return (n2->type != Node_var_array);
 	}
 	if (n2->type == Node_var_array) {
-		return -1;		/* n1 (scalar) < n2 (sub-array) */
+		return -1;              /* n1 (non-array) < n2 (sub-array) */
+	}
+
+	/* 2. Non scalars */
+	if (n1->type != Node_val || n2->type != Node_val) {
+		int n1_pos, n2_pos, i;
+
+		n1_pos = n2_pos = -1;
+		for (i = 0; element_types[i] != Node_illegal; i++) {
+			if (n1->type == element_types[i])
+				n1_pos = i;
+
+			if (n2->type == element_types[i])
+				n2_pos = i;
+		}
+
+		assert(n1_pos != -1 && n2_pos != -1);
+		return (n1_pos - n2_pos);
 	}
 
 	/* two scalars */
 	(void) fixtype(n1);
 	(void) fixtype(n2);
 
+	/* 3a. Numbers first */
 	if ((n1->flags & NUMBER) != 0 && (n2->flags & NUMBER) != 0) {
 		return cmp_numbers(n1, n2);
 	}
 
-	/* 3. All numbers are less than all strings. This is aribitrary. */
+	/* 3b. All numbers are less than all strings. This is aribitrary. */
 	if ((n1->flags & NUMBER) != 0 && (n2->flags & STRING) != 0) {
 		return -1;
 	} else if ((n1->flags & STRING) != 0 && (n2->flags & NUMBER) != 0) {
@@ -1176,6 +1265,17 @@ sort_up_value_type(const void *p1, const void *p2)
 
 	/* 4. Two strings */
 	return cmp_strings(n1, n2);
+}
+
+/* sort_up_value_type --- qsort comparison function; ascending value type */
+
+static int
+sort_up_value_type(const void *p1, const void *p2)
+{
+	int rc = do_sort_up_value_type(p1, p2);
+
+	/* use a tie-breaker if do_sort_up_value_type has no opinion */
+	return rc ? rc : sort_up_index_string(p1, p2);
 }
 
 /* sort_down_value_type --- qsort comparison function; descending value type */
@@ -1367,4 +1467,27 @@ assoc_list(NODE *symbol, const char *sort_str, sort_context_t sort_ctxt)
 	}
 
 	return list;
+}
+
+/* new_array_element --- return a new empty element node */
+
+NODE *
+new_array_element(void)
+{
+	NODE *n = make_number(0.0);
+	char *sp;
+
+	emalloc(sp, char *, 2, "new_array_element");
+	sp[0] = sp[1] = '\0';
+
+	n->stptr = sp;
+	n->stlen = 0;
+	n->stfmt = STFMT_UNUSED;
+
+	n->flags |= (MALLOC|STRING|STRCUR);
+
+	n->type = Node_elem_new;
+	n->valref = 1;
+
+	return n;
 }

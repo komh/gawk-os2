@@ -3,7 +3,8 @@
  */
 
 /*
- * Copyright (C) 1986, 1988, 1989, 1991-2018 the Free Software Foundation, Inc.
+ * Copyright (C) 1986, 1988, 1989, 1991-2019, 2021, 2022, 2023,
+ * the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -24,10 +25,8 @@
  */
 
 #include "awk.h"
+#include <math.h>
 
-extern double pow(double x, double y);
-extern double modf(double x, double *yp);
-extern double fmod(double x, double y);
 NODE **fcall_list = NULL;
 long fcall_count = 0;
 int currule = 0;
@@ -39,6 +38,8 @@ int (*interpret)(INSTRUCTION *);
 static int num_exec_hook = 0;
 static Func_pre_exec pre_execute[MAX_EXEC_HOOKS];
 static Func_post_exec post_execute = NULL;
+
+static double fix_nan_sign(double left, double right, double result);
 
 extern void frame_popped();
 
@@ -239,6 +240,7 @@ static const char *const nodetypes[] = {
 	"Node_var",
 	"Node_var_array",
 	"Node_var_new",
+	"Node_elem_new",
 	"Node_param_list",
 	"Node_func",
 	"Node_ext_func",
@@ -294,6 +296,7 @@ static struct optypetab {
 	{ "Op_store_var", " = " },
 	{ "Op_store_sub", " = " },
 	{ "Op_store_field", " = " },
+	{ "Op_store_field_exp", " = " },
 	{ "Op_assign_times", " *= " },
 	{ "Op_assign_quotient", " /= " },
 	{ "Op_assign_mod", " %= " },
@@ -369,6 +372,7 @@ static struct optypetab {
 	{ "Op_exec_count", NULL },
 	{ "Op_breakpoint", NULL },
 	{ "Op_lint", NULL },
+	{ "Op_lint_plus", NULL },
 	{ "Op_atexit", NULL },
 	{ "Op_stop", NULL },
 	{ "Op_token", NULL },
@@ -442,6 +446,7 @@ flags2str(int flagval)
 		{ NUMCUR, "NUMCUR" },
 		{ NUMBER, "NUMBER" },
 		{ USER_INPUT, "USER_INPUT" },
+		{ BOOLVAL, "BOOL" },
 		{ INTLSTR, "INTLSTR" },
 		{ NUMINT, "NUMINT" },
 		{ INTIND, "INTIND" },
@@ -502,79 +507,79 @@ genflags2str(int flagval, const struct flagtab *tab)
 static int
 posix_compare(NODE *s1, NODE *s2)
 {
-	int ret = 0;
-	char save1, save2;
-	size_t l = 0;
-
-	save1 = s1->stptr[s1->stlen];
-	s1->stptr[s1->stlen] = '\0';
-
-	save2 = s2->stptr[s2->stlen];
-	s2->stptr[s2->stlen] = '\0';
+	int ret;
 
 	if (gawk_mb_cur_max == 1) {
-		if (strlen(s1->stptr) == s1->stlen && strlen(s2->stptr) == s2->stlen)
-			ret = strcoll(s1->stptr, s2->stptr);
-		else {
-			char b1[2], b2[2];
-			char *p1, *p2;
-			size_t i;
+		char save1, save2;
+		const char *p1, *p2;
 
-			if (s1->stlen < s2->stlen)
-				l = s1->stlen;
-			else
-				l = s2->stlen;
+		save1 = s1->stptr[s1->stlen];
+		s1->stptr[s1->stlen] = '\0';
 
-			b1[1] = b2[1] = '\0';
-			for (i = ret = 0, p1 = s1->stptr, p2 = s2->stptr;
-			     ret == 0 && i < l;
-			     p1++, p2++) {
-				b1[0] = *p1;
-				b2[0] = *p2;
-				ret = strcoll(b1, b2);
+		save2 = s2->stptr[s2->stlen];
+		s2->stptr[s2->stlen] = '\0';
+
+		p1 = s1->stptr;
+		p2 = s2->stptr;
+
+		for (;;) {
+			size_t len;
+
+			ret = strcoll(p1, p2);
+			if (ret != 0)
+				break;
+
+			len = strlen(p1);
+			p1 += len + 1;
+			p2 += len + 1;
+
+			if (p1 == s1->stptr + s1->stlen + 1) {
+				if (p2 != s2->stptr + s2->stlen + 1)
+					ret = -1;
+				break;
+			}
+			if (p2 == s2->stptr + s2->stlen + 1) {
+				ret = 1;
+				break;
 			}
 		}
-		/*
-		 * Either worked through the strings or ret != 0.
-		 * In either case, ret will be the right thing to return.
-		 */
+
+		s1->stptr[s1->stlen] = save1;
+		s2->stptr[s2->stlen] = save2;
 	}
-#if ! defined(__DJGPP__)
 	else {
 		/* Similar logic, using wide characters */
+		const wchar_t *p1, *p2;
+
 		(void) force_wstring(s1);
 		(void) force_wstring(s2);
 
-		if (wcslen(s1->wstptr) == s1->wstlen && wcslen(s2->wstptr) == s2->wstlen)
-			ret = wcscoll(s1->wstptr, s2->wstptr);
-		else {
-			wchar_t b1[2], b2[2];
-			wchar_t *p1, *p2;
-			size_t i;
+		p1 = s1->wstptr;
+		p2 = s2->wstptr;
 
-			if (s1->wstlen < s2->wstlen)
-				l = s1->wstlen;
-			else
-				l = s2->wstlen;
+		for (;;) {
+			size_t len;
 
-			b1[1] = b2[1] = L'\0';
-			for (i = ret = 0, p1 = s1->wstptr, p2 = s2->wstptr;
-			     ret == 0 && i < l;
-			     p1++, p2++) {
-				b1[0] = *p1;
-				b2[0] = *p2;
-				ret = wcscoll(b1, b2);
+			ret = wcscoll(p1, p2);
+			if (ret != 0)
+				break;
+
+			len = wcslen(p1);
+			p1 += len + 1;
+			p2 += len + 1;
+
+			if (p1 == s1->wstptr + s1->wstlen + 1) {
+				if (p2 != s2->wstptr + s2->wstlen + 1)
+					ret = -1;
+				break;
+			}
+			if (p2 == s2->wstptr + s2->wstlen + 1) {
+				ret = 1;
+				break;
 			}
 		}
-		/*
-		 * Either worked through the strings or ret != 0.
-		 * In either case, ret will be the right thing to return.
-		 */
 	}
-#endif
 
-	s1->stptr[s1->stlen] = save1;
-	s2->stptr[s2->stlen] = save2;
 	return ret;
 }
 
@@ -706,7 +711,7 @@ set_IGNORECASE()
 {
 	static bool warned = false;
 
-	if ((do_lint || do_traditional) && ! warned) {
+	if ((do_lint_extensions || do_traditional) && ! warned) {
 		warned = true;
 		lintwarn(_("`IGNORECASE' is a gawk extension"));
 	}
@@ -727,7 +732,7 @@ set_BINMODE()
 	char *p;
 	NODE *v = fixtype(BINMODE_node->var_value);
 
-	if ((do_lint || do_traditional) && ! warned) {
+	if ((do_lint_extensions || do_traditional) && ! warned) {
 		warned = true;
 		lintwarn(_("`BINMODE' is a gawk extension"));
 	}
@@ -964,6 +969,8 @@ set_LINT()
 		if (lintlen > 0) {
 			if (lintlen == 7 && strncmp(lintval, "invalid", 7) == 0)
 				do_flags |= DO_LINT_INVALID;
+			else if (lintlen == 6 && strncmp(lintval, "no-ext", 6) == 0)
+				do_flags &= ~DO_LINT_EXTENSIONS;
 			else {
 				do_flags |= DO_LINT_ALL;
 				if (lintlen == 5 && strncmp(lintval, "fatal", 5) == 0)
@@ -971,7 +978,7 @@ set_LINT()
 			}
 		}
 	} else {
-		if (! iszero(n))
+		if (! is_zero(n))
 			do_flags |= DO_LINT_ALL;
 	}
 
@@ -1004,7 +1011,7 @@ set_TEXTDOMAIN()
 void
 update_ERRNO_int(int errcode)
 {
-	char *cp;
+	const char *cp;
 
 	update_PROCINFO_num("errno", errcode);
 	if (errcode) {
@@ -1148,6 +1155,7 @@ r_get_lhs(NODE *n, bool reference)
 	case Node_var_array:
 		fatal(_("attempt to use array `%s' in a scalar context"),
 				array_vname(n));
+		return NULL;	// silence compiler warnings
 	case Node_array_ref:
 		if (n->orig_array->type == Node_var_array)
 			fatal(_("attempt to use array `%s' in a scalar context"),
@@ -1162,11 +1170,19 @@ r_get_lhs(NODE *n, bool reference)
 		n->var_value = dupnode(Nnull_string);
 		break;
 
+	case Node_elem_new:
+		efree(n->stptr);
+		n->stptr = NULL;
+		n->stlen = 0;
+		n->type = Node_var;
+		n->var_value = dupnode(Nnull_string);
+		break;
+
 	case Node_var:
 		break;
 
 	default:
-		cant_happen();
+		cant_happen("unexpected variable type %s", nodetype2str(n->type));
 	}
 
 	if (do_lint && reference && var_uninitialized(n))
@@ -1301,13 +1317,17 @@ setup_frame(INSTRUCTION *pc)
 
 		/* $0 needs to be passed by value to a function */
 		if (m == fields_arr[0]) {
+			NODE *copy;
+
+			copy = dupnode(m);	// will be real copy
 			DEREF(m);
-			m = dupnode(m);
+			m = copy;
 		}
 
 		switch (m->type) {
 		case Node_var_new:
 		case Node_var_array:
+		case Node_elem_new:
 			r->type = Node_array_ref;
 			r->orig_array = r->prev_array = m;
 			break;
@@ -1332,8 +1352,15 @@ setup_frame(INSTRUCTION *pc)
 			r->var_value = m;
 			break;
 
+		case Node_func:
+		case Node_builtin_func:
+		case Node_ext_func:
+			r->type = Node_var;
+			r->var_value = make_string(m->vname, strlen(m->vname));
+			break;
+
 		default:
-			cant_happen();
+			cant_happen("unexpected parameter type %s", nodetype2str(m->type));
 		}
 		r->vname = fp[i].param;
 	}
@@ -1508,30 +1535,112 @@ eval_condition(NODE *t)
 	return boolval(t);
 }
 
-typedef enum {
-	SCALAR_EQ_NEQ,
-	SCALAR_RELATIONAL
-} scalar_cmp_t;
+static bool cmp_doubles(const NODE *t1, const NODE *t2, scalar_cmp_t comparison_type);
+extern bool mpg_cmp_as_numbers(const NODE *t1, const NODE *t2, scalar_cmp_t comparison_type);
 
 /* cmp_scalars -- compare two nodes on the stack */
 
-static inline int
+static bool
 cmp_scalars(scalar_cmp_t comparison_type)
 {
 	NODE *t1, *t2;
 	int di;
+	bool ret;
 
 	t2 = POP_SCALAR();
 	t1 = TOP();
+
+	t1 = elem_new_to_scalar(t1);
+	t2 = elem_new_to_scalar(t2);
+
 	if (t1->type == Node_var_array) {
 		DEREF(t2);
 		fatal(_("attempt to use array `%s' in a scalar context"), array_vname(t1));
 	}
-	di = cmp_nodes(t1, t2, comparison_type == SCALAR_EQ_NEQ);
+
+	if ((t1->flags & STRING) != 0 || (t2->flags & STRING) != 0) {
+		bool use_strcmp = (comparison_type == SCALAR_EQ || comparison_type == SCALAR_NEQ);
+		di = cmp_nodes(t1, t2, use_strcmp);
+
+		switch (comparison_type) {
+		case SCALAR_EQ:
+			ret = (di == 0);
+			break;
+		case SCALAR_NEQ:
+			ret = (di != 0);
+			break;
+		case SCALAR_LT:
+			ret = (di < 0);
+			break;
+		case SCALAR_LE:
+			ret = (di <= 0);
+			break;
+		case SCALAR_GT:
+			ret = (di > 0);
+			break;
+		case SCALAR_GE:
+			ret = (di >= 0);
+			break;
+		}
+	} else {
+		fixtype(t1);
+		fixtype(t2);
+
+#ifdef HAVE_MPFR
+		if (do_mpfr)
+			ret = mpg_cmp_as_numbers(t1, t2, comparison_type);
+		else
+#endif
+			ret = cmp_doubles(t1, t2, comparison_type);
+	}
+
 	DEREF(t1);
 	DEREF(t2);
-	return di;
+	return ret;
 }
+
+
+/* cmp_doubles --- compare two doubles */
+
+static bool
+cmp_doubles(const NODE *t1, const NODE *t2, scalar_cmp_t comparison_type)
+{
+	/*
+	 * This routine provides numeric comparisons that should work
+	 * the same as in C.  It should NOT be used for sorting.
+	 */
+
+	bool t1_nan = isnan(t1->numbr);
+	bool t2_nan = isnan(t2->numbr);
+	int ret;
+
+	if ((t1_nan || t2_nan) && comparison_type != SCALAR_NEQ)
+		return false;
+
+	switch (comparison_type) {
+	case SCALAR_EQ:
+		ret = (t1->numbr == t2->numbr);
+		break;
+	case SCALAR_NEQ:
+		ret = (t1->numbr != t2->numbr);
+		break;
+	case SCALAR_LT:
+		ret = (t1->numbr < t2->numbr);
+		break;
+	case SCALAR_LE:
+		ret = (t1->numbr <= t2->numbr);
+		break;
+	case SCALAR_GT:
+		ret = (t1->numbr > t2->numbr);
+		break;
+	case SCALAR_GE:
+		ret = (t1->numbr >= t2->numbr);
+		break;
+	}
+
+	return ret;
+}
+
 
 /* op_assign --- assignment operators excluding = */
 
@@ -1782,3 +1891,37 @@ init_interpret()
 		interpret = r_interpret;
 }
 
+/* elem_new_to_scalar --- convert Node_elem_new to untyped scalar */
+
+NODE *
+elem_new_to_scalar(NODE *n)
+{
+	if (n->type != Node_elem_new)
+		return n;
+
+	if (n->valref > 1) {
+		unref(n);
+		return dupnode(Nnull_string);
+	}
+
+	n->type = Node_val;
+
+	return n;
+}
+
+/* fix_nan_sign --- fix NaN sign on RiscV */
+
+// See the thread starting at
+// https://lists.gnu.org/archive/html/bug-gawk/2022-09/msg00005.html
+// for why we need this function.
+
+static double
+fix_nan_sign(double left, double right, double result)
+{
+	if (isnan(left) && signbit(left))
+		return copysign(result, -1.0);
+	else if (isnan(right) && signbit(right))
+		return copysign(result, -1.0);
+	else
+		return result;
+}

@@ -1,7 +1,8 @@
 #
 # doc/Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 2000, 2001, 2002, 2004, 2005, 2007, 2010, 2011, 2016, 2017
+# Copyright (C) 2000, 2001, 2002, 2004, 2005, 2007, 2010, 2011, 2016, 2017,
+# 2021, 2022, 2023,
 # the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
@@ -24,37 +25,35 @@
 
 ## process this file with automake to produce Makefile.in
 
-info_TEXINFOS = gawk.texi gawkinet.texi gawkworkflow.texi
+info_TEXINFOS = gawk.texi gawkinet.texi gawkworkflow.texi pm-gawk.texi
 
-man_MANS = gawk.1
+man_MANS = gawk.1 gawkbug.1 pm-gawk.1
 
-EXTRA_DIST = ChangeLog ChangeLog.0 README.card ad.block setter.outline \
+png_images = gawk_api-figure1.png gawk_api-figure2.png gawk_api-figure3.png \
+	gawk_array-elements.png gawk_general-program.png gawk_process-flow.png
+html_images = $(png_images) gawk_statist.jpg
+
+fig_images = $(png_images:%.png=%.fig)
+txt_images = $(png_images:%.png=%.txt) gawk_statist.txt
+eps_images = $(txt_images:%.txt=%.eps) gawk_statist.eps
+pdf_images = $(txt_images:%.txt=%.pdf) gawk_statist.pdf
+
+EXTRA_DIST = ChangeLog ChangeLog.0 ChangeLog.1 \
+	README.card ad.block setter.outline \
 	awkcard.in awkforai.txt texinfo.tex cardfonts \
-	api-figure1.eps api-figure1.fig api-figure1.pdf \
-	api-figure1.png api-figure1.txt \
-	api-figure2.eps api-figure2.fig api-figure2.pdf \
-	api-figure2.png api-figure2.txt \
-	api-figure3.eps api-figure3.fig api-figure3.pdf \
-	api-figure3.png api-figure3.txt \
-	array-elements.eps array-elements.fig array-elements.pdf \
-	array-elements.png array-elements.txt \
-	gawktexi.in sidebar.awk \
-	general-program.eps general-program.fig general-program.pdf \
-	general-program.png general-program.txt \
+	$(fig_images) $(txt_images) $(eps_images) $(pdf_images) \
+	$(html_images) \
 	it \
-	process-flow.eps process-flow.fig process-flow.pdf \
-	process-flow.png process-flow.txt \
 	macros colors no.colors $(man_MANS) \
 	lflashlight-small.xpic lflashlight.eps lflashlight.pdf \
 	rflashlight-small.xpic rflashlight.eps rflashlight.pdf \
-	statist.jpg statist.eps statist.pdf \
-	wordlist wordlist2 wordlist3 \
+	wordlist wordlist2 wordlist3 wordlist4 wordlist5 wordlist6 \
 	bc_notes
 
 # Get rid of generated files when cleaning
-CLEANFILES = *.ps *.html *.dvi *~ awkcard.nc awkcard.tr gawk.pdf gawkinet.pdf gawkworkflow.pdf awkcard.pdf gawk.1.pdf
+CLEANFILES = *.ps *.html *.dvi *~ awkcard.nc awkcard.tr gawk.pdf gawkinet.pdf gawkworkflow.pdf awkcard.pdf gawk.1.pdf gawkbug.1.pdf pm-gawk.1.pdf pm-gawk.pdf
 
-MAKEINFO = @MAKEINFO@ --no-split --force
+MAKEINFO = @MAKEINFO@ -c CHECK_NORMAL_MENU_STRUCTURE=1 --no-split --force
 
 TROFF = groff -t -Tps -U
 SEDME = sed -e "s/^level0 restore/level0 restore flashme 100 72 moveto (Copyright `date '+%m-%d-%y %T'`, FSF, Inc. (all)) show/" \
@@ -75,12 +74,9 @@ AWKCARD = awkcard.ps
 # to ensure that awkcard.tr is processed by tbl.
 #AWKCARD = awkcard.nc
 
-gawk.texi: $(srcdir)/gawktexi.in $(srcdir)/sidebar.awk
-	awk -f $(srcdir)/sidebar.awk < $(srcdir)/gawktexi.in > gawk.texi
+postscript: gawk.ps gawkinet.ps gawkworkflow.ps pm-gawk.ps gawk.1.ps gawkbug.1.ps pm-gawk.1.ps $(AWKCARD)
 
-postscript: gawk.ps gawkinet.ps gawkworkflow.ps gawk.1.ps $(AWKCARD)
-
-pdf-local: postscript gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf
+pdf-local: postscript gawk.pdf gawkinet.pdf awkcard.pdf gawk.1.pdf gawkbug.1.pdf pm-gawk.1.pdf pm-gawk.pdf
 
 gawk.ps: gawk.dvi
 	TEXINPUTS=$(srcdir): dvips -o gawk.ps gawk.dvi
@@ -91,11 +87,26 @@ gawkinet.ps: gawkinet.dvi
 gawkworkflow.ps: gawkworkflow.dvi
 	TEXINPUTS=$(srcdir): dvips -o gawkworkflow.ps gawkworkflow.dvi
 
+pm-gawk.ps: pm-gawk.dvi
+	TEXINPUTS=$(srcdir): dvips -o pm-gawk.ps pm-gawk.dvi
+
 gawk.1.ps: gawk.1
 	-groff -man $(srcdir)/gawk.1 > gawk.1.ps
 
 gawk.1.pdf: gawk.1.ps
 	ps2pdf gawk.1.ps gawk.1.pdf
+
+gawkbug.1.ps: gawkbug.1
+	-groff -man $(srcdir)/gawkbug.1 > gawkbug.1.ps
+
+gawkbug.1.pdf: gawkbug.1.ps
+	ps2pdf gawkbug.1.ps gawkbug.1.pdf
+
+pm-gawk.1.ps: pm-gawk.1
+	-groff -man $(srcdir)/pm-gawk.1 > pm-gawk.1.ps
+
+pm-gawk.1.pdf: pm-gawk.1.ps
+	ps2pdf pm-gawk.1.ps pm-gawk.1.pdf
 
 awkcard.tr: awkcard.in
 	sed 's:SRCDIR:$(srcdir):' < $(srcdir)/awkcard.in > awkcard.tr
@@ -109,11 +120,11 @@ awkcard.nc: $(CARDFILES)
 awkcard.pdf: awkcard.ps
 	ps2pdf awkcard.ps awkcard.pdf
 
-spell: spellmanual spellworkflow spellmanpage
+spell: spellmanual spellworkflow spellmanpage spellinet
 
 spellmanual:
-	@echo ==== gawktexi.in ====;
-	export LC_ALL=C ; spell "$(srcdir)"/gawktexi.in | \
+	@echo ==== gawk.texi ====;
+	export LC_ALL=C ; spell "$(srcdir)"/gawk.texi | \
 	sort -u | comm -23 - "$(srcdir)"/wordlist
 
 spellworkflow:
@@ -121,7 +132,51 @@ spellworkflow:
 	export LC_ALL=C ; spell "$(srcdir)"/gawkworkflow.texi | \
 	sort -u | comm -23 - "$(srcdir)"/wordlist2
 
-spellmanpage:
+spellmanpage: spellgawkmanpage spellgawkbugmanpage spellpmgawkmanpage
+
+spellgawkmanpage:
 	@echo ==== gawk.1 ====
 	export LC_ALL=C ; spell "$(srcdir)"/gawk.1 | \
 	sort -u | comm -23 - "$(srcdir)"/wordlist3
+
+spellgawkbugmanpage:
+	@echo ==== gawkbug.1 ====
+	export LC_ALL=C ; spell "$(srcdir)"/gawkbug.1 | \
+	sort -u | comm -23 - "$(srcdir)"/wordlist5
+
+spellpmgawkmanpage:
+	@echo ==== pm-gawk.1 ====
+	export LC_ALL=C ; spell "$(srcdir)"/pm-gawk.1 | \
+	sort -u | comm -23 - "$(srcdir)"/wordlist6
+
+spellinet:
+	@echo ==== gawkinet.texi ====
+	export LC_ALL=C ; spell "$(srcdir)"/gawkinet.texi | \
+	sort -u | comm -23 - "$(srcdir)"/wordlist4
+
+# Install/unistall graphic image files in the info/ dir
+
+imagedir = $(infodir)
+image_DATA = $(html_images)
+
+# Install/unistall graphic image files in the html doc dir
+
+install-html-local:
+	@$(NORMAL_INSTALL)
+	@list='$(html_images)'; test -n "$(htmldir)" || list=; \
+	if test -n "$$list"; then \
+	  echo " $(MKDIR_P) '$(DESTDIR)$(htmldir)'"; \
+	  $(MKDIR_P) "$(DESTDIR)$(htmldir)" || exit 1; \
+	fi; \
+	for p in $$list; do \
+		$(INSTALL_DATA) $$p "$(DESTDIR)$(htmldir)" || exit $$?; \
+	done;
+
+uninstall-local:
+	@$(NORMAL_UNINSTALL)
+	@list='$(html_images)'; test -n "$(htmldir)" || list=; \
+	for p in $$list; do \
+	  echo " rm -rf '$(DESTDIR)$(htmldir)/$$p'"; \
+	  rm -rf "$(DESTDIR)$(htmldir)/$$p"; \
+	done
+

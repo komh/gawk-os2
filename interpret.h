@@ -2,9 +2,10 @@
  * interpret.h ---  run a list of instructions.
  */
 
-/* 
- * Copyright (C) 1986, 1988, 1989, 1991-2019 the Free Software Foundation, Inc.
- * 
+/*
+ * Copyright (C) 1986, 1988, 1989, 1991-2023,
+ * the Free Software Foundation, Inc.
+ *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
  *
@@ -46,7 +47,6 @@ unfield(NODE **l, NODE **r)
 		(*l) = dupnode(*r);
 		DEREF(*r);
 	}
-	force_string(*l);
 }
 
 #define UNFIELD(l, r)	unfield(& (l), & (r))
@@ -67,6 +67,7 @@ r_interpret(INSTRUCTION *code)
 	Regexp *rp;
 	NODE *set_array = NULL;	/* array with a post-assignment routine */
 	NODE *set_idx = NULL;	/* the index of the array element */
+	bool in_indirect_call = false;
 
 
 /* array subscript */
@@ -100,9 +101,21 @@ top:
 		}
 #endif
 
-		switch ((op = pc->opcode)) {
+		op = pc->opcode;
+		if (do_itrace) {
+			fprintf(stderr, "+ %s\n", opcode2str(op));
+			fflush(stderr);
+		}
+
+		switch (op) {
 		case Op_rule:
-			currule = pc->in_rule;   /* for sole use in Op_K_next, Op_K_nextfile, Op_K_getline */
+			currule = pc->in_rule;   /* for use in Op_K_next, Op_K_nextfile, Op_K_getline */
+			// 8/2020: See node BEGINFILE/ENDFILE in the manual.  We clear the record
+			// since conceptually we are before reading a new record from the
+			// upcoming file but haven't read it yet.
+			if (currule == BEGINFILE)
+				set_record("", 0, NULL);
+
 			/* fall through */
 		case Op_func:
 			source = pc->source_file;
@@ -199,18 +212,42 @@ top:
 
 			case Node_var_new:
 uninitialized_scalar:
-				if (op != Op_push_arg_untyped) {
-					/* convert untyped to scalar */
-					m->type = Node_var;
-					m->var_value = dupnode(Nnull_string);
-				}
 				if (do_lint)
 					lintwarn(isparam ?
 						_("reference to uninitialized argument `%s'") :
 						_("reference to uninitialized variable `%s'"),
 								save_symbol->vname);
-				if (op != Op_push_arg_untyped)
+
+				if (op != Op_push_arg_untyped) {
+					// convert very original untyped to scalar
+					m->type = Node_var;
+					m->var_value = dupnode(Nnull_string);
+
+					// set up local param by value
 					m = dupnode(Nnull_string);
+				}
+
+				UPREF(m);
+				PUSH(m);
+				break;
+
+			case Node_elem_new:
+				if (do_lint)
+					lintwarn(isparam ?
+						_("reference to uninitialized argument `%s'") :
+						_("reference to uninitialized variable `%s'"),
+								save_symbol->vname);
+
+				if (op != Op_push_arg_untyped) {
+					// convert very original untyped to scalar
+					m->type = Node_var;
+					m->var_value = dupnode(Nnull_string);
+
+					// set up local param by value
+					DEREF(m);
+					m = dupnode(Nnull_string);
+				}
+
 				PUSH(m);
 				break;
 
@@ -223,7 +260,7 @@ uninitialized_scalar:
 				break;
 
 			default:
-				cant_happen();
+				cant_happen("unexpected parameter type %s", nodetype2str(m->type));
 			}
 		}
 			break;
@@ -238,8 +275,7 @@ uninitialized_scalar:
 				PUSH(m);
 		 		break;
 			}
- 			/* else
-				fall through */
+ 			/* fall through */
 		case Op_push_array:
 			PUSH(pc->memory);
 			break;
@@ -253,19 +289,30 @@ uninitialized_scalar:
 			t2 = mk_sub(pc->sub_count);
 			t1 = POP_ARRAY(false);
 
-			if (do_lint && in_array(t1, t2) == NULL) {
+			if (in_array(t1, t2) == NULL) {
 				t2 = force_string(t2);
-				lintwarn(_("reference to uninitialized element `%s[\"%.*s\"]'"),
-					array_vname(t1), (int) t2->stlen, t2->stptr);
-				if (t2->stlen == 0)
-					lintwarn(_("subscript of array `%s' is null string"), array_vname(t1));
+
+				if (t1 == func_table) {
+					fatal(_("reference to uninitialized element `%s[\"%.*s\"] is not allowed'"),
+						"FUNCTAB", (int) t2->stlen, t2->stptr);
+				} else if (t1 == symbol_table) {
+					fatal(_("reference to uninitialized element `%s[\"%.*s\"] is not allowed'"),
+						"SYMTAB", (int) t2->stlen, t2->stptr);
+				} else if (do_lint) {
+					lintwarn(_("reference to uninitialized element `%s[\"%.*s\"]'"),
+						array_vname(t1), (int) t2->stlen, t2->stptr);
+					if (t2->stlen == 0)
+						lintwarn(_("subscript of array `%s' is null string"), array_vname(t1));
+				}
 			}
+
+			// continue the regular processing
 
 			/* for FUNCTAB, get the name as the element value */
 			if (t1 == func_table) {
 				static bool warned = false;
 
-				if (do_lint && ! warned) {
+				if (do_lint_extensions && ! warned) {
 					warned = true;
 					lintwarn(_("FUNCTAB is a gawk extension"));
 				}
@@ -283,15 +330,22 @@ uninitialized_scalar:
 			if (t1 == symbol_table) {
 				static bool warned = false;
 
-				if (do_lint && ! warned) {
+				if (do_lint_extensions && ! warned) {
 					warned = true;
 					lintwarn(_("SYMTAB is a gawk extension"));
 				}
 				if (r->type == Node_var)
 					r = r->var_value;
+				else if (r->type == Node_var_new) {
+					// variable may exist but have never been set.
+					r->var_value = dupnode(Nnull_string);
+					r = r->var_value;
+				}
 			}
 
-			if (r->type == Node_val)
+			if (r->type == Node_val
+			    || r->type == Node_var
+			    || r->type == Node_elem_new)
 				UPREF(r);
 			PUSH(r);
 			break;
@@ -300,12 +354,35 @@ uninitialized_scalar:
 			t2 = mk_sub(pc->sub_count);
 			t1 = POP_ARRAY(false);
 			r = in_array(t1, t2);
+
+			if (r == NULL) {
+				t2 = force_string(t2);
+
+				if (t1 == func_table) {
+					fatal(_("reference to uninitialized element `%s[\"%.*s\"] is not allowed'"),
+						"FUNCTAB", (int) t2->stlen, t2->stptr);
+				} else if (t1 == symbol_table) {
+					fatal(_("reference to uninitialized element `%s[\"%.*s\"] is not allowed'"),
+						"SYMTAB", (int) t2->stlen, t2->stptr);
+				} else if (do_lint) {
+					lintwarn(_("reference to uninitialized element `%s[\"%.*s\"]'"),
+						array_vname(t1), (int) t2->stlen, t2->stptr);
+					if (t2->stlen == 0)
+						lintwarn(_("subscript of array `%s' is null string"), array_vname(t1));
+				}
+			}
+
 			if (r == NULL) {
 				r = make_array();
 				r->parent_array = t1;
 				t2 = force_string(t2);
 				r->vname = estrdup(t2->stptr, t2->stlen);	/* the subscript in parent array */
 				assoc_set(t1, t2, r);
+			} else if (r->type == Node_elem_new) {
+				r = force_array(r, false);
+				r->parent_array = t1;
+				t2 = force_string(t2);
+				r->vname = estrdup(t2->stptr, t2->stlen);	/* the subscript in parent array */
 			} else if (r->type != Node_var_array) {
 				t2 = force_string(t2);
 				fatal(_("attempt to use scalar `%s[\"%.*s\"]' as an array"),
@@ -342,7 +419,7 @@ uninitialized_scalar:
 			 * be stored in SYMTAB:
 			 * 	1. Variables that don"t yet have a value (Node_var_new)
 			 * 	2. Variables that have a value (Node_var)
-			 * 	3. Values that awk code stuck into SYMTAB not related to variables (Node_value)
+			 * 	3. Values that awk code stuck into SYMTAB not related to variables (Node_val)
 			 * For 1, since we are giving it a value, we have to change the type to Node_var.
 			 * For 1 and 2, we have to step through the Node_var to get to the value.
 			 * For 3, we fatal out. This avoids confusion on things like
@@ -397,14 +474,20 @@ uninitialized_scalar:
 					lintwarn(_("assignment used in conditional context"));
 					break;
 
-				case LINT_no_effect:
-					lintwarn(_("statement has no effect"));
-					break;
-
 				default:
-					cant_happen();
+					cant_happen("unexpected lint type value %d", (int) pc->lint_type);
 				}
 			}
+			break;
+
+		case Op_lint_plus:
+			// no need to check do_lint, this opcode won't
+			// be generated if that's not true
+			t1 = fixtype(TOP());
+			t2 = fixtype(PEEK(1));
+			if ((t1->flags & (STRING|USER_INPUT)) == STRING
+			    && (t2->flags & (STRING|USER_INPUT)) == STRING)
+				lintwarn(_("operator `+' used on two string values"));
 			break;
 
 		case Op_K_break:
@@ -460,37 +543,37 @@ uninitialized_scalar:
 			break;
 
 		case Op_equal:
-			r = node_Boolean[cmp_scalars(SCALAR_EQ_NEQ) == 0];
+			r = node_Boolean[cmp_scalars(SCALAR_EQ)];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_notequal:
-			r = node_Boolean[cmp_scalars(SCALAR_EQ_NEQ) != 0];
+			r = node_Boolean[cmp_scalars(SCALAR_NEQ)];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_less:
-			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) < 0];
+			r = node_Boolean[cmp_scalars(SCALAR_LT)];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_greater:
-			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) > 0];
+			r = node_Boolean[cmp_scalars(SCALAR_GT)];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_leq:
-			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) <= 0];
+			r = node_Boolean[cmp_scalars(SCALAR_LE)];
 			UPREF(r);
 			REPLACE(r);
 			break;
 
 		case Op_geq:
-			r = node_Boolean[cmp_scalars(SCALAR_RELATIONAL) >= 0];
+			r = node_Boolean[cmp_scalars(SCALAR_GE)];
 			UPREF(r);
 			REPLACE(r);
 			break;
@@ -505,6 +588,7 @@ uninitialized_scalar:
 plus:
 			t1 = TOP_NUMBER();
 			r = make_number(t1->numbr + x2);
+			r->numbr = fix_nan_sign(t1->numbr, x2, r->numbr);
 			DEREF(t1);
 			REPLACE(r);
 			break;
@@ -519,6 +603,7 @@ plus:
 minus:
 			t1 = TOP_NUMBER();
 			r = make_number(t1->numbr - x2);
+			r->numbr = fix_nan_sign(t1->numbr, x2, r->numbr);
 			DEREF(t1);
 			REPLACE(r);
 			break;
@@ -661,7 +746,7 @@ mod:
 			 * SYMTAB is a little more messy.  Three possibilities for SYMTAB:
 			 * 	1. Variables that don"t yet have a value (Node_var_new)
 			 * 	2. Variables that have a value (Node_var)
-			 * 	3. Values that awk code stuck into SYMTAB not related to variables (Node_value)
+			 * 	3. Values that awk code stuck into SYMTAB not related to variables (Node_val)
 			 * For 1, since we are giving it a value, we have to change the type to Node_var.
 			 * For 1 and 2, we have to step through the Node_var to get to the value.
 			 * For 3, we fatal out. This avoids confusion on things like
@@ -709,6 +794,7 @@ mod:
 			break;
 
 		case Op_store_field:
+		case Op_store_field_exp:
 		{
 			/* field assignment optimization,
 			 * see awkgram.y (optimize_assignment)
@@ -729,6 +815,12 @@ mod:
 			unref(*lhs);
 			r = POP_SCALAR();
 			UNFIELD(*lhs, r);
+			/* field variables need the string representation: */
+			force_string(*lhs);
+			if (op == Op_store_field_exp) {
+				UPREF(*lhs);
+				PUSH(*lhs);
+			}
 		}
 			break;
 
@@ -740,7 +832,10 @@ mod:
 
 			if (t1 != *lhs) {
 				unref(*lhs);
-				*lhs = dupnode(t1);
+				if (t1->valref == 1)
+					*lhs = t1;
+				else
+					*lhs = dupnode(t1);
 			}
 
 			if (t1 != t2 && t1->valref == 1 && (t1->flags & (MALLOC|MPFN|MPZN)) == MALLOC) {
@@ -787,6 +882,10 @@ mod:
 			lhs = POP_ADDRESS();
 			r = TOP_SCALAR();
 			unref(*lhs);
+			if (r->type == Node_elem_new) {
+				DEREF(r);
+				r = dupnode(Nnull_string);
+			}
 			UPREF(r);
 			UNFIELD(*lhs, r);
 			REPLACE(r);
@@ -1012,14 +1111,23 @@ arrayfor:
 						(unsigned long) max_expect);
 
 			PUSH_CODE(pc);
-			r = awk_value_to_node(pc->extfunc(arg_count, & result, f));
+			awk_value_t *ef_ret = pc->extfunc(arg_count, & result, f);
+			r = awk_value_to_node(ef_ret);
 			(void) POP_CODE();
 			while (arg_count-- > 0) {
 				t1 = POP();
-				if (t1->type == Node_val)
+				if (t1->type == Node_val || t1->type == Node_elem_new)
 					DEREF(t1);
 			}
 			free_api_string_copies();
+
+			if (in_indirect_call) {
+				// pop function name off the stack
+				NODE *fname = POP();
+				DEREF(fname);
+				in_indirect_call = false;
+			}
+
 			PUSH(r);
 		}
 			break;
@@ -1064,6 +1172,10 @@ match_re:
 			if (op != Op_match_rec) {
 				decr_sp();
 				DEREF(t1);
+				if (m->type == Node_dynregex) {
+				 	DEREF(m->re_exp);
+					m->re_exp = NULL;
+				}
 			}
 			r = node_Boolean[di];
 			UPREF(r);
@@ -1089,6 +1201,7 @@ match_re:
 			NODE *f = NULL;
 			int arg_count;
 			char save;
+			NODE *function_name;
 
 			arg_count = (pc + 1)->expr_count;
 			t1 = PEEK(arg_count);	/* indirect var */
@@ -1131,6 +1244,12 @@ match_re:
 					r = the_func(arg_count);
 				str_restore(t1, save);
 
+				// Normally, setup_frame() handles getting rid of the
+				// function name.  Since we have called the builtin directly,
+				// we have to manually do this here.
+				function_name = POP();
+				DEREF(function_name);
+
 				PUSH(r);
 				break;
 			} else if (f->type != Node_func) {
@@ -1152,6 +1271,7 @@ match_re:
 					npc[1] = pc[1];
 					npc[1].func_name = fname;	/* name of the builtin */
 					npc[1].c_function = bc->c_function;
+					in_indirect_call = true;
 					ni = npc;
 					JUMPTO(ni);
 				} else
@@ -1200,7 +1320,7 @@ match_re:
 		}
 
 		case Op_K_return_from_eval:
-			cant_happen();
+			cant_happen("unexpected opcode %s", opcode2str(op));
 			break;
 
 		case Op_K_return:
@@ -1214,7 +1334,7 @@ match_re:
 			JUMPTO(ni);
 
 		case Op_K_getline_redir:
-			r = do_getline_redir(pc->into_var, pc->redir_type);
+			r = do_getline_redir(pc->into_var, (enum redirval) pc->redir_type);
 			PUSH(r);
 			break;
 

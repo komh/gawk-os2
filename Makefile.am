@@ -1,7 +1,7 @@
 #
 # Makefile.am --- automake input file for gawk
 #
-# Copyright (C) 2000-2019 the Free Software Foundation, Inc.
+# Copyright (C) 2000-2023 the Free Software Foundation, Inc.
 #
 # This file is part of GAWK, the GNU implementation of the
 # AWK Programming Language.
@@ -27,13 +27,14 @@
 # correctly after changing configure.ac
 ACLOCAL_AMFLAGS = -I m4
 
-# This insures that make flags get passed down to child makes.
-AM_MAKEFLAGS = 'CFLAGS=$(CFLAGS)' 'LDFLAGS=$(LDFLAGS)'
+AM_CFLAGS = @CFLAGS@
+AM_LDFLAGS = @LDFLAGS@
 
 # Stuff to include in the dist that doesn't need it's own
 # Makefile.am files
 EXTRA_DIST = \
 	ChangeLog.0 \
+	ChangeLog.1 \
 	COPYING \
 	INSTALL \
 	NEWS \
@@ -41,18 +42,12 @@ EXTRA_DIST = \
 	NEWS.1 \
 	POSIX.STD \
 	README_d \
-	config.guess \
-	config.rpath  \
-	config.sub \
-	depcomp \
 	m4 \
-	missing \
 	missing_d \
 	po/README \
 	pc \
 	posix \
-	vms \
-	ylwrap
+	vms
 
 # The order to do things in.
 #
@@ -75,9 +70,11 @@ SUBDIRS += extras doc awklib po test
 
 # what to make and install
 bin_PROGRAMS = gawk
+bin_SCRIPTS = gawkbug
 include_HEADERS = gawkapi.h
+BUILT_SOURCES = $(srcdir)/pc/Makefile.tst
 
-# sources for both gawk and dgawk
+# sources for gawk
 base_sources = \
 	array.c \
 	awk.h \
@@ -100,7 +97,6 @@ base_sources = \
 	int_array.c \
 	interpret.h \
 	io.c \
-	mbsupport.h \
 	main.c \
 	mpfr.c \
 	msg.c \
@@ -118,7 +114,8 @@ gawk_SOURCES = $(base_sources)
 
 # Get extra libs as needed, Automake will supply LIBINTL and SOCKET_LIBS.
 LDADD = support/libsupport.a \
-	$(LIBSIGSEGV) $(LIBINTL) $(SOCKET_LIBS) $(LIBREADLINE) $(LIBMPFR)
+	$(LIBSIGSEGV) $(LIBINTL) $(SOCKET_LIBS) $(LIBREADLINE) $(LIBMPFR) \
+	$(LDFLAGS)
 
 # Directory for gawk's data files. Automake supplies datadir.
 pkgdatadir = $(datadir)/awk
@@ -133,13 +130,19 @@ DEFLIBPATH="\"$(pkgextensiondir)\""
 DEFS= -DDEFPATH=$(DEFPATH) -DDEFLIBPATH=$(DEFLIBPATH) -DSHLIBEXT=$(SHLIBEXT) -DHAVE_CONFIG_H -DGAWK -DLOCALEDIR='"$(datadir)/locale"' -I"$(srcdir)/support"
 
 # Get rid of core files when cleaning
-CLEANFILES = core core.*
+CLEANFILES = core core.* $(bin_SCRIPTS)
 
 # We want hard links for install-exec-hook, below
 LN= ln
 
+# Make copies...
+CP= cp
+
 # For some make's, e.g. OpenBSD, that don't define this
 RM = rm -f
+
+# For debugging
+DEBUG = -gdwarf-4 -g3
 
 # First, add a link from gawk to gawk-X.Y.Z.
 #
@@ -151,7 +154,9 @@ RM = rm -f
 install-exec-hook:
 	(cd $(DESTDIR)$(bindir); \
 	name=`echo gawk | sed '$(transform)'` ; \
-	$(LN) $${name}$(EXEEXT) gawk-$(VERSION)$(EXEEXT) 2>/dev/null ; \
+	if [ ! -f gawk-$(VERSION)$(EXEEXT) ]; \
+	then	$(LN) $${name}$(EXEEXT) gawk-$(VERSION)$(EXEEXT) 2>/dev/null ; \
+	fi; \
 	if [ ! -f awk$(EXEEXT) ]; \
 	then	$(LN_S) $${name}$(EXEEXT) awk$(EXEEXT); \
 	fi; exit 0)
@@ -169,8 +174,7 @@ uninstall-recursive: uninstall-links
 check-local: gawk$(EXEEXT)
 
 # A little extra clean up when making distributions.
-# And additional set up for the pc directory.
-dist-hook: pc/Makefile.tst
+dist-hook:
 	cd "$(distdir)"/extension ; rm -f *.o *.so
 	cd "$(srcdir)"/pc ; \
 	chmod u+w config.h ; \
@@ -184,24 +188,24 @@ dist-hook: pc/Makefile.tst
 
 # Special rules for individual files
 
-awkgram.c: awkgram.y
+$(srcdir)/awkgram.c: awkgram.y
 	$(YACC) -o $@ $(AM_YFLAGS) $(YFLAGS) $<
 	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
-command.c: command.y
+$(srcdir)/command.c: command.y
 	$(YACC) -o $@ -p zz $<
 	sed 's/parse error/syntax error/g' < $@ > $@.tmp && mv $@.tmp $@
 
-pc/Makefile.tst: test/Makefile.in
-	test -d pc || mkdir pc
-	cat "$(top_srcdir)"/pc/Makefile.tst.prologue > pc/Makefile.tst
-	awk -f "$(top_srcdir)"/pc/GenMakefileTst.awk "$(top_srcdir)"/test/Makefile.in >> pc/Makefile.tst
+$(srcdir)/pc/Makefile.tst: test/Makefile.in pc/Makefile.tst.prologue pc/GenMakefileTst.awk
+	$(AM_V_GEN)$(MKDIR_P) "$(srcdir)"/pc && \
+	cat "$(srcdir)"/pc/Makefile.tst.prologue > "$(srcdir)"/pc/Makefile.tst && \
+	$(AWK) -f "$(srcdir)"/pc/GenMakefileTst.awk "$(srcdir)"/test/Makefile.in >> "$(srcdir)"/pc/Makefile.tst
 
 # This is for my development & testing.
 efence: gawk
-	$(CC) $(LDFLAGS) -o gawk $$(ls *.o | grep -v '_p.o$$') $(LDADD) $(LIBS) -lefence
+	$(CC) $(AM_LDFLAGS) -o gawk $$(ls *.o | grep -v '_p.o$$') $(LDADD) $(LIBS) -lefence
 
-diffout valgrind-scan:
+diffout valgrind-scan zos-diffout:
 	@cd test && $(MAKE) $(AM_MAKEFLAGS) $@
 
 valgrind:

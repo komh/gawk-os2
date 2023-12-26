@@ -2,7 +2,7 @@
 .\"
 .\" Copyright (C) 1996, 1997, 1998, 1999, 2000, 2001, 2002, 2003, 2004,
 .\" 2005, 2007, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018,
-.\" 2019
+.\" 2019, 2020, 2021, 2022, 2023
 .\" Free Software Foundation, Inc.
 .\" 
 .\" Permission is granted to make and distribute verbatim copies of
@@ -100,7 +100,7 @@ Variables	5\*(CX
 \*(CD
 .SL
 .nf
-\*(FRCopyright \(co 1996\(en2005, 2007, 2009\(en2019
+\*(FRCopyright \(co 1996\(en2005, 2007, 2009\(en2023
 Free Software Foundation, Inc.
 .nf
 .BT
@@ -204,8 +204,8 @@ T}
 .\" --- Bug Reports
 .ES
 .fi
-\*(CDIf you find a bug in this reference card, please report it via electronic
-mail to \*(FCbug-gawk@gnu.org\*(FR.\*(CX
+\*(CDIf you find a bug in this reference card, please use
+\*(FCgawkbug\*(FR to report it.\*(CX
 .EB "\s+2\f(HBBUG REPORTS\*(FR\s0"
 
 .BT
@@ -273,18 +273,20 @@ options on \*(FCstdout\*(FR, then exit zero.
 .TI "\*(FC\-i \*(FIfile\*(FR, \*(FC\-\^\-include \*(FIfile\*(FR
 Include library AWK code in \*(FIfile\*(FR.
 See \fHAwk Program Execution\*(FR.
+.TI "\*(FC\-I\*(FR, \*(FC\-\^\-trace\*(FR
+Print the internal byte code names as they are executed.
+.TI "\*(FC\-k\*(FR, \*(FC\-\^\-csv\*(FR
+Enable CSV special processing. See the manual for details.
 .TI "\*(FC\-l \*(FIlib\*(FR, \*(FC\-\^\-load \*(FIlib\*(FR
 Load dynamic extension \*(FIlib\fP.
 See \fHDynamic Extensions\*(FR.
 .TI "\*(FC\-L \*(FR[\*(FC\*(FIvalue\*(FR], \*(FC\-\^\-lint\*(FR[\*(FC=\*(FIvalue\*(FR]
-Warn about dubious or non-portable constructs.
-If \*(FIvalue\*(FR is
+Warn about dubious or non-portable constructs. Possible optional
+\*(FIvalue\*(FRs are
 \*(FCfatal\*(FR,
-lint warnings become fatal errors.
-If \*(FIvalue\*(FR is
-\*(FCinvalid\*(FR,
-only issue warnings about things that are
-actually invalid (not fully implemented yet).
+\*(FCinvalid\*(FR, and
+\*(FCno-ext\*(FR.
+See \*(AM for the details.
 .TI "\*(FC\-M\*(FR, \*(FC\-\^\-bignum\*(FR
 Enable arbitrary-precision arithmetic.
 .TI "\*(FC\-n\*(FR, \*(FC\-\^\-non\-decimal\-data\*(FR
@@ -300,13 +302,9 @@ Enable internal optimizations (default is on).
 .TI "\*(FC\-p\*(FR[\*(FC\*(FIfile\*(FR], \*(FC\-\^\-profile\*(FR[\*(FC=\*(FIfile\*(FR]
 Send profiling data to \*(FIfile\*(FR
 (default: \*(FCawkprof.out\*(FR).
-The profile contains execution counts in the left margin
-of each statement in the program.
+The profile contains execution counts in the left margin.
 .TI "\*(FC\-P\*(FR, \*(FC\-\^\-posix\*(FR
-Disable common and GNU extensions.
-.TI "\*(FC\-r\*(FR, \*(FC\-\^\-re\-interval\*(FR
-Enable \*(FIinterval expressions\*(FR.
-(Needed with \*(FC\-c\*(FR.)\*(CB
+Disable common and GNU extensions.\*(CB
 .in -4n
 .EB "\s+2\f(HBCOMMAND LINE ARGUMENTS (\*(GK\f(HB)\*(FR\s0"
 
@@ -318,6 +316,8 @@ Enable \*(FIinterval expressions\*(FR.
 .ES
 .fi
 .in +4n
+.TI "\*(FC\-r\*(FR, \*(FC\-\^\-re\-interval\*(FR
+Does nothing; for backwards compatibility only.
 .TI "\*(FC\-s\*(FR, \*(FC\-\^\-no\-optimize\*(FR
 Disable internal optimizations.
 .TI "\*(FC\-S\*(FR, \*(FC\-\^\-sandbox\*(FR
@@ -407,9 +407,9 @@ Either the pattern  or the action may be missing, but
 not both. If the pattern is missing, the action is
 executed for every input record.
 A missing action is equivalent to
-.sp .5
-	\*(FC{ print }\fP
-.sp .5
+.\" .sp .5
+\*(FC{ print }\fP
+.\" .sp .5
 which prints the entire record.
 .sp .5
 Comments begin with the \*(FC#\*(FR character, and continue until the
@@ -974,7 +974,8 @@ lp8 lp8 lp8 lp8.
 \*(FC\ef\fP~form feed~\*(FC\ev\fP~vertical tab
 \*(FC\en\fP~newline~\*(FC\e\e\fP~backslash
 \*(FC\e\*(FIddd\*(FR~octal value \*(FIddd\fP~\*(CL\*(FC\ex\*(FIhh\*(FR~hex value \*(FIhh\fP\*(CD
-\*(FC\e"\fP~double quote~\*(FC\e/\fP~forward slash\*(CX
+\*(FC\e"\fP~double quote~\*(FC\e/\fP~forward slash
+\*(CL\*(FC\eu\*(FIhh...\fR~unicode character\*(CX
 .TE
 .EB "\s+2\f(HBESCAPE SEQUENCES\*(FR\s0"
 .sp
@@ -995,7 +996,6 @@ Assigning values to the built-in variable \*(FCRS\*(FR
 controls how records are separated.
 If \*(FCRS\fP is any single character, that character separates records.
 \*(CLOtherwise, \*(FCRS\fP is a regular expression.
-\*(CR(Not \*(NK.)\*(CL
 Text in the input that matches this
 regular expression separates the record.
 \*(CB\*(GK sets \*(FCRT\*(FR to the value of the
@@ -1080,11 +1080,11 @@ Decreasing the value of \*(FCNF\fP causes the trailing fields to be lost.\*(CX
 .fi
 \*(CDIt is possible to call the \*(FClength()\fP
 built-in function not only with no argument, but even without parentheses.
-Doing so, however, is poor practice,
-and \*(GK
+Doing so, however, is poor practice.
+\*(CB\*(GK
 issues a warning about its use if \*(FC\-\^\-lint\fP
-is specified on the command line.\*(CB
-.EB "\s+2\f(HBHISTORICAL FEATURES (\*(GK\f(HB)\*(FR\s0"
+is specified on the command line.\*(CL
+.EB "\s+2\f(HBHISTORICAL FEATURES\*(FR\s0"
 .BT
 
 .\" --- Regular Expressions
@@ -1127,7 +1127,7 @@ _
 \*(FIr\*(FC*\*(FR~zero or more occurrences of \*(FIr\*(FR
 \*(FIr\*(FC+\*(FR~one or more occurrences of \*(FIr\*(FR
 \*(FIr\*(FC?\*(FR~zero or one occurrences of \*(FIr\*(FR
-\*(FIr\*(FC{\*(FIn\*(FC,\*(FIm\*(FC}\*(FR~\*(FIn\fP to \*(FIm\fP occurrences of \*(FIr\*(FR \*(CR(POSIX: see note below)\*(CD
+\*(FIr\*(FC{\*(FIn\*(FC,\*(FIm\*(FC}\*(FR~\*(FIn\fP to \*(FIm\fP occurrences of \*(FIr\*(FR (POSIX: see note below)
 \*(FIr1\*(FC|\|\*(FIr2\*(FR~\*(FIr1\*(FR or \*(FIr2\*(FR
 .TE
 .sp .5
@@ -1135,7 +1135,7 @@ _
 The \*(FIr\*(FC{\*(FIn\*(FC,\*(FIm\*(FC}\*(FR notation is called an
 \*(FIinterval expression\fP.
 \*(CRNot supported by
-\*(MK or \*(NK.\*(CX
+\*(MK.\*(CX
 .sp .5
 \*(CDIn regular expressions, within character ranges
 (\*(FC[\*(FR...\*(FC]\*(FR),
@@ -1157,18 +1157,11 @@ lp8 lp8 lp8 lp8.
 .\" --- Environment Variables
 .ES
 .fi
-\*(CDThe environment variable \*(FCAWKPATH\fP specifies a search path to use
+\*(CD\*(FCAWKPATH\fP specifies a search path to use
 when finding source files named with the \*(FC\-f\fP and \*(FC\-i\fP
 options.
-The default path is
-\*(FC".:/usr/local/share/awk"\*(FR.
-.\" if this variable does not exist.
-.\" (The actual directory may vary,
-.\" depending upon how \*(GK was built and installed.)
-If a source file name contains a ``/'' character,
-no path search is performed.
 .sp .5
-The variable \*(FCAWKLIBPATH\fP
+\*(FCAWKLIBPATH\fP
 specifies the search path for dynamic extensions to use
 with \*(FC@load\fP and the \*(FC\-l\fP option.
 .sp .5
@@ -1177,16 +1170,16 @@ For socket communication,
 controls the number of connection retries, and
 \*(FCGAWK_MSEC_SLEEP\fP controls
 the interval between retries.
-The interval is in milliseconds. On systems that do not support
-\*(FIusleep\fP(3),
-the value is rounded up to an integral number of seconds.
+The interval is in milliseconds.
 .sp .5
-The value of \*(FCGAWK_READ_TIMEOUT\fP specifies the time, in milliseconds,
+\*(FCGAWK_PERSIST_FILE\fP specifies a backing store file to use
+for persistent storage. See the manual for details.
+.sp .5
+\*(FCGAWK_READ_TIMEOUT\fP specifies the time, in milliseconds,
 for \*(GK to
 wait for input before returning with an error.
 .sp .5
 If \*(FCPOSIXLY_CORRECT\fP exists
-.\" in the environment,
 then \*(GK
 behaves exactly as if the \*(FC\-\^\-posix\fP option had been given.\*(CB
 .EB "\s+2\f(HBENVIRONMENT VARIABLES (\*(GK\f(HB)\*(FR\s0"
@@ -1333,7 +1326,6 @@ T}
 \*(FCgetline \*(FIv \*(FC< \*(FIfile\*(FR	Set \*(FIv\fP from next record of \*(FIfile\*(FR.
 \*(FIcmd \*(FC| getline\*(FR	Pipe into \*(FCgetline\*(FR; set \*(FC$0\*(FR, \*(FCNF\*(FR.
 \*(FIcmd \*(FC| getline \*(FIv\*(FR	Pipe into \*(FCgetline\*(FR; set \*(FIv\*(FR.
-.\" \*(CB\*(FIcmd \*(FC|& getline\*(FR	Coprocess pipe into \*(FCgetline\*(FR; set \*(FC$0\*(FR, \*(FCNF\*(FR.
 .TE
 .fi
 .in +.2i
@@ -1468,7 +1460,7 @@ accept the following conversion specification formats:
 .sp .5
 .nf
 \*(CB\*(FC%a\fP, \*(FC%A\fP	A C99 floating point hexadecimal number.\*(CD
-\*(FC%c\fP		An \s-1ASCII\s+1 character.
+\*(FC%c\fP		A single character.
 \*(FC%d\fP, \*(FC%i\fP	A decimal number (the integer part).
 \*(FC%e\fP		A floating point number of the form
 		\*(FC[\-]d.dddddde[+\^\-]dd\*(FR.
@@ -1917,15 +1909,25 @@ Return the bitwise XOR of the arguments.\*(CB
 .br
 Dynamically load the named \*(FIextension\*(FR.
 This adds new built-in functions to \*(GK.
-.\" The extension should use the API defined by the
-.\" \*(FCgawkapi.h\*(FR header file, as documented in
-.\" the full manual.
 The extension is loaded during the parsing of the program.
 See the manual for details.\*(CB
 .in -.2i
 .EB "\s+2\f(HBDYNAMIC EXTENSIONS (\*(GK\f(HB)\*(FR\s0"
 .BT
 
+.\" --- Generator Functions
+.ES
+.fi
+.in +.2i
+.ti -.2i
+\*(CD\*(FCmkbool(\*(FIexpression\*(FC)\*(FR
+.br
+Return a Boolean-typed value based on the Boolean value
+of \*(FIexpression\fP. True values have a numeric value of one.
+False values have a numeric value of zero.\*(CB
+.in -.2i
+.EB "\s+2\f(HBGENERATOR FUNCTIONS (\*(GK\f(HB)\*(FR\s0"
+.sp .5
 .\" --- Type Functions
 .ES
 .fi
@@ -1969,11 +1971,6 @@ Return the translation of \*(FIstring\*(FR in text domain
 \*(FIdomain\*(FR for locale category \*(FIcategory\*(FR.
 The default value for \*(FIdomain\*(FR is the current value of \*(FCTEXTDOMAIN\*(FR.
 The default value for \*(FIcategory\*(FR is \*(FC"LC_MESSAGES"\*(FR.
-.sp .5
-If you supply a value for \*(FIcategory\*(FR, it must be a string equal to
-one of the known locale categories.
-You must also supply a text domain.  Use \*(FCTEXTDOMAIN\*(FR
-to use the current domain.
 .ti -.2i
 \*(FCdcngettext(\*(FIstring1\*(FC, \*(FIstring2\*(FC, \*(FInumber\*(FR [\*(FC, \*(FIdom \*(FR[\*(FC, \*(FIcat\*(FR]]\*(FC)\*(FR
 .br
@@ -1981,30 +1978,22 @@ Return the plural form used for \*(FInumber\*(FR of the translation of
 \*(FIstring1\*(FR and \*(FIstring2\*(FR in text domain
 \*(FIdom\*(FR for locale category \*(FIcat\*(FR.
 The default value for \*(FIdom\*(FR is the current value of \*(FCTEXTDOMAIN\*(FR.
-The default for \*(FIcat\*(FR is \*(FC"LC_MESSAGES"\*(FR.
-.sp .5
-If you supply a value for \*(FIcat\*(FR, it must be a string equal to
-one of the known locale categories.
-You must also supply a text domain.  Use \*(FCTEXTDOMAIN\*(FR
-to use the current domain.\*(CB
+The default for \*(FIcat\*(FR is \*(FC"LC_MESSAGES"\*(FR.\*(CB
 .in -.2i
 .EB "\s+2\f(HBINTERNATIONALIZATION (\*(GK\f(HB)\*(FR\s0"
 .sp .5
-.\" --- FTP/HTTP/GIT Information
+.\" --- FTP/HTTPS/GIT Information
 .ES
 .nf
 \*(CDHost: \*(FCftp.gnu.org\*(FR
-File: \*(FC/gnu/gawk/gawk-5.0.0.tar.gz\fP
+File: \*(FC/gnu/gawk/gawk-5.3.0.tar.gz\fP
 .in +.2i
 .fi
 GNU \*(AK (\*(GK). There may be a later version.
 .in -.2i
 .nf
 .sp .4
-.\" http://www.cs.princeton.edu/~bwk/btl.mirror/
-.\" awk.tar.gz
-.\" .br
-\*(FCgit clone git://github.com/onetrueawk/awk\fP
+\*(FCgit clone https://github.com/onetrueawk/awk\fP
 .in +.2i
 .fi
 \*(NK. This version requires an ANSI C compiler;
@@ -2019,13 +2008,13 @@ File: \*(FC/mawk/mawk.tar.gz\fP
 Michael Brennan's \*(MK. Thomas Dickey now
 maintains it.\*(CX
 .in -.2i
-.EB "\s+2\f(HBFTP/HTTP/GIT INFORMATION\*(FR\s0"
+.EB "\s+2\f(HBFTP/HTTPS/GIT INFORMATION\*(FR\s0"
 .sp .5
 .\" --- Copying Permissions
 .ES
 .fi
 \*(CDCopyright \(co 1996\(en2005,
-2007, 2009\(en2019 Free Software Foundation, Inc.
+2007, 2009\(en2023 Free Software Foundation, Inc.
 .sp .5   
 Permission is granted to make and distribute verbatim copies of this
 reference card provided the copyright notice and this permission notice

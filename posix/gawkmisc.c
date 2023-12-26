@@ -1,11 +1,11 @@
 /* gawkmisc.c --- miscellaneous gawk routines that are OS specific.
 
-   Copyright (C) 1986, 1988, 1989, 1991 - 1998, 2001 - 2004, 2011
+   Copyright (C) 1986, 1988, 1989, 1991 - 1998, 2001 - 2004, 2011, 2021, 2022, 2023,
    the Free Software Foundation, Inc.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation; either version 2, or (at your option)
+   the Free Software Foundation; either version 3, or (at your option)
    any later version.
 
    This program is distributed in the hope that it will be useful,
@@ -18,16 +18,18 @@
    Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.  */
 
 #ifdef __CYGWIN__
-#include <stdio.h>
+#ifdef __MSYS__
+#define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <sys/cygwin.h>
-#include <io.h>
+#endif
+#include <io.h>		/* for declaration of setmode(). */
 #endif
 
-char quote = '\'';
-char *defpath = DEFPATH;
-char *deflibpath = DEFLIBPATH;
-char envsep = ':';
+const char quote = '\'';
+const char *defpath = DEFPATH;
+const char *deflibpath = DEFLIBPATH;
+const char envsep = ':';
 
 #ifndef INVALID_HANDLE
 /* FIXME: is this value for INVALID_HANDLE correct? */
@@ -36,10 +38,10 @@ char envsep = ':';
 
 /* gawk_name --- pull out the "gawk" part from how the OS called us */
 
-char *
+const char *
 gawk_name(const char *filespec)
 {
-	char *p;
+	const char *p;
 
 	/* "path/name" -> "name" */
 	p = strrchr(filespec, '/');
@@ -290,6 +292,11 @@ init_sockets(void)
 {
 }
 
+void
+os_maybe_set_errno(void)
+{
+}
+
 // For MSYS, restore behavior of working in text mode.
 #ifdef __MSYS__
 void
@@ -307,5 +314,24 @@ void
 cygwin_premain2(int argc, char **argv, struct per_process *myself)
 {
 	setmode(fileno (stdin), O_TEXT);
+}
+#endif
+
+#ifdef __CYGWIN__
+size_t
+wcitomb (char *s, int wc, mbstate_t *ps)
+{
+	/* If s is NULL, behave as if s pointed to an internal buffer and wc
+	   was a null wide character (L'').  wcrtomb will do that for us*/
+	if (wc <= 0xffff || !s)
+		return wcrtomb (s, (wchar_t) wc, ps);
+
+	wchar_t wc_arr[2];
+	const wchar_t *wcp = wc_arr;
+
+	wc -= 0x10000;
+	wc_arr[0] = (wc >> 10) + 0xd800;
+	wc_arr[1] = (wc & 0x3ff) + 0xdc00;
+	return wcsnrtombs (s, &wcp, 2, SIZE_MAX, ps);
 }
 #endif

@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1989, 1991-2014, 2018 the Free Software Foundation, Inc.
+ * Copyright (C) 1989, 1991-2014, 2018, 2022, the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -115,6 +115,6 @@
 #include "missing_d/strcoll.c"
 #endif
 
-#if defined(__DJGPP__)
-#include "missing_d/wcmisc.c"
+#ifndef HAVE_STRSIGNAL
+#include "missing_d/strsignal.c"
 #endif

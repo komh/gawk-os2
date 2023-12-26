@@ -3,7 +3,7 @@
  */
 
 /*
- * Copyright (C) 1999-2019 the Free Software Foundation, Inc.
+ * Copyright (C) 1999-2023 the Free Software Foundation, Inc.
  *
  * This file is part of GAWK, the GNU implementation of the
  * AWK Programming Language.
@@ -119,23 +119,18 @@ set_prof_file(const char *file)
 void
 init_profiling_signals()
 {
-#ifdef __DJGPP__
-	signal(SIGINT, dump_and_exit);
-	signal(SIGQUIT, just_dump);
-#else  /* !__DJGPP__ */
 #ifdef SIGHUP
 	signal(SIGHUP, dump_and_exit);
 #endif
 #ifdef SIGUSR1
 	signal(SIGUSR1, just_dump);
 #endif
-#endif /* !__DJGPP__ */
 }
 
 /* indent --- print out enough tabs */
 
 static void
-indent(long count)
+indent(exec_count_t count)
 {
 	int i;
 
@@ -143,7 +138,7 @@ indent(long count)
 		if (count == 0)
 			fprintf(prof_fp, "\t");
 		else
-			fprintf(prof_fp, "%6ld  ", count);
+			fprintf(prof_fp, EXEC_COUNT_PROFILE_FMT "  ", count);
 	}
 
 	assert(indent_level >= 0);
@@ -179,7 +174,7 @@ pp_push(int type, char *s, int flag, INSTRUCTION *comment)
 	n->pp_str = s;
 	n->pp_len = strlen(s);
 	n->flags = flag;
-	n->type = type;
+	n->type = (NODETYPE) type;
 	n->pp_next = pp_stack;
 	n->pp_comment = comment;
 	pp_stack = n;
@@ -195,6 +190,10 @@ pp_pop()
 	pp_stack = n->pp_next;
 	return n;
 }
+
+/* pp_top --- look at what's on the top of the stack */
+
+#define pp_top()	pp_stack
 
 /* pp_free --- release a pretty printed node */
 
@@ -293,7 +292,7 @@ pprint(INSTRUCTION *startp, INSTRUCTION *endp, int flags)
 					ip2 = (pc + 1)->lasti;
 
 					if (do_profile && ip1->exec_count > 0)
-						fprintf(prof_fp, " # %ld", ip1->exec_count);
+						fprintf(prof_fp, " # " EXEC_COUNT_FMT, ip1->exec_count);
 
 					end_line(ip1);
 					skip_comment = true;
@@ -369,7 +368,7 @@ pprint(INSTRUCTION *startp, INSTRUCTION *endp, int flags)
 				break;
 
 			default:
-				cant_happen();
+				cant_happen("got unexpected type %s", nodetype2str(m->type));
 			}
 
 			switch (pc->opcode) {
@@ -540,15 +539,28 @@ cleanup:
 			break;
 
 		case Op_store_field:
+		case Op_store_field_exp:
+		{
+			char *assignment, *final;
+
 			t1 = pp_pop(); /* field num */
 			if (is_binary(t1->type))
 				pp_parenthesize(t1);
 			t2 = pp_pop(); /* r.h.s. */
-			fprintf(prof_fp, "$%s%s%s", t1->pp_str, op2str(pc->opcode), t2->pp_str);
+			assignment = pp_group3(t1->pp_str, op2str(pc->opcode), t2->pp_str);
+			final = pp_group3("$", assignment, "");
+			efree(assignment);
 			pp_free(t2);
 			pp_free(t1);
-			if ((flags & IN_FOR_HEADER) == 0)
-				pc = end_line(pc);
+			if (pc->opcode == Op_store_field_exp)
+				pp_push(pc->opcode, final, CAN_FREE, NULL);
+			else {
+				fprintf(prof_fp, "%s", final);
+				efree(final);
+				if ((flags & IN_FOR_HEADER) == 0)
+					pc = end_line(pc);
+			}
+		}
 			break;
 
 		case Op_concat:
@@ -576,7 +588,7 @@ cleanup:
 
 		case Op_K_delete_loop:
 			/* Efficency hack not in effect because of exec_count instruction */
-			cant_happen();
+			cant_happen("unexpected opcode %s", opcode2str(pc->opcode));
 			break;
 
 		case Op_in_array:
@@ -612,6 +624,7 @@ cleanup:
 		case Op_newfile:
 		case Op_get_record:
 		case Op_lint:
+		case Op_lint_plus:
 		case Op_jmp:
 		case Op_jmp_false:
 		case Op_jmp_true:
@@ -642,7 +655,7 @@ cleanup:
 		{
 			const char *fname;
 			if (pc->opcode == Op_builtin) {
-				bool prepend_awk = (current_namespace != awk_namespace && strcmp(current_namespace, "awk") != 0);
+				bool prepend_awk = (current_namespace != awk_namespace && strcmp(current_namespace, awk_namespace) != 0);
 				fname = getfname(pc->builtin, prepend_awk);
 			} else
 				fname = (pc + 1)->func_name;
@@ -664,10 +677,21 @@ cleanup:
 		case Op_K_print_rec:
 			if (pc->opcode == Op_K_print_rec)
 				// instead of `print $0', just `print'
-				tmp = strdup("");
-			else if (pc->redir_type != 0)
-				tmp = pp_list(pc->expr_count, "()", ", ");
-			else {
+				tmp = estrdup("", 0);
+			else if (pc->redir_type != 0) {
+				// Avoid turning printf("hello\n") into printf(("hello\n"))
+				NODE *n = pp_top();
+
+				if (pc->expr_count == 1
+				    && n->pp_str[0] == '('
+				    && n->pp_str[n->pp_len - 1] == ')') {
+					n = pp_pop();
+
+					tmp = estrdup(n->pp_str, strlen(n->pp_str));
+					pp_free(n);
+				} else
+					tmp = pp_list(pc->expr_count, "()", ", ");
+			} else {
 				tmp = pp_list(pc->expr_count, "  ", ", ");
 				tmp[strlen(tmp) - 1] = '\0';	/* remove trailing space */
 			}
@@ -689,8 +713,7 @@ cleanup:
 		case Op_push_re:
 			if (pc->memory->type != Node_regex && (pc->memory->flags & REGEX) == 0)
 				break;
-			/* else
-				fall through */
+			/* fall through */
 		case Op_match_rec:
 		{
 			if (pc->memory->type == Node_regex) {
@@ -766,7 +789,7 @@ cleanup:
 		case Op_indirect_func_call:
 		case Op_func_call:
 		{
-			char *pre;
+			const char *pre;
  			int pcount;
 			bool malloced = false;
 			char *fname = adjust_namespace(pc->func_name, & malloced);
@@ -983,9 +1006,11 @@ cleanup:
 			fprintf(prof_fp, "%s (", op2str(pc->opcode));
 			pprint(pc->nexti, ip1->switch_start, NO_PPRINT_FLAGS);
 			t1 = pp_pop();
-			fprintf(prof_fp, "%s) {\n", t1->pp_str);
+			fprintf(prof_fp, "%s) {", t1->pp_str);
 			if (pc->comment)
 				print_comment(pc->comment, 0);
+			else
+				fprintf(prof_fp, "\n");
 			pp_free(t1);
 			pprint(ip1->switch_start, ip1->switch_end, NO_PPRINT_FLAGS);
 			indent(SPACEOVER);
@@ -1007,9 +1032,11 @@ cleanup:
 
 			indent_in();
 			if (pc->comment != NULL) {
-				if (pc->comment->memory->comment_type == EOL_COMMENT)
+				if (pc->comment->memory->comment_type == EOL_COMMENT) {
 					fprintf(prof_fp, "\t%s", pc->comment->memory->stptr);
-				else {
+					if (pc->comment->comment != NULL)
+						print_comment(pc->comment->comment, indent_level);
+				} else {
 					fprintf(prof_fp, "\n");
 					print_comment(pc->comment, indent_level);
 				}
@@ -1028,7 +1055,7 @@ cleanup:
 
 			ip1 = pc->branch_if;
 			if (ip1->exec_count > 0)
-				fprintf(prof_fp, " # %ld", ip1->exec_count);
+				fprintf(prof_fp, " # " EXEC_COUNT_FMT, ip1->exec_count);
 			ip1 = end_line(ip1);
 			indent_in();
 			if (pc->comment != NULL)
@@ -1203,7 +1230,7 @@ cleanup:
 			break;
 
 		default:
-			cant_happen();
+			cant_happen("unexpected opcode %s", opcode2str(pc->opcode));
 		}
 
 		if (pc == endp)
@@ -1772,7 +1799,7 @@ pp_list(int nargs, const char *paren, const char *delim)
 			len += r->pp_len + delimlen;
 			if (r->pp_comment != NULL) {
 				comment = (INSTRUCTION *) r->pp_comment;
-				len += comment->memory->stlen + indent_level + 1;	// comment\n ident
+				len += comment->memory->stlen + indent_level + 1;	// comment\n indent
 			}
 		}
 		if (paren != NULL) {
@@ -1786,30 +1813,31 @@ pp_list(int nargs, const char *paren, const char *delim)
 	s = str;
 	if (paren != NULL)
 		*s++ = paren[0];
-	if (nargs > 0) {
-		r = pp_args[nargs];
+
+	for (i = nargs; i > 0; i--) {
+		// argument
+		r = pp_args[i];
 		memcpy(s, r->pp_str, r->pp_len);
 		s += r->pp_len;
-		pp_free(r);
-		for (i = nargs - 1; i > 0; i--) {
-			if (delimlen > 0) {
-				memcpy(s, delim, delimlen);
-				s += delimlen;
-			}
-			if (r->pp_comment != NULL) {
-				check_indent_level();
-				comment = (INSTRUCTION *) r->pp_comment;
-				memcpy(s, comment->memory->stptr, comment->memory->stlen);
-				s += comment->memory->stlen;
-				memcpy(s, tabs, indent_level + 1);
-				s += indent_level + 1;
-			}
-			r = pp_args[i];
-			memcpy(s, r->pp_str, r->pp_len);
-			s += r->pp_len;
-			pp_free(r);
+
+		// delimiter
+		if (i > 1 && delimlen > 0) {
+			memcpy(s, delim, delimlen);
+			s += delimlen;
 		}
+
+		// comment if any
+		if (r->pp_comment != NULL) {
+			check_indent_level();
+			comment = (INSTRUCTION *) r->pp_comment;
+			memcpy(s, comment->memory->stptr, comment->memory->stlen);
+			s += comment->memory->stlen;
+			memcpy(s, tabs, indent_level + 1);
+			s += indent_level + 1;
+		}
+		pp_free(r);
 	}
+
 	if (paren != NULL)
 		*s++ = paren[1];
 	*s = '\0';
@@ -1846,7 +1874,7 @@ pp_concat(int nargs)
 
 	/*
 	 * items are on the stack in reverse order that they
-	 * will be printed to pop them off backwards.
+	 * will be printed so pop them off backwards.
 	 */
 
 	len = -delimlen;
@@ -1887,7 +1915,6 @@ pp_concat(int nargs)
 			memcpy(s, r->pp_str, r->pp_len);
 			s += r->pp_len;
 		}
-		pp_free(r);
 
 		if (i < nargs) {
 			*s++ = ' ';
@@ -1909,7 +1936,10 @@ pp_concat(int nargs)
 		memcpy(s, r->pp_str, r->pp_len);
 		s += r->pp_len;
 	}
-	pp_free(r);
+
+	for (i = nargs; i >= 1; i--) {
+		pp_free(pp_args[i]);
+	}
 
 	*s = '\0';
 	return str;
@@ -1973,7 +2003,7 @@ pp_func(INSTRUCTION *pc, void *data ATTRIBUTE_UNUSED)
 		print_comment(pc->comment, -1);	/* -1 ==> don't indent */
 
 	indent(pc->nexti->exec_count);
-	
+
 	bool malloced = false;
 	char *name = adjust_namespace(func->vname, & malloced);
 	fprintf(prof_fp, "%s %s(", op2str(Op_K_function), name);
@@ -2041,6 +2071,9 @@ pp_namespace(const char *name, INSTRUCTION *comment)
 	// info saved in Op_namespace instructions.
 	current_namespace = name;
 
+	// force newline, could be after a comment
+	fprintf(prof_fp, "\n");
+
 	if (do_profile)
 		indent(SPACEOVER);
 
@@ -2076,7 +2109,7 @@ adjust_namespace(char *name, bool *malloced)
 	// unadorned name from symbol table, add awk:: if not in awk:: n.s.
 	if (strchr(name, ':') == NULL &&
 	    current_namespace != awk_namespace &&	// can be equal if namespace never changed
-	    strcmp(current_namespace, "awk") != 0 &&
+	    strcmp(current_namespace, awk_namespace) != 0 &&
 	    ! is_all_upper(name)) {
 		char *buf;
 		size_t len = 5 + strlen(name) + 1;
@@ -2091,7 +2124,8 @@ adjust_namespace(char *name, bool *malloced)
 	// qualifed name, remove <ns>:: if in that n.s.
 	size_t len = strlen(current_namespace);
 
-	if (strncmp(current_namespace, name, len) == 0) {
+	if (strncmp(current_namespace, name, len) == 0 &&
+	    name[len] == ':' && name[len+1] == ':') {
 		char *ret = name + len + 2;
 
 		return ret;
